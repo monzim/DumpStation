@@ -1,0 +1,471 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/robfig/cron/v3"
+	"gopkg.in/yaml.v2"
+)
+
+// Config represents the main configuration
+type Config struct {
+	Databases []DatabaseConfig `yaml:"databases"`
+	S3        S3Config         `yaml:"s3"`
+	Discord   DiscordConfig    `yaml:"discord"`
+}
+
+// DatabaseConfig represents individual database configuration
+type DatabaseConfig struct {
+	Name      string `yaml:"name"`
+	URL       string `yaml:"url"`
+	Schedule  string `yaml:"schedule"`  // Cron format: "0 2 * * *" for daily at 2AM
+	Retention int    `yaml:"retention"` // Days to keep backups
+	Enabled   bool   `yaml:"enabled"`
+}
+
+// S3Config represents S3 storage configuration
+type S3Config struct {
+	Bucket          string `yaml:"bucket"`
+	Region          string `yaml:"region"`
+	AccessKeyID     string `yaml:"access_key_id"`
+	SecretAccessKey string `yaml:"secret_access_key"`
+	Prefix          string `yaml:"prefix"` // Optional prefix for backup files
+}
+
+// DiscordConfig represents Discord webhook configuration
+type DiscordConfig struct {
+	WebhookURL string `yaml:"webhook_url"`
+	Username   string `yaml:"username"`
+	Enabled    bool   `yaml:"enabled"`
+}
+
+// DiscordMessage represents the Discord webhook message payload
+type DiscordMessage struct {
+	Username string `json:"username"`
+	Content  string `json:"content"`
+}
+
+// BackupManager manages the backup operations
+type BackupManager struct {
+	config   Config
+	s3Client *s3.S3
+	cron     *cron.Cron
+}
+
+// NewBackupManager creates a new backup manager
+func NewBackupManager(configPath string) (*BackupManager, error) {
+	config, err := loadConfig(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Initialize S3 client
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(config.S3.Region),
+		Credentials: credentials.NewStaticCredentials(
+			config.S3.AccessKeyID,
+			config.S3.SecretAccessKey,
+			"",
+		),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create S3 session: %w", err)
+	}
+
+	return &BackupManager{
+		config:   config,
+		s3Client: s3.New(sess),
+		cron:     cron.New(),
+	}, nil
+}
+
+// loadConfig loads configuration from YAML file
+func loadConfig(configPath string) (Config, error) {
+	var config Config
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return config, err
+	}
+
+	err = yaml.Unmarshal(data, &config)
+	return config, err
+}
+
+// Start starts the backup scheduler
+func (bm *BackupManager) Start() error {
+	log.Println("Starting PostgreSQL Backup System...")
+
+	// Check if immediate backup is requested via environment variable
+	runImmediateBackup := os.Getenv("RUN_IMMEDIATE_BACKUP") == "true"
+
+	for _, db := range bm.config.Databases {
+		if !db.Enabled {
+			log.Printf("Database %s is disabled, skipping", db.Name)
+			continue
+		}
+
+		// Capture db in closure
+		database := db
+		_, err := bm.cron.AddFunc(database.Schedule, func() {
+			if err := bm.backupDatabase(database); err != nil {
+				log.Printf("Backup failed for %s: %v", database.Name, err)
+				bm.sendDiscordNotification(fmt.Sprintf("❌ Backup failed for database `%s`: %v", database.Name, err), false)
+			}
+		})
+
+		if err != nil {
+			return fmt.Errorf("failed to schedule backup for %s: %w", database.Name, err)
+		}
+
+		log.Printf("Scheduled backup for %s with schedule: %s", database.Name, database.Schedule)
+
+		// Run immediate backup for testing if requested
+		if runImmediateBackup {
+			log.Printf("Running immediate backup for %s (testing mode)", database.Name)
+			go func(db DatabaseConfig) {
+				// Add a small delay to let the system initialize
+				time.Sleep(5 * time.Second)
+				if err := bm.backupDatabase(db); err != nil {
+					log.Printf("Immediate backup failed for %s: %v", db.Name, err)
+					bm.sendDiscordNotification(fmt.Sprintf("❌ Immediate backup failed for database `%s`: %v", db.Name, err), false)
+				}
+			}(database)
+		}
+	}
+
+	bm.cron.Start()
+	log.Println("Backup system started successfully")
+
+	// Send startup notification
+	if runImmediateBackup {
+		bm.sendDiscordNotification("✅ PostgreSQL Backup System started successfully - Running immediate test backups", true)
+	} else {
+		bm.sendDiscordNotification("✅ PostgreSQL Backup System started successfully", true)
+	}
+
+	return nil
+}
+
+// backupDatabase performs backup for a single database
+func (bm *BackupManager) backupDatabase(db DatabaseConfig) error {
+	log.Printf("Starting backup for database: %s", db.Name)
+
+	startTime := time.Now()
+	timestamp := startTime.Format("20060102_150405")
+	backupFilename := fmt.Sprintf("%s_%s.sql", db.Name, timestamp)
+	tempFilePath := filepath.Join(os.TempDir(), backupFilename)
+
+	log.Printf("Creating backup file: %s", tempFilePath)
+
+	// Parse the database URL to extract connection parameters
+	dbURL, err := url.Parse(db.URL)
+	if err != nil {
+		return fmt.Errorf("failed to parse database URL: %w", err)
+	}
+
+	// Extract connection parameters
+	host := dbURL.Hostname()
+	port := dbURL.Port()
+	if port == "" {
+		port = "5432" // Default PostgreSQL port
+	}
+	username := dbURL.User.Username()
+	password, _ := dbURL.User.Password()
+	dbName := strings.TrimPrefix(dbURL.Path, "/")
+	
+	// Parse query parameters for SSL mode
+	queryParams := dbURL.Query()
+	
+	// Handle SSL mode - use default "disable" if not specified or empty
+	sslMode := queryParams.Get("sslmode")
+	if sslMode == "" {
+		sslMode = "disable" // Default to disable SSL for databases that don't specify it
+		log.Printf("No sslmode specified, using default: disable")
+	}
+	
+	log.Printf("Connecting to database: host=%s, port=%s, user=%s, database=%s, sslmode=%s", host, port, username, dbName, sslMode)
+
+	// Test connection first
+	log.Printf("Testing database connection...")
+	testCtx, testCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer testCancel()
+	
+	testCmd := exec.CommandContext(testCtx, "psql", 
+		"--host", host,
+		"--port", port,
+		"--username", username,
+		"--dbname", dbName,
+		"--no-password",
+		"--command", "SELECT version();",
+	)
+	
+	testCmd.Env = append(os.Environ(), 
+		"PGPASSWORD="+password,
+		"PGSSLMODE="+sslMode,
+	)
+	
+	var testOutput bytes.Buffer
+	testCmd.Stdout = &testOutput
+	testCmd.Stderr = &testOutput
+	
+	if err := testCmd.Run(); err != nil {
+		log.Printf("Database connection test failed: %v", err)
+		log.Printf("Test output: %s", testOutput.String())
+		return fmt.Errorf("database connection test failed: %w, output: %s", err, testOutput.String())
+	}
+	log.Printf("Database connection test successful: %s", strings.TrimSpace(testOutput.String()))
+
+	// Create pg_dump command with timeout and individual parameters
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute) // 30 minute timeout
+	defer cancel()
+	
+	// Build pg_dump command arguments
+	args := []string{
+		"--host", host,
+		"--port", port,
+		"--username", username,
+		"--dbname", dbName,
+		"--no-password",
+		"--verbose",
+		"--format=plain",
+	}
+	
+	// Log SSL mode for pg_dump
+	log.Printf("Using SSL mode for pg_dump: %s", sslMode)
+	
+	cmd := exec.CommandContext(ctx, "pg_dump", args...)
+	
+	// Set environment variables for authentication
+	cmd.Env = append(os.Environ(), 
+		"PGPASSWORD="+password,
+		"PGSSLMODE="+sslMode,
+	)
+	
+	log.Printf("Executing pg_dump command: pg_dump %v", strings.Join(args, " "))
+
+	// Create output file
+	outFile, err := os.Create(tempFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer outFile.Close()
+	defer os.Remove(tempFilePath) // Clean up temp file
+
+	log.Printf("Created temp file successfully")
+
+	// Set command output to file
+	cmd.Stdout = outFile
+
+	// Capture stderr for logging
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	log.Printf("Starting pg_dump execution (timeout: 30 minutes)...")
+	// Execute backup
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("pg_dump command timed out after 30 minutes")
+			return fmt.Errorf("pg_dump timed out after 30 minutes")
+		}
+		log.Printf("pg_dump command failed with error: %v", err)
+		log.Printf("pg_dump stderr output: %s", stderr.String())
+		return fmt.Errorf("pg_dump failed: %w, stderr: %s", err, stderr.String())
+	}
+	log.Printf("pg_dump execution completed successfully")
+
+	// Get file info for upload
+	log.Printf("Getting file info for backup file...")
+	fileInfo, err := outFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file info: %w", err)
+	}
+	log.Printf("Backup file size: %d bytes", fileInfo.Size())
+
+	// Reopen file for reading
+	log.Printf("Reopening file for S3 upload...")
+	file, err := os.Open(tempFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to reopen file: %w", err)
+	}
+	defer file.Close()
+
+	// Upload to S3
+	s3Key := bm.getS3Key(db.Name, backupFilename)
+	log.Printf("Starting S3 upload to bucket: %s, key: %s", bm.config.S3.Bucket, s3Key)
+	
+	_, err = bm.s3Client.PutObject(&s3.PutObjectInput{
+		Bucket: aws.String(bm.config.S3.Bucket),
+		Key:    aws.String(s3Key),
+		Body:   file,
+		Metadata: map[string]*string{
+			"database":  aws.String(db.Name),
+			"timestamp": aws.String(timestamp),
+			"backup-by": aws.String("postgres-backup-system"),
+		},
+	})
+
+	if err != nil {
+		log.Printf("S3 upload failed: %v", err)
+		return fmt.Errorf("failed to upload to S3: %w", err)
+	}
+	log.Printf("S3 upload completed successfully")
+
+	duration := time.Since(startTime)
+	log.Printf("Backup completed for %s in %v. File size: %d bytes", db.Name, duration, fileInfo.Size())
+
+	// Send success notification
+	message := fmt.Sprintf("✅ Backup completed for database `%s`\n📊 Size: %s\n⏱️ Duration: %v\n📅 Timestamp: %s",
+		db.Name,
+		formatBytes(fileInfo.Size()),
+		duration.Round(time.Second),
+		startTime.Format("2006-01-02 15:04:05 UTC"))
+
+	bm.sendDiscordNotification(message, true)
+
+	// Clean up old backups if retention is set
+	if db.Retention > 0 {
+		go bm.cleanupOldBackups(db)
+	}
+
+	return nil
+}
+
+// getS3Key generates the S3 key for backup file
+func (bm *BackupManager) getS3Key(dbName, filename string) string {
+	if bm.config.S3.Prefix != "" {
+		return fmt.Sprintf("%s/%s/%s", bm.config.S3.Prefix, dbName, filename)
+	}
+	return fmt.Sprintf("%s/%s", dbName, filename)
+}
+
+// cleanupOldBackups removes old backup files based on retention policy
+func (bm *BackupManager) cleanupOldBackups(db DatabaseConfig) {
+	log.Printf("Starting cleanup for database: %s (retention: %d days)", db.Name, db.Retention)
+
+	prefix := bm.getS3Key(db.Name, "")
+
+	// List objects
+	listInput := &s3.ListObjectsV2Input{
+		Bucket: aws.String(bm.config.S3.Bucket),
+		Prefix: aws.String(prefix),
+	}
+
+	result, err := bm.s3Client.ListObjectsV2(listInput)
+	if err != nil {
+		log.Printf("Failed to list objects for cleanup: %v", err)
+		return
+	}
+
+	cutoffTime := time.Now().AddDate(0, 0, -db.Retention)
+	var deletedCount int
+
+	for _, obj := range result.Contents {
+		if obj.LastModified.Before(cutoffTime) {
+			_, err := bm.s3Client.DeleteObject(&s3.DeleteObjectInput{
+				Bucket: aws.String(bm.config.S3.Bucket),
+				Key:    obj.Key,
+			})
+
+			if err != nil {
+				log.Printf("Failed to delete old backup %s: %v", *obj.Key, err)
+			} else {
+				log.Printf("Deleted old backup: %s", *obj.Key)
+				deletedCount++
+			}
+		}
+	}
+
+	if deletedCount > 0 {
+		log.Printf("Cleanup completed for %s: deleted %d old backups", db.Name, deletedCount)
+	}
+}
+
+// sendDiscordNotification sends notification to Discord webhook
+func (bm *BackupManager) sendDiscordNotification(message string, isSuccess bool) {
+	if !bm.config.Discord.Enabled {
+		return
+	}
+
+	username := bm.config.Discord.Username
+	if username == "" {
+		username = "PostgreSQL Backup System"
+	}
+
+	payload := DiscordMessage{
+		Username: username,
+		Content:  message,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal Discord message: %v", err)
+		return
+	}
+
+	resp, err := http.Post(bm.config.Discord.WebhookURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("Failed to send Discord notification: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		log.Printf("Discord webhook returned status: %d", resp.StatusCode)
+	}
+}
+
+// formatBytes formats bytes to human readable format
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// Stop stops the backup scheduler
+func (bm *BackupManager) Stop() {
+	log.Println("Stopping backup system...")
+	bm.cron.Stop()
+	bm.sendDiscordNotification("⏹️ PostgreSQL Backup System stopped", true)
+}
+
+func main() {
+	configPath := os.Getenv("CONFIG_PATH")
+	if configPath == "" {
+		configPath = "config.yaml"
+	}
+
+	manager, err := NewBackupManager(configPath)
+	if err != nil {
+		log.Fatalf("Failed to create backup manager: %v", err)
+	}
+
+	if err := manager.Start(); err != nil {
+		log.Fatalf("Failed to start backup system: %v", err)
+	}
+
+	// Keep the program running
+	select {}
+}
