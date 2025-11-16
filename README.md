@@ -1,4 +1,4 @@
-# PostgreSQL Backup Service
+# DumpStation
 
 A comprehensive RESTful API service built with Go for managing, scheduling, and monitoring PostgreSQL database backups to cloud storage (AWS S3 or Cloudflare R2). Features Discord-based authentication with OTP and real-time notifications.
 
@@ -52,28 +52,33 @@ migrations/          - SQL database migrations
 ## Installation
 
 1. Clone the repository:
+
 ```bash
 git clone <repository-url>
-cd db_backup_service
+cd dumpstation
 ```
 
 2. Install dependencies:
+
 ```bash
 go mod download
 ```
 
 3. Create a PostgreSQL database for the service:
+
 ```bash
 createdb backup_service
 ```
 
 4. Copy and configure environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
 5. Build the application:
+
 ```bash
 go build -o backup-service ./cmd/server
 ```
@@ -92,6 +97,7 @@ All configuration is done via environment variables. See [.env.example](.env.exa
 ## Running the Service
 
 ### Development
+
 ```bash
 # Source environment variables
 source .env
@@ -101,18 +107,20 @@ go run cmd/server/main.go
 ```
 
 ### Production
+
 ```bash
 # Build binary
-go build -o backup-service ./cmd/server
+go build -o dumpstation ./cmd/server
 
 # Run with environment file
-./backup-service
+./dumpstation
 ```
 
 ### Docker (Optional)
+
 ```bash
-docker build -t postgres-backup-service .
-docker run -p 8080:8080 --env-file .env postgres-backup-service
+docker build -t dumpstation .
+docker run -p 8080:8080 --env-file .env dumpstation
 ```
 
 ## API Documentation
@@ -124,6 +132,7 @@ Access the complete interactive API documentation at:
 **http://localhost:8080/swagger/index.html**
 
 Features:
+
 - All 22 endpoints documented with examples
 - Try out API calls directly from browser
 - Request/response schemas
@@ -142,6 +151,7 @@ See [SWAGGER_INTEGRATION.md](SWAGGER_INTEGRATION.md) for complete documentation 
 The API follows RESTful principles. All protected endpoints require a JWT token in the `Authorization` header as `Bearer <token>`.
 
 ### Base URL
+
 ```
 http://localhost:8080/api/v1
 ```
@@ -149,6 +159,7 @@ http://localhost:8080/api/v1
 ### Authentication Flow
 
 1. **Request OTP** (check your Discord webhook for the code):
+
 ```bash
 # Simple - no body required (uses default 'admin' user)
 curl -X POST http://localhost:8080/api/v1/auth/login
@@ -160,6 +171,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 ```
 
 2. **Verify OTP and Get JWT**:
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/verify \
   -H "Content-Type: application/json" \
@@ -167,6 +179,7 @@ curl -X POST http://localhost:8080/api/v1/auth/verify \
 ```
 
 3. **Use JWT for authenticated requests**:
+
 ```bash
 curl -X GET http://localhost:8080/api/v1/databases \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
@@ -175,6 +188,7 @@ curl -X GET http://localhost:8080/api/v1/databases \
 ### Main Endpoints
 
 #### Storage Configuration
+
 - `GET /storage` - List all storage configurations
 - `POST /storage` - Create new storage configuration
 - `GET /storage/{id}` - Get storage details
@@ -182,6 +196,7 @@ curl -X GET http://localhost:8080/api/v1/databases \
 - `DELETE /storage/{id}` - Delete storage configuration
 
 #### Notification Configuration
+
 - `GET /notifications` - List all notification configurations
 - `POST /notifications` - Create new notification configuration
 - `GET /notifications/{id}` - Get notification details
@@ -189,6 +204,7 @@ curl -X GET http://localhost:8080/api/v1/databases \
 - `DELETE /notifications/{id}` - Delete notification configuration
 
 #### Database Configuration
+
 - `GET /databases` - List all database configurations
 - `POST /databases` - Add new database for backup
 - `GET /databases/{id}` - Get database details
@@ -197,16 +213,19 @@ curl -X GET http://localhost:8080/api/v1/databases \
 - `POST /databases/{id}/backup` - Trigger manual backup
 
 #### Backups
+
 - `GET /databases/{id}/backups` - View backup history for a database
 - `GET /backups/{id}` - Get specific backup details
 - `POST /backups/{id}/restore` - Restore from a backup
 
 #### Statistics
+
 - `GET /stats` - Get system-wide statistics
 
 ## Example Workflow
 
 ### 1. Add Storage Configuration
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/storage \
   -H "Authorization: Bearer $TOKEN" \
@@ -223,6 +242,7 @@ curl -X POST http://localhost:8080/api/v1/storage \
 ```
 
 ### 2. Add Notification Configuration
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/notifications \
   -H "Authorization: Bearer $TOKEN" \
@@ -234,6 +254,7 @@ curl -X POST http://localhost:8080/api/v1/notifications \
 ```
 
 ### 3. Configure Database for Backup
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/databases \
   -H "Authorization: Bearer $TOKEN" \
@@ -256,12 +277,14 @@ curl -X POST http://localhost:8080/api/v1/databases \
 ```
 
 ### 4. Trigger Manual Backup
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/databases/{id}/backup \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 5. Restore from Backup
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/backups/{backup-id}/restore \
   -H "Authorization: Bearer $TOKEN" \
@@ -280,7 +303,9 @@ curl -X POST http://localhost:8080/api/v1/backups/{backup-id}/restore \
 Two types of rotation policies are supported:
 
 ### Count-based
+
 Keep only the last N backups:
+
 ```json
 {
   "rotation_policy": {
@@ -291,7 +316,9 @@ Keep only the last N backups:
 ```
 
 ### Time-based
+
 Keep backups for N days:
+
 ```json
 {
   "rotation_policy": {
@@ -332,6 +359,7 @@ curl -X GET http://localhost:8080/api/v1/stats \
 ```
 
 Returns:
+
 - Total configured databases
 - Backups in last 24 hours
 - Success/failure rates
@@ -349,18 +377,21 @@ Returns:
 ### Logs
 
 The service logs all operations to stdout. In production, redirect to a log file:
+
 ```bash
-./backup-service 2>&1 | tee -a backup-service.log
+./dumpstation 2>&1 | tee -a dumpstation.log
 ```
 
 ## Development
 
 ### Running Tests
+
 ```bash
 go test ./...
 ```
 
 ### Code Structure
+
 - Follow Go best practices and conventions
 - Use the repository pattern for database operations
 - Keep handlers thin, business logic in services
