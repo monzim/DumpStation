@@ -40,7 +40,7 @@ func (s *Scheduler) Start() error {
 
 	// Schedule each database
 	for _, config := range configs {
-		if config.Enabled {
+		if config.Enabled && !config.Paused {
 			if err := s.AddJob(config); err != nil {
 				log.Printf("Failed to schedule backup for %s: %v", config.Name, err)
 			}
@@ -64,7 +64,7 @@ func (s *Scheduler) AddJob(config *models.DatabaseConfig) error {
 	// Remove existing job if any
 	s.RemoveJob(config.ID)
 
-	if !config.Enabled {
+	if !config.Enabled || config.Paused {
 		return nil
 	}
 

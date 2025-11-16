@@ -735,6 +735,102 @@ func (h *Handler) DeleteDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// PauseDatabaseConfig godoc
+// @Summary Pause a database configuration
+// @Description Pause backup operations for a specific database configuration. Cleanup process will also be paused.
+// @Tags Databases
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Database Config ID (UUID)"
+// @Success 200 {object} models.DatabaseConfig "Database configuration paused successfully"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 404 {object} map[string]string "Database config not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /databases/{id}/pause [post]
+func (h *Handler) PauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(mux.Vars(r)["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+
+	// Check if config exists
+	config, err := h.repo.GetDatabaseConfig(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get database config")
+		return
+	}
+	if config == nil {
+		writeError(w, http.StatusNotFound, "database config not found")
+		return
+	}
+
+	// Pause the config
+	if err := h.repo.PauseDatabaseConfig(id); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to pause database config")
+		return
+	}
+
+	// Remove job from scheduler
+	h.scheduler.RemoveJob(id)
+
+	// Reload config to get updated state
+	config, _ = h.repo.GetDatabaseConfig(id)
+
+	logInfo("Database config paused: %s (ID: %s)", config.Name, config.ID)
+	writeJSON(w, http.StatusOK, config)
+}
+
+// UnpauseDatabaseConfig godoc
+// @Summary Unpause a database configuration
+// @Description Resume backup operations for a specific database configuration. Future backups and cleanup will resume on schedule.
+// @Tags Databases
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Database Config ID (UUID)"
+// @Success 200 {object} models.DatabaseConfig "Database configuration resumed successfully"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 404 {object} map[string]string "Database config not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /databases/{id}/unpause [post]
+func (h *Handler) UnpauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(mux.Vars(r)["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+
+	// Check if config exists
+	config, err := h.repo.GetDatabaseConfig(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get database config")
+		return
+	}
+	if config == nil {
+		writeError(w, http.StatusNotFound, "database config not found")
+		return
+	}
+
+	// Unpause the config
+	if err := h.repo.UnpauseDatabaseConfig(id); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to unpause database config")
+		return
+	}
+
+	// Reload config to get updated state
+	config, _ = h.repo.GetDatabaseConfig(id)
+
+	// Re-add job to scheduler
+	if config.Enabled {
+		if err := h.scheduler.AddJob(config); err != nil {
+			logInfo("Warning: Failed to re-add job to scheduler: %v", err)
+		}
+	}
+
+	logInfo("Database config resumed: %s (ID: %s)", config.Name, config.ID)
+	writeJSON(w, http.StatusOK, config)
+}
+
 // TriggerManualBackup godoc
 // @Summary Trigger a manual backup
 // @Description Manually trigger a backup for a specific database configuration

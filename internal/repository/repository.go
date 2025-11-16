@@ -246,16 +246,16 @@ func (r *Repository) DeleteNotificationConfig(id uuid.UUID) error {
 
 func (r *Repository) CreateDatabaseConfig(input *models.DatabaseConfigInput) (*models.DatabaseConfig, error) {
 	dbConfig := &models.DatabaseConfig{
-		Name:       input.Name,
-		Host:       input.Host,
-		Port:       input.Port,
-		DBName:     input.DBName,
-		Username:   input.Username,
-		Password:   input.Password,
-		Schedule:   input.Schedule,
-		StorageID:  input.StorageID,
+		Name:           input.Name,
+		Host:           input.Host,
+		Port:           input.Port,
+		DBName:         input.DBName,
+		Username:       input.Username,
+		Password:       input.Password,
+		Schedule:       input.Schedule,
+		StorageID:      input.StorageID,
 		NotificationID: input.NotificationID,
-		Enabled:    true,
+		Enabled:        true,
 	}
 
 	// Set rotation policy
@@ -339,6 +339,36 @@ func (r *Repository) DeleteDatabaseConfig(id uuid.UUID) error {
 	return nil
 }
 
+// PauseDatabaseConfig pauses backup operations for a specific database config
+func (r *Repository) PauseDatabaseConfig(id uuid.UUID) error {
+	result := r.db.Model(&models.DatabaseConfig{}).Where("id = ?", id).Update("paused", true)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to pause database config: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// UnpauseDatabaseConfig resumes backup operations for a specific database config
+func (r *Repository) UnpauseDatabaseConfig(id uuid.UUID) error {
+	result := r.db.Model(&models.DatabaseConfig{}).Where("id = ?", id).Update("paused", false)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to unpause database config: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
 // Backup operations
 
 func (r *Repository) CreateBackup(databaseID uuid.UUID, status models.BackupStatus) (*models.Backup, error) {
@@ -359,11 +389,11 @@ func (r *Repository) CreateBackup(databaseID uuid.UUID, status models.BackupStat
 func (r *Repository) UpdateBackupStatus(id uuid.UUID, status models.BackupStatus, sizeBytes *int64, storagePath string, errorMsg *string) error {
 	now := time.Now()
 	updates := map[string]interface{}{
-		"status":       status,
-		"size_bytes":   sizeBytes,
-		"storage_path": storagePath,
+		"status":        status,
+		"size_bytes":    sizeBytes,
+		"storage_path":  storagePath,
 		"error_message": errorMsg,
-		"completed_at": now,
+		"completed_at":  now,
 	}
 
 	result := r.db.Model(&models.Backup{}).Where("id = ?", id).Updates(updates)

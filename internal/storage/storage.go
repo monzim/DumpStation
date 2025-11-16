@@ -128,6 +128,6 @@ func (sc *StorageClient) ListFiles(prefix string) ([]*s3.Object, error) {
 }
 
 // GetObjectKey generates the S3 key for a backup file
-func GetObjectKey(dbName, filename string) string {
-	return fmt.Sprintf("backups/%s/%s", dbName, filename)
+func GetObjectKey(configID, filename string) string {
+	return fmt.Sprintf("backups/%s/%s", configID, filename)
 }

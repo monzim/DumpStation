@@ -56,8 +56,12 @@ definitions:
         type: string
       notification_id:
         type: string
+      paused:
+        type: boolean
       port:
         type: integer
+      postgres_version:
+        type: string
       schedule:
         type: string
       storage_id:
@@ -65,6 +69,8 @@ definitions:
       updated_at:
         type: string
       user:
+        type: string
+      version_last_checked:
         type: string
     type: object
   github_com_monzim_db_proxy_v1_internal_models.DatabaseConfigInput:
@@ -88,6 +94,10 @@ definitions:
         maximum: 65535
         minimum: 1
         type: integer
+      postgres_version:
+        description: 'Optional: "latest", "15", "14", "13", etc.'
+        example: "14"
+        type: string
       rotation_policy:
         $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.RotationPolicy'
       schedule:
@@ -295,6 +305,24 @@ definitions:
         type: string
     required:
     - otp
+    type: object
+  github_com_monzim_db_proxy_v1_internal_validator.ValidationError:
+    properties:
+      field:
+        type: string
+      message:
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse:
+    properties:
+      code:
+        type: string
+      errors:
+        items:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationError'
+        type: array
+      message:
+        type: string
     type: object
 host: localhost:8080
 info:
@@ -519,9 +547,7 @@ paths:
         "400":
           description: Bad request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse'
         "500":
           description: Internal server error
           schema:
@@ -629,9 +655,7 @@ paths:
         "400":
           description: Bad request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse'
         "404":
           description: Database config not found
           schema:
@@ -723,6 +747,86 @@ paths:
       summary: List backups for a database
       tags:
       - Backups
+  /databases/{id}/pause:
+    post:
+      description: Pause backup operations for a specific database configuration.
+        Cleanup process will also be paused.
+      parameters:
+      - description: Database Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Database configuration paused successfully
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig'
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Database config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Pause a database configuration
+      tags:
+      - Databases
+  /databases/{id}/unpause:
+    post:
+      description: Resume backup operations for a specific database configuration.
+        Future backups and cleanup will resume on schedule.
+      parameters:
+      - description: Database Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Database configuration resumed successfully
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig'
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Database config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Unpause a database configuration
+      tags:
+      - Databases
   /notifications:
     get:
       description: Get a list of all configured Discord webhooks for notifications
@@ -767,9 +871,7 @@ paths:
         "400":
           description: Bad request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse'
         "500":
           description: Internal server error
           schema:
@@ -882,9 +984,7 @@ paths:
         "400":
           description: Bad request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse'
         "404":
           description: Notification config not found
           schema:
@@ -968,9 +1068,7 @@ paths:
         "400":
           description: Bad request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse'
         "500":
           description: Internal server error
           schema:
@@ -1083,9 +1181,7 @@ paths:
         "400":
           description: Bad request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse'
         "404":
           description: Storage config not found
           schema:

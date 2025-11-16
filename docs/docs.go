@@ -345,10 +345,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse"
                         }
                     },
                     "500": {
@@ -468,10 +465,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse"
                         }
                     },
                     "404": {
@@ -658,6 +652,128 @@ const docTemplate = `{
                 }
             }
         },
+        "/databases/{id}/pause": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Pause backup operations for a specific database configuration. Cleanup process will also be paused.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Databases"
+                ],
+                "summary": "Pause a database configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Database configuration paused successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Database config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/databases/{id}/unpause": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Resume backup operations for a specific database configuration. Future backups and cleanup will resume on schedule.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Databases"
+                ],
+                "summary": "Unpause a database configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Database configuration resumed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Database config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/notifications": {
             "get": {
                 "security": [
@@ -732,10 +848,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse"
                         }
                     },
                     "500": {
@@ -855,10 +968,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse"
                         }
                     },
                     "404": {
@@ -1046,10 +1156,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse"
                         }
                     },
                     "500": {
@@ -1169,10 +1276,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse"
                         }
                     },
                     "404": {
@@ -1335,8 +1439,14 @@ const docTemplate = `{
                 "notification_id": {
                     "type": "string"
                 },
+                "paused": {
+                    "type": "boolean"
+                },
                 "port": {
                     "type": "integer"
+                },
+                "postgres_version": {
+                    "type": "string"
                 },
                 "schedule": {
                     "type": "string"
@@ -1348,6 +1458,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "user": {
+                    "type": "string"
+                },
+                "version_last_checked": {
                     "type": "string"
                 }
             }
@@ -1390,6 +1503,11 @@ const docTemplate = `{
                     "maximum": 65535,
                     "minimum": 1,
                     "example": 5432
+                },
+                "postgres_version": {
+                    "description": "Optional: \"latest\", \"15\", \"14\", \"13\", etc.",
+                    "type": "string",
+                    "example": "14"
                 },
                 "rotation_policy": {
                     "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.RotationPolicy"
@@ -1676,6 +1794,34 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "example": "admin"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_validator.ValidationError": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_validator.ValidationErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_validator.ValidationError"
+                    }
+                },
+                "message": {
+                    "type": "string"
                 }
             }
         }
