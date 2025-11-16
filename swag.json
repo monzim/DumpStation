@@ -1,0 +1,871 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Go-Postgres Backup Service API",
+    "description": "A RESTful API server, written in Go, to manage, schedule, and monitor PostgreSQL database backups to S3 or R2 storage. Includes Discord notifications and JWT authentication via Discord OTP.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "API Version 1"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Authentication and user login"
+    },
+    {
+      "name": "Databases",
+      "description": "Manage database backup configurations"
+    },
+    {
+      "name": "Storage",
+      "description": "Manage storage provider configurations (S3, R2)"
+    },
+    {
+      "name": "Notifications",
+      "description": "Manage Discord notification webhooks"
+    },
+    {
+      "name": "Backups",
+      "description": "View backup history and perform actions"
+    },
+    {
+      "name": "Stats",
+      "description": "View system-wide monitoring and statistics"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Request One-Time Password (OTP)",
+        "description": "Initiates the login process by sending an OTP to the configured Discord webhook. Request body is optional (defaults to admin user).",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP sent successfully to Discord webhook."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Verify OTP and Get JWT",
+        "description": "Submits the OTP to validate the user and receive a JWT.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful, JWT returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired OTP."
+          }
+        }
+      }
+    },
+    "/storage": {
+      "get": {
+        "tags": ["Storage"],
+        "summary": "List Storage Configurations",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "A list of all storage configurations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StorageConfig"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Storage"],
+        "summary": "Add New Storage Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageConfigInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Storage configuration created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageConfig"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/storage/{id}": {
+      "get": {
+        "tags": ["Storage"],
+        "summary": "Get Storage Configuration Details",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Storage configuration details.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorageConfig" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Storage"],
+        "summary": "Update Storage Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageConfigInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Storage configuration updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorageConfig" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Storage"],
+        "summary": "Delete Storage Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Storage configuration deleted." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/notifications": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "List Notification Configurations",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "A list of all notification configurations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationConfig"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Notifications"],
+        "summary": "Add New Notification Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationConfigInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Notification configuration created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationConfig"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/notifications/{id}": {
+      "get": {
+        "tags": ["Notifications"],
+        "summary": "Get Notification Configuration Details",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification configuration details.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NotificationConfig" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Notifications"],
+        "summary": "Update Notification Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationConfigInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Notification configuration updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NotificationConfig" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Notifications"],
+        "summary": "Delete Notification Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Notification configuration deleted." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/databases": {
+      "get": {
+        "tags": ["Databases"],
+        "summary": "List All Database Backup Configurations",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "A list of all configured databases.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DatabaseConfig"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Databases"],
+        "summary": "Add New Database Backup Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatabaseConfigInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Database configuration created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseConfig"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/databases/{id}": {
+      "get": {
+        "tags": ["Databases"],
+        "summary": "Get Database Configuration Details",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Database configuration details.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DatabaseConfig" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Databases"],
+        "summary": "Update Database Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatabaseConfigInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Database configuration updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DatabaseConfig" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Databases"],
+        "summary": "Delete Database Configuration",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Database configuration deleted." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/databases/{id}/backup": {
+      "post": {
+        "tags": ["Databases"],
+        "summary": "Trigger Manual Backup",
+        "description": "Triggers an immediate, on-demand backup for a specific database.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Backup job accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Backup" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/databases/{id}/backups": {
+      "get": {
+        "tags": ["Backups"],
+        "summary": "View Backup History for Database",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of backup history entries for the specified database.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Backup"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/backups/{id}": {
+      "get": {
+        "tags": ["Backups"],
+        "summary": "Get Specific Backup Details",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Details for a single backup.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Backup" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/backups/{id}/restore": {
+      "post": {
+        "tags": ["Backups"],
+        "summary": "Restore From a Specific Backup",
+        "description": "Initiates a restore job from a specific backup ID to a target database.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Restore job accepted and queued." },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "tags": ["Stats"],
+        "summary": "Get System-Wide Statistics",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "System-wide monitoring statistics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStats"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "admin",
+            "description": "Optional username, defaults to 'admin' for single-user mode"
+          }
+        }
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "admin",
+            "description": "Optional username, defaults to 'admin'"
+          },
+          "otp": { "type": "string", "example": "123456" }
+        },
+        "required": ["otp"]
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "expires_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RotationPolicy": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["count", "days"],
+            "example": "days"
+          },
+          "value": { "type": "integer", "example": 30 }
+        },
+        "required": ["type", "value"]
+      },
+      "StorageConfigInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "My R2 Bucket" },
+          "provider": {
+            "type": "string",
+            "enum": ["s3", "r2"],
+            "example": "r2"
+          },
+          "bucket": { "type": "string", "example": "my-backup-bucket" },
+          "region": { "type": "string", "example": "auto" },
+          "endpoint": {
+            "type": "string",
+            "example": "https://<account_id>.r2.cloudflarestorage.com"
+          },
+          "access_key": { "type": "string", "example": "..." },
+          "secret_key": {
+            "type": "string",
+            "format": "password",
+            "example": "..."
+          }
+        },
+        "required": ["name", "provider", "bucket", "access_key", "secret_key"]
+      },
+      "StorageConfig": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "provider": { "type": "string", "enum": ["s3", "r2"] },
+          "bucket": { "type": "string" },
+          "region": { "type": "string" },
+          "endpoint": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "NotificationConfigInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "DevOps Alerts" },
+          "discord_webhook_url": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://discord.com/api/webhooks/..."
+          }
+        },
+        "required": ["name", "discord_webhook_url"]
+      },
+      "NotificationConfig": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DatabaseConfigInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "Production DB" },
+          "host": { "type": "string", "example": "db.example.com" },
+          "port": { "type": "integer", "example": 5432 },
+          "dbname": { "type": "string", "example": "proddb" },
+          "user": { "type": "string", "example": "backup_user" },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "example": "..."
+          },
+          "schedule": { "type": "string", "example": "0 2 * * *" },
+          "storage_id": { "type": "string", "format": "uuid" },
+          "notification_id": { "type": "string", "format": "uuid" },
+          "rotation_policy": { "$ref": "#/components/schemas/RotationPolicy" }
+        },
+        "required": [
+          "name",
+          "host",
+          "port",
+          "dbname",
+          "user",
+          "password",
+          "schedule",
+          "storage_id",
+          "rotation_policy"
+        ]
+      },
+      "DatabaseConfig": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "dbname": { "type": "string" },
+          "user": { "type": "string" },
+          "schedule": { "type": "string" },
+          "storage_id": { "type": "string", "format": "uuid" },
+          "notification_id": { "type": "string", "format": "uuid" },
+          "rotation_policy": { "$ref": "#/components/schemas/RotationPolicy" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Backup": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "database_id": { "type": "string", "format": "uuid" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "success", "failed"]
+          },
+          "size_bytes": { "type": "integer", "format": "int64" },
+          "storage_path": { "type": "string" },
+          "error_message": { "type": "string", "nullable": true }
+        }
+      },
+      "RestoreRequest": {
+        "type": "object",
+        "description": "Define the target for the restore operation. If empty, attempts to restore to the original location.",
+        "properties": {
+          "target_host": {
+            "type": "string",
+            "example": "staging-db.example.com"
+          },
+          "target_port": { "type": "integer", "example": 5432 },
+          "target_dbname": { "type": "string", "example": "restored_db" },
+          "target_user": { "type": "string", "example": "admin" },
+          "target_password": {
+            "type": "string",
+            "format": "password",
+            "example": "..."
+          }
+        }
+      },
+      "SystemStats": {
+        "type": "object",
+        "properties": {
+          "total_databases": { "type": "integer" },
+          "total_backups_24h": { "type": "integer" },
+          "success_rate_24h": { "type": "number", "format": "float" },
+          "failure_rate_24h": { "type": "number", "format": "float" },
+          "total_storage_used_bytes": { "type": "integer", "format": "int64" }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad Request - The request was invalid.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiError" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized - Invalid or missing JWT."
+      },
+      "NotFound": {
+        "description": "Not Found - The requested resource does not exist.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiError" }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ]
+}
