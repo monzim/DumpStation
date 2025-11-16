@@ -1,0 +1,1685 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "A RESTful API service for managing PostgreSQL database backups with automated scheduling, multiple storage backends (S3/R2), and Discord notifications.",
+        "title": "PostgreSQL Backup Service API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "email": "support@example.com"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/auth/login": {
+            "post": {
+                "description": "Sends a one-time password to the configured Discord webhook for authentication. For single-user mode, username defaults to \"admin\".",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Request OTP for authentication",
+                "parameters": [
+                    {
+                        "description": "Login request (optional in single-user mode)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OTP sent successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify": {
+            "post": {
+                "description": "Verifies the OTP code received via Discord and returns a JWT token for API authentication",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Verify OTP and get JWT token",
+                "parameters": [
+                    {
+                        "description": "OTP verification request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.VerifyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JWT token and expiration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.AuthResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or expired OTP",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/backups/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve details of a specific backup including status, size, and storage path",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Backups"
+                ],
+                "summary": "Get a backup by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Backup ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Backup details",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.Backup"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Backup not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/backups/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Restore a PostgreSQL database from a backup. Can restore to the original database or a different target.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Backups"
+                ],
+                "summary": "Restore a backup",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Backup ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Restore configuration (optional for custom target)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.RestoreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Restore job created successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.RestoreJob"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID or request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Backup not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/databases": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a list of all configured PostgreSQL databases for backup",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Databases"
+                ],
+                "summary": "List all database configurations",
+                "responses": {
+                    "200": {
+                        "description": "List of database configurations",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Add a new PostgreSQL database for automated backups with scheduling and rotation policy",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Databases"
+                ],
+                "summary": "Create a new database configuration",
+                "parameters": [
+                    {
+                        "description": "Database configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfigInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created database configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/databases/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve details of a specific database configuration including storage and notification settings",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Databases"
+                ],
+                "summary": "Get a database configuration by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Database configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Database config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing database configuration and reschedule backups",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Databases"
+                ],
+                "summary": "Update a database configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated database configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfigInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated database configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Database config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete an existing database configuration and remove it from scheduler",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Databases"
+                ],
+                "summary": "Delete a database configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Database configuration deleted successfully"
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/databases/{id}/backup": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually trigger a backup for a specific database configuration",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Backups"
+                ],
+                "summary": "Trigger a manual backup",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Backup initiated successfully",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.Backup"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Database config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/databases/{id}/backups": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a list of all backup history for a specific database configuration",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Backups"
+                ],
+                "summary": "List backups for a database",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of backups",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.Backup"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a list of all configured Discord webhooks for notifications",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "List all notification configurations",
+                "responses": {
+                    "200": {
+                        "description": "List of notification configurations",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfig"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Add a new Discord webhook for backup notifications",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Create a new notification configuration",
+                "parameters": [
+                    {
+                        "description": "Notification configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfigInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created notification configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve details of a specific notification configuration",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get a notification configuration by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Notification config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing notification configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Update a notification configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated notification configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfigInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated notification configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Notification config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete an existing notification configuration by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Delete a notification configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Notification configuration deleted successfully"
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Notification config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve overall system statistics including total databases, backups in last 24h, success/failure rates, and storage usage",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Statistics"
+                ],
+                "summary": "Get system statistics",
+                "responses": {
+                    "200": {
+                        "description": "System statistics",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.SystemStats"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/storage": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a list of all configured storage backends (S3/R2)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage"
+                ],
+                "summary": "List all storage configurations",
+                "responses": {
+                    "200": {
+                        "description": "List of storage configurations",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfig"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Add a new storage backend configuration (S3 or Cloudflare R2)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage"
+                ],
+                "summary": "Create a new storage configuration",
+                "parameters": [
+                    {
+                        "description": "Storage configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfigInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created storage configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/storage/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve details of a specific storage configuration",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage"
+                ],
+                "summary": "Get a storage configuration by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Storage Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Storage configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Storage config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing storage configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage"
+                ],
+                "summary": "Update a storage configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Storage Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated storage configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfigInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated storage configuration",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfig"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Storage config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete an existing storage configuration by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Storage"
+                ],
+                "summary": "Delete a storage configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Storage Config ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Storage configuration deleted successfully"
+                    },
+                    "400": {
+                        "description": "Invalid ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Storage config not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_monzim_db_proxy_v1_internal_models.AuthResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "example": "2025-11-17T22:00:00Z"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.Backup": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "database_id": {
+                    "type": "string"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.BackupStatus"
+                },
+                "storage_path": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.BackupStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "success",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "BackupStatusPending",
+                "BackupStatusRunning",
+                "BackupStatusSuccess",
+                "BackupStatusFailed"
+            ]
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "dbname": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "notification_id": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "schedule": {
+                    "type": "string"
+                },
+                "storage_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.DatabaseConfigInput": {
+            "type": "object",
+            "required": [
+                "dbname",
+                "host",
+                "name",
+                "password",
+                "port",
+                "rotation_policy",
+                "schedule",
+                "storage_id",
+                "user"
+            ],
+            "properties": {
+                "dbname": {
+                    "type": "string",
+                    "example": "proddb"
+                },
+                "host": {
+                    "type": "string",
+                    "example": "db.example.com"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Production DB"
+                },
+                "notification_id": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "secure_password"
+                },
+                "port": {
+                    "type": "integer",
+                    "maximum": 65535,
+                    "minimum": 1,
+                    "example": 5432
+                },
+                "rotation_policy": {
+                    "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.RotationPolicy"
+                },
+                "schedule": {
+                    "type": "string",
+                    "example": "0 2 * * *"
+                },
+                "storage_id": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string",
+                    "example": "backup_user"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.LoginRequest": {
+            "type": "object",
+            "properties": {
+                "username": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.NotificationConfig": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.NotificationConfigInput": {
+            "type": "object",
+            "required": [
+                "discord_webhook_url",
+                "name"
+            ],
+            "properties": {
+                "discord_webhook_url": {
+                    "type": "string",
+                    "example": "https://discord.com/api/webhooks/..."
+                },
+                "name": {
+                    "type": "string",
+                    "example": "DevOps Alerts"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.RestoreJob": {
+            "type": "object",
+            "properties": {
+                "backup_id": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.BackupStatus"
+                },
+                "target_dbname": {
+                    "type": "string"
+                },
+                "target_host": {
+                    "type": "string"
+                },
+                "target_port": {
+                    "type": "integer"
+                },
+                "target_user": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.RestoreRequest": {
+            "type": "object",
+            "properties": {
+                "target_dbname": {
+                    "type": "string",
+                    "example": "restored_db"
+                },
+                "target_host": {
+                    "type": "string",
+                    "example": "staging-db.example.com"
+                },
+                "target_password": {
+                    "type": "string",
+                    "example": "password"
+                },
+                "target_port": {
+                    "type": "integer",
+                    "example": 5432
+                },
+                "target_user": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.RotationPolicy": {
+            "type": "object",
+            "required": [
+                "type",
+                "value"
+            ],
+            "properties": {
+                "type": {
+                    "enum": [
+                        "count",
+                        "days"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.RotationPolicyType"
+                        }
+                    ],
+                    "example": "days"
+                },
+                "value": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 30
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.RotationPolicyType": {
+            "type": "string",
+            "enum": [
+                "count",
+                "days"
+            ],
+            "x-enum-varnames": [
+                "RotationPolicyCount",
+                "RotationPolicyDays"
+            ]
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.StorageConfig": {
+            "type": "object",
+            "properties": {
+                "bucket": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageProvider"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.StorageConfigInput": {
+            "type": "object",
+            "required": [
+                "access_key",
+                "bucket",
+                "name",
+                "provider",
+                "secret_key"
+            ],
+            "properties": {
+                "access_key": {
+                    "type": "string",
+                    "example": "your-access-key"
+                },
+                "bucket": {
+                    "type": "string",
+                    "example": "my-backup-bucket"
+                },
+                "endpoint": {
+                    "type": "string",
+                    "example": "https://account-id.r2.cloudflarestorage.com"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My R2 Bucket"
+                },
+                "provider": {
+                    "enum": [
+                        "s3",
+                        "r2"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageProvider"
+                        }
+                    ],
+                    "example": "r2"
+                },
+                "region": {
+                    "type": "string",
+                    "example": "auto"
+                },
+                "secret_key": {
+                    "type": "string",
+                    "example": "your-secret-key"
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.StorageProvider": {
+            "type": "string",
+            "enum": [
+                "s3",
+                "r2"
+            ],
+            "x-enum-varnames": [
+                "StorageProviderS3",
+                "StorageProviderR2"
+            ]
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.SystemStats": {
+            "type": "object",
+            "properties": {
+                "failure_rate_24h": {
+                    "type": "number",
+                    "example": 4.5
+                },
+                "success_rate_24h": {
+                    "type": "number",
+                    "example": 95.5
+                },
+                "total_backups_24h": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "total_databases": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "total_storage_used_bytes": {
+                    "type": "integer",
+                    "example": 1073741824
+                }
+            }
+        },
+        "github_com_monzim_db_proxy_v1_internal_models.VerifyRequest": {
+            "type": "object",
+            "required": [
+                "otp"
+            ],
+            "properties": {
+                "otp": {
+                    "type": "string",
+                    "example": "123456"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "admin"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Type \"Bearer\" followed by a space and the JWT token.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

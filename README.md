@@ -16,6 +16,9 @@ A comprehensive RESTful API service built with Go for managing, scheduling, and 
 - **Restore Operations**: Restore databases from any backup to the original or a different target
 - **Monitoring & Statistics**: System-wide statistics including success rates and storage usage
 - **JWT Authentication**: Secure API access with JSON Web Tokens
+- **Swagger/OpenAPI**: Complete interactive API documentation at `/swagger/index.html`
+- **GORM ORM**: Type-safe database operations with auto-migration
+- **Comprehensive Logging**: Detailed request/response logging with error tracking and performance metrics
 
 ## Architecture
 
@@ -114,7 +117,29 @@ docker run -p 8080:8080 --env-file .env postgres-backup-service
 
 ## API Documentation
 
-The API follows RESTful principles and is documented in [swag.json](swag.json). All protected endpoints require a JWT token in the `Authorization` header as `Bearer <token>`.
+### Interactive Swagger UI
+
+Access the complete interactive API documentation at:
+
+**http://localhost:8080/swagger/index.html**
+
+Features:
+- All 22 endpoints documented with examples
+- Try out API calls directly from browser
+- Request/response schemas
+- JWT authentication support
+- Grouped by functionality (Auth, Storage, Databases, Backups, Stats)
+
+### OpenAPI Specification
+
+- **JSON**: `docs/swagger.json` - Import into Postman, Insomnia, etc.
+- **YAML**: `docs/swagger.yaml` - Human-readable format
+
+See [SWAGGER_INTEGRATION.md](SWAGGER_INTEGRATION.md) for complete documentation guide.
+
+### API Endpoints
+
+The API follows RESTful principles. All protected endpoints require a JWT token in the `Authorization` header as `Bearer <token>`.
 
 ### Base URL
 ```

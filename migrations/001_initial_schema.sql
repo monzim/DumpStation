@@ -16,9 +16,7 @@ CREATE TABLE IF NOT EXISTS otp_tokens (
     otp_code VARCHAR(6) NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     used BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    INDEX idx_otp_user_id (user_id),
-    INDEX idx_otp_expires (expires_at)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Storage configurations (S3, R2, etc.)
@@ -73,10 +71,7 @@ CREATE TABLE IF NOT EXISTS backups (
     error_message TEXT,
     started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    INDEX idx_backup_database_id (database_id),
-    INDEX idx_backup_status (status),
-    INDEX idx_backup_created_at (created_at)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Restore jobs
@@ -92,12 +87,17 @@ CREATE TABLE IF NOT EXISTS restore_jobs (
     error_message TEXT,
     started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    INDEX idx_restore_backup_id (backup_id),
-    INDEX idx_restore_status (status)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_discord_id ON users(discord_user_id);
+CREATE INDEX IF NOT EXISTS idx_otp_user_id ON otp_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_otp_expires ON otp_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_database_configs_storage ON database_configs(storage_id);
 CREATE INDEX IF NOT EXISTS idx_database_configs_notification ON database_configs(notification_id);
+CREATE INDEX IF NOT EXISTS idx_backup_database_id ON backups(database_id);
+CREATE INDEX IF NOT EXISTS idx_backup_status ON backups(status);
+CREATE INDEX IF NOT EXISTS idx_backup_created_at ON backups(created_at);
+CREATE INDEX IF NOT EXISTS idx_restore_backup_id ON restore_jobs(backup_id);
+CREATE INDEX IF NOT EXISTS idx_restore_status ON restore_jobs(status);

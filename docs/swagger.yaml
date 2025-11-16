@@ -1,0 +1,1112 @@
+basePath: /api/v1
+definitions:
+  github_com_monzim_db_proxy_v1_internal_models.AuthResponse:
+    properties:
+      expires_at:
+        example: "2025-11-17T22:00:00Z"
+        type: string
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.Backup:
+    properties:
+      completed_at:
+        type: string
+      database_id:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      size_bytes:
+        type: integer
+      status:
+        $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.BackupStatus'
+      storage_path:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.BackupStatus:
+    enum:
+    - pending
+    - running
+    - success
+    - failed
+    type: string
+    x-enum-varnames:
+    - BackupStatusPending
+    - BackupStatusRunning
+    - BackupStatusSuccess
+    - BackupStatusFailed
+  github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig:
+    properties:
+      created_at:
+        type: string
+      dbname:
+        type: string
+      enabled:
+        type: boolean
+      host:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      notification_id:
+        type: string
+      port:
+        type: integer
+      schedule:
+        type: string
+      storage_id:
+        type: string
+      updated_at:
+        type: string
+      user:
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.DatabaseConfigInput:
+    properties:
+      dbname:
+        example: proddb
+        type: string
+      host:
+        example: db.example.com
+        type: string
+      name:
+        example: Production DB
+        type: string
+      notification_id:
+        type: string
+      password:
+        example: secure_password
+        type: string
+      port:
+        example: 5432
+        maximum: 65535
+        minimum: 1
+        type: integer
+      rotation_policy:
+        $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.RotationPolicy'
+      schedule:
+        example: 0 2 * * *
+        type: string
+      storage_id:
+        type: string
+      user:
+        example: backup_user
+        type: string
+    required:
+    - dbname
+    - host
+    - name
+    - password
+    - port
+    - rotation_policy
+    - schedule
+    - storage_id
+    - user
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.LoginRequest:
+    properties:
+      username:
+        example: admin
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.NotificationConfig:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.NotificationConfigInput:
+    properties:
+      discord_webhook_url:
+        example: https://discord.com/api/webhooks/...
+        type: string
+      name:
+        example: DevOps Alerts
+        type: string
+    required:
+    - discord_webhook_url
+    - name
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.RestoreJob:
+    properties:
+      backup_id:
+        type: string
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      started_at:
+        type: string
+      status:
+        $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.BackupStatus'
+      target_dbname:
+        type: string
+      target_host:
+        type: string
+      target_port:
+        type: integer
+      target_user:
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.RestoreRequest:
+    properties:
+      target_dbname:
+        example: restored_db
+        type: string
+      target_host:
+        example: staging-db.example.com
+        type: string
+      target_password:
+        example: password
+        type: string
+      target_port:
+        example: 5432
+        type: integer
+      target_user:
+        example: admin
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.RotationPolicy:
+    properties:
+      type:
+        allOf:
+        - $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.RotationPolicyType'
+        enum:
+        - count
+        - days
+        example: days
+      value:
+        example: 30
+        minimum: 1
+        type: integer
+    required:
+    - type
+    - value
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.RotationPolicyType:
+    enum:
+    - count
+    - days
+    type: string
+    x-enum-varnames:
+    - RotationPolicyCount
+    - RotationPolicyDays
+  github_com_monzim_db_proxy_v1_internal_models.StorageConfig:
+    properties:
+      bucket:
+        type: string
+      created_at:
+        type: string
+      endpoint:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      provider:
+        $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageProvider'
+      region:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.StorageConfigInput:
+    properties:
+      access_key:
+        example: your-access-key
+        type: string
+      bucket:
+        example: my-backup-bucket
+        type: string
+      endpoint:
+        example: https://account-id.r2.cloudflarestorage.com
+        type: string
+      name:
+        example: My R2 Bucket
+        type: string
+      provider:
+        allOf:
+        - $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageProvider'
+        enum:
+        - s3
+        - r2
+        example: r2
+      region:
+        example: auto
+        type: string
+      secret_key:
+        example: your-secret-key
+        type: string
+    required:
+    - access_key
+    - bucket
+    - name
+    - provider
+    - secret_key
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.StorageProvider:
+    enum:
+    - s3
+    - r2
+    type: string
+    x-enum-varnames:
+    - StorageProviderS3
+    - StorageProviderR2
+  github_com_monzim_db_proxy_v1_internal_models.SystemStats:
+    properties:
+      failure_rate_24h:
+        example: 4.5
+        type: number
+      success_rate_24h:
+        example: 95.5
+        type: number
+      total_backups_24h:
+        example: 10
+        type: integer
+      total_databases:
+        example: 5
+        type: integer
+      total_storage_used_bytes:
+        example: 1073741824
+        type: integer
+    type: object
+  github_com_monzim_db_proxy_v1_internal_models.VerifyRequest:
+    properties:
+      otp:
+        example: "123456"
+        type: string
+      username:
+        example: admin
+        type: string
+    required:
+    - otp
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: A RESTful API service for managing PostgreSQL database backups with
+    automated scheduling, multiple storage backends (S3/R2), and Discord notifications.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: PostgreSQL Backup Service API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Sends a one-time password to the configured Discord webhook for
+        authentication. For single-user mode, username defaults to "admin".
+      parameters:
+      - description: Login request (optional in single-user mode)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OTP sent successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Request OTP for authentication
+      tags:
+      - Authentication
+  /auth/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verifies the OTP code received via Discord and returns a JWT token
+        for API authentication
+      parameters:
+      - description: OTP verification request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.VerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: JWT token and expiration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.AuthResponse'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid or expired OTP
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify OTP and get JWT token
+      tags:
+      - Authentication
+  /backups/{id}:
+    get:
+      description: Retrieve details of a specific backup including status, size, and
+        storage path
+      parameters:
+      - description: Backup ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Backup details
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.Backup'
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Backup not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a backup by ID
+      tags:
+      - Backups
+  /backups/{id}/restore:
+    post:
+      consumes:
+      - application/json
+      description: Restore a PostgreSQL database from a backup. Can restore to the
+        original database or a different target.
+      parameters:
+      - description: Backup ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Restore configuration (optional for custom target)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.RestoreRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Restore job created successfully
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.RestoreJob'
+        "400":
+          description: Invalid ID or request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Backup not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Restore a backup
+      tags:
+      - Backups
+  /databases:
+    get:
+      description: Get a list of all configured PostgreSQL databases for backup
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of database configurations
+          schema:
+            items:
+              $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all database configurations
+      tags:
+      - Databases
+    post:
+      consumes:
+      - application/json
+      description: Add a new PostgreSQL database for automated backups with scheduling
+        and rotation policy
+      parameters:
+      - description: Database configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfigInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created database configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new database configuration
+      tags:
+      - Databases
+  /databases/{id}:
+    delete:
+      description: Delete an existing database configuration and remove it from scheduler
+      parameters:
+      - description: Database Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Database configuration deleted successfully
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a database configuration
+      tags:
+      - Databases
+    get:
+      description: Retrieve details of a specific database configuration including
+        storage and notification settings
+      parameters:
+      - description: Database Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Database configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig'
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Database config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a database configuration by ID
+      tags:
+      - Databases
+    put:
+      consumes:
+      - application/json
+      description: Update an existing database configuration and reschedule backups
+      parameters:
+      - description: Database Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated database configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfigInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated database configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.DatabaseConfig'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Database config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a database configuration
+      tags:
+      - Databases
+  /databases/{id}/backup:
+    post:
+      description: Manually trigger a backup for a specific database configuration
+      parameters:
+      - description: Database Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Backup initiated successfully
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.Backup'
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Database config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Trigger a manual backup
+      tags:
+      - Backups
+  /databases/{id}/backups:
+    get:
+      description: Get a list of all backup history for a specific database configuration
+      parameters:
+      - description: Database Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of backups
+          schema:
+            items:
+              $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.Backup'
+            type: array
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List backups for a database
+      tags:
+      - Backups
+  /notifications:
+    get:
+      description: Get a list of all configured Discord webhooks for notifications
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of notification configurations
+          schema:
+            items:
+              $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfig'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all notification configurations
+      tags:
+      - Notifications
+    post:
+      consumes:
+      - application/json
+      description: Add a new Discord webhook for backup notifications
+      parameters:
+      - description: Notification configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfigInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created notification configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfig'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new notification configuration
+      tags:
+      - Notifications
+  /notifications/{id}:
+    delete:
+      description: Delete an existing notification configuration by ID
+      parameters:
+      - description: Notification Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Notification configuration deleted successfully
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Notification config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a notification configuration
+      tags:
+      - Notifications
+    get:
+      description: Retrieve details of a specific notification configuration
+      parameters:
+      - description: Notification Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Notification configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfig'
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Notification config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a notification configuration by ID
+      tags:
+      - Notifications
+    put:
+      consumes:
+      - application/json
+      description: Update an existing notification configuration
+      parameters:
+      - description: Notification Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated notification configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfigInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated notification configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.NotificationConfig'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Notification config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a notification configuration
+      tags:
+      - Notifications
+  /stats:
+    get:
+      description: Retrieve overall system statistics including total databases, backups
+        in last 24h, success/failure rates, and storage usage
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: System statistics
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.SystemStats'
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get system statistics
+      tags:
+      - Statistics
+  /storage:
+    get:
+      description: Get a list of all configured storage backends (S3/R2)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of storage configurations
+          schema:
+            items:
+              $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfig'
+            type: array
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all storage configurations
+      tags:
+      - Storage
+    post:
+      consumes:
+      - application/json
+      description: Add a new storage backend configuration (S3 or Cloudflare R2)
+      parameters:
+      - description: Storage configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfigInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created storage configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfig'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new storage configuration
+      tags:
+      - Storage
+  /storage/{id}:
+    delete:
+      description: Delete an existing storage configuration by ID
+      parameters:
+      - description: Storage Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Storage configuration deleted successfully
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Storage config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a storage configuration
+      tags:
+      - Storage
+    get:
+      description: Retrieve details of a specific storage configuration
+      parameters:
+      - description: Storage Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Storage configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfig'
+        "400":
+          description: Invalid ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Storage config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a storage configuration by ID
+      tags:
+      - Storage
+    put:
+      consumes:
+      - application/json
+      description: Update an existing storage configuration
+      parameters:
+      - description: Storage Config ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated storage configuration
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfigInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated storage configuration
+          schema:
+            $ref: '#/definitions/github_com_monzim_db_proxy_v1_internal_models.StorageConfig'
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Storage config not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a storage configuration
+      tags:
+      - Storage
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and the JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

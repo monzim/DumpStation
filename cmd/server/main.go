@@ -19,6 +19,25 @@ import (
 	"github.com/monzim/db_proxy/v1/internal/scheduler"
 )
 
+// @title PostgreSQL Backup Service API
+// @version 1.0
+// @description A RESTful API service for managing PostgreSQL database backups with automated scheduling, multiple storage backends (S3/R2), and Discord notifications.
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.email support@example.com
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8080
+// @BasePath /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and the JWT token.
+
 func main() {
 	log.Println("Starting PostgreSQL Backup Service...")
 
@@ -37,13 +56,13 @@ func main() {
 
 	log.Println("Database connection established")
 
-	// Run migrations
-	if err := db.RunMigrations("migrations"); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+	// Run GORM auto-migration
+	if err := db.AutoMigrate(); err != nil {
+		log.Fatalf("Failed to run auto-migration: %v", err)
 	}
 
-	// Initialize repository
-	repo := repository.New(db.DB)
+	// Initialize GORM repository
+	repo := repository.NewGORM(db.DB)
 
 	// Initialize JWT manager
 	jwtMgr := auth.NewJWTManager(cfg.JWT.Secret, cfg.JWT.Expiration)

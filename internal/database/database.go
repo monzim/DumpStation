@@ -1,64 +1,74 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"path/filepath"
 
-	_ "github.com/lib/pq"
+	"github.com/monzim/db_proxy/v1/internal/models"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-// DB wraps the sql.DB connection
+// DB wraps the GORM database connection
 type DB struct {
-	*sql.DB
+	*gorm.DB
 }
 
-// New creates a new database connection
+// New creates a new GORM database connection
 func New(dsn string) (*DB, error) {
-	db, err := sql.Open("postgres", dsn)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent), // Silent in production, change to logger.Info for debugging
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Test connection
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+	// Get underlying SQL DB for connection pool settings
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get underlying SQL DB: %w", err)
 	}
 
 	// Set connection pool settings
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(5)
+
+	// Test connection
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
 
 	return &DB{db}, nil
 }
 
-// RunMigrations executes all SQL migration files
-func (db *DB) RunMigrations(migrationsPath string) error {
-	files, err := filepath.Glob(filepath.Join(migrationsPath, "*.sql"))
+// AutoMigrate runs GORM auto-migration for all models
+func (db *DB) AutoMigrate() error {
+	log.Println("Running GORM auto-migration...")
+
+	err := db.DB.AutoMigrate(
+		&models.User{},
+		&models.OTPToken{},
+		&models.StorageConfig{},
+		&models.NotificationConfig{},
+		&models.DatabaseConfig{},
+		&models.Backup{},
+		&models.RestoreJob{},
+	)
+
 	if err != nil {
-		return fmt.Errorf("failed to read migration files: %w", err)
+		return fmt.Errorf("failed to run auto-migration: %w", err)
 	}
 
-	for _, file := range files {
-		log.Printf("Running migration: %s", filepath.Base(file))
-
-		content, err := ioutil.ReadFile(file)
-		if err != nil {
-			return fmt.Errorf("failed to read migration file %s: %w", file, err)
-		}
-
-		if _, err := db.Exec(string(content)); err != nil {
-			return fmt.Errorf("failed to execute migration %s: %w", file, err)
-		}
-	}
-
-	log.Println("All migrations completed successfully")
+	log.Println("Auto-migration completed successfully")
 	return nil
 }
 
 // Close closes the database connection
 func (db *DB) Close() error {
-	return db.DB.Close()
+	sqlDB, err := db.DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }
