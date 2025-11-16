@@ -19,18 +19,26 @@ import (
 
 // Service handles backup operations
 type Service struct {
-	repo *repository.Repository
+	repo           *repository.Repository
+	versionManager *VersionManager
 }
 
 // NewService creates a new backup service
 func NewService(repo *repository.Repository) *Service {
 	return &Service{
-		repo: repo,
+		repo:           repo,
+		versionManager: NewVersionManager(),
 	}
 }
 
 // ExecuteBackup performs a database backup
 func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
+	// Check if config is paused
+	if dbConfig.Paused {
+		log.Printf("Skipping backup for paused database: %s", dbConfig.Name)
+		return nil
+	}
+
 	// Create backup record
 	backup, err := s.repo.CreateBackup(dbConfig.ID, models.BackupStatusPending)
 	if err != nil {
@@ -58,17 +66,48 @@ func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
 		}
 	}
 
+	// Detect PostgreSQL version if not set or needs refresh
+	postgresVersion := dbConfig.PostgresVersion
+	if postgresVersion == "" || postgresVersion == "latest" || (dbConfig.VersionLastChecked != nil && time.Since(*dbConfig.VersionLastChecked) > 24*time.Hour) {
+		detectedVersion, err := s.versionManager.DetectPostgresVersion(dbConfig)
+		if err != nil {
+			log.Printf("Warning: Failed to detect PostgreSQL version for %s: %v. Using 'latest'", dbConfig.Name, err)
+			postgresVersion = "latest"
+		} else {
+			postgresVersion = detectedVersion
+		}
+	}
+
+	log.Printf("Using PostgreSQL version: %s for database %s", postgresVersion, dbConfig.Name)
+
 	// Perform backup
 	startTime := time.Now()
 	timestamp := startTime.Format("20060102_150405")
-	backupFilename := fmt.Sprintf("%s_%s.sql", dbConfig.Name, timestamp)
+	backupFilename := fmt.Sprintf("%s_%s.sql", dbConfig.DBName, timestamp)
 	tempFilePath := filepath.Join(os.TempDir(), backupFilename)
 
-	log.Printf("Starting backup for database: %s", dbConfig.Name)
+	log.Printf("Starting backup for database: %s (PostgreSQL %s)", dbConfig.Name, postgresVersion)
 
-	// Create pg_dump command
+	// Create pg_dump command with version-specific settings
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
+
+	pgDumpCmd := s.versionManager.GetPgDumpVersion(postgresVersion)
+
+	// Verify pg_dump version compatibility
+	pgDumpVersionInfo, err := s.versionManager.GetPgDumpVersionInfo(pgDumpCmd)
+	if err != nil {
+		log.Printf("Warning: Could not verify pg_dump version: %v", err)
+	} else {
+		log.Printf("Using pg_dump: %s", pgDumpVersionInfo)
+		pgDumpMajor := s.versionManager.ParseMajorVersion(pgDumpVersionInfo)
+		if !s.versionManager.IsCompatibleVersion(pgDumpMajor, postgresVersion) {
+			log.Printf("Warning: pg_dump version %s may not be compatible with PostgreSQL %s. Attempting anyway.", pgDumpMajor, postgresVersion)
+		}
+	}
+
+	dumpFormat := s.versionManager.GetDumpFormatForVersion(postgresVersion)
+	compressionLevel := s.versionManager.GetDumpCompressionLevel(postgresVersion)
 
 	args := []string{
 		"--host", dbConfig.Host,
@@ -77,10 +116,18 @@ func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
 		"--dbname", dbConfig.DBName,
 		"--no-password",
 		"--verbose",
-		"--format=plain",
 	}
 
-	cmd := exec.CommandContext(ctx, "pg_dump", args...)
+	// Add format-specific arguments
+	if dumpFormat == "custom" {
+		args = append(args, "-Fc", "-Z", compressionLevel) // Custom format with compression
+		backupFilename = fmt.Sprintf("%s_%s.dump", dbConfig.Name, timestamp)
+		tempFilePath = filepath.Join(os.TempDir(), backupFilename)
+	} else {
+		args = append(args, "--format=plain")
+	}
+
+	cmd := exec.CommandContext(ctx, pgDumpCmd, args...)
 	cmd.Env = append(os.Environ(),
 		"PGPASSWORD="+dbConfig.Password,
 		"PGSSLMODE=disable",
@@ -104,7 +151,8 @@ func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
 		if ctx.Err() == context.DeadlineExceeded {
 			return s.handleBackupError(backup.ID, dbConfig, "pg_dump timed out after 30 minutes")
 		}
-		return s.handleBackupError(backup.ID, dbConfig, fmt.Sprintf("pg_dump failed: %v, stderr: %s", err, stderr.String()))
+		errMsg := fmt.Sprintf("pg_dump failed: %v, stderr: %s", err, stderr.String())
+		return s.handleBackupError(backup.ID, dbConfig, errMsg)
 	}
 
 	// Get file size
@@ -121,11 +169,14 @@ func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
 		return s.handleBackupError(backup.ID, dbConfig, fmt.Sprintf("failed to create storage client: %v", err))
 	}
 
-	objectKey := storage.GetObjectKey(dbConfig.Name, backupFilename)
+	objectKey := storage.GetObjectKey(dbConfig.ID.String(), backupFilename)
 	metadata := map[string]string{
-		"database":  dbConfig.Name,
-		"timestamp": timestamp,
-		"backup-by": "postgres-backup-service",
+		"database":         dbConfig.Name,
+		"database-id":      dbConfig.ID.String(),
+		"timestamp":        timestamp,
+		"backup-by":        "postgres-backup-service",
+		"postgres-version": postgresVersion,
+		"dump-format":      dumpFormat,
 	}
 
 	if err := storageClient.UploadFile(tempFilePath, objectKey, metadata); err != nil {
@@ -139,7 +190,7 @@ func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Backup completed for %s in %v. File size: %d bytes", dbConfig.Name, duration, sizeBytes)
+	log.Printf("Backup completed for %s in %v. File size: %d bytes (format: %s)", dbConfig.Name, duration, sizeBytes, dumpFormat)
 
 	// Send success notification
 	if notifier != nil {
@@ -170,11 +221,17 @@ func (s *Service) handleBackupError(backupID uuid.UUID, dbConfig *models.Databas
 		}
 	}
 
-	return fmt.Errorf(errorMsg)
+	return fmt.Errorf("%s", errorMsg)
 }
 
 // cleanupOldBackups removes old backups based on retention policy
 func (s *Service) cleanupOldBackups(dbConfig *models.DatabaseConfig, storageClient *storage.StorageClient) {
+	// Skip cleanup if paused
+	if dbConfig.Paused {
+		log.Printf("Skipping cleanup for paused database: %s", dbConfig.Name)
+		return
+	}
+
 	log.Printf("Starting cleanup for database: %s", dbConfig.Name)
 
 	// Get all backups for this database
@@ -299,7 +356,14 @@ func (s *Service) ExecuteRestore(backupID uuid.UUID, req *models.RestoreRequest)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "psql",
+	// Use version-specific psql for restore
+	postgresVersion := dbConfig.PostgresVersion
+	if postgresVersion == "" {
+		postgresVersion = "latest"
+	}
+	psqlCmd := s.versionManager.GetPsqlVersion(postgresVersion)
+
+	cmd := exec.CommandContext(ctx, psqlCmd,
 		"--host", targetHost,
 		"--port", fmt.Sprintf("%d", targetPort),
 		"--username", targetUser,
@@ -319,7 +383,7 @@ func (s *Service) ExecuteRestore(backupID uuid.UUID, req *models.RestoreRequest)
 	if err := cmd.Run(); err != nil {
 		errMsg := fmt.Sprintf("psql failed: %v, stderr: %s", err, stderr.String())
 		log.Printf("Restore error: %s", errMsg)
-		return fmt.Errorf(errMsg)
+		return fmt.Errorf("%s", errMsg)
 	}
 
 	log.Printf("Restore completed successfully for backup %s", backupID)

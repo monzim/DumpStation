@@ -30,7 +30,6 @@ func AuthMiddleware(jwtManager *auth.JWTManager) func(http.Handler) http.Handler
 			// Extract token from "Bearer <token>"
 			parts := strings.Split(authHeader, " ")
 			// log the parts for debugging
-			log.Printf("Auth Header Parts: %v", parts)
 			if len(parts) != 2 || parts[0] != "Bearer" {
 				log.Printf("[AUTH] ❌ Invalid authorization header format - %s %s", r.Method, r.URL.Path)
 				writeError(w, http.StatusUnauthorized, "invalid authorization header format")

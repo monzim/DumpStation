@@ -124,23 +124,26 @@ type RotationPolicy struct {
 
 // DatabaseConfig represents a database backup configuration
 type DatabaseConfig struct {
-	ID                  uuid.UUID          `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	Name                string             `gorm:"type:varchar(255);not null" json:"name"`
-	Host                string             `gorm:"type:varchar(255);not null" json:"host"`
-	Port                int                `gorm:"not null;default:5432" json:"port"`
-	DBName              string             `gorm:"column:dbname;type:varchar(255);not null" json:"dbname"`
-	Username            string             `gorm:"type:varchar(255);not null" json:"user"`
-	Password            string             `gorm:"type:text;not null" json:"-"`
-	Schedule            string             `gorm:"type:varchar(100);not null" json:"schedule"`
-	StorageID           uuid.UUID          `gorm:"type:uuid;not null;index" json:"storage_id"`
-	Storage             StorageConfig      `gorm:"foreignKey:StorageID;constraint:OnDelete:RESTRICT" json:"-"`
-	NotificationID      *uuid.UUID         `gorm:"type:uuid;index" json:"notification_id,omitempty"`
+	ID                  uuid.UUID           `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	Name                string              `gorm:"type:varchar(255);not null" json:"name"`
+	Host                string              `gorm:"type:varchar(255);not null" json:"host"`
+	Port                int                 `gorm:"not null;default:5432" json:"port"`
+	DBName              string              `gorm:"column:dbname;type:varchar(255);not null" json:"dbname"`
+	Username            string              `gorm:"type:varchar(255);not null" json:"user"`
+	Password            string              `gorm:"type:text;not null" json:"-"`
+	Schedule            string              `gorm:"type:varchar(100);not null" json:"schedule"`
+	StorageID           uuid.UUID           `gorm:"type:uuid;not null;index" json:"storage_id"`
+	Storage             StorageConfig       `gorm:"foreignKey:StorageID;constraint:OnDelete:RESTRICT" json:"-"`
+	NotificationID      *uuid.UUID          `gorm:"type:uuid;index" json:"notification_id,omitempty"`
 	Notification        *NotificationConfig `gorm:"foreignKey:NotificationID;constraint:OnDelete:SET NULL" json:"-"`
-	RotationPolicyType  RotationPolicyType `gorm:"type:varchar(20);not null;check:rotation_policy_type IN ('count','days')" json:"-"`
-	RotationPolicyValue int                `gorm:"not null" json:"-"`
-	Enabled             bool               `gorm:"default:true" json:"enabled"`
-	CreatedAt           time.Time          `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt           time.Time          `gorm:"autoUpdateTime" json:"updated_at"`
+	RotationPolicyType  RotationPolicyType  `gorm:"type:varchar(20);not null;check:rotation_policy_type IN ('count','days')" json:"-"`
+	RotationPolicyValue int                 `gorm:"not null" json:"-"`
+	PostgresVersion     string              `gorm:"type:varchar(20);default:'latest'" json:"postgres_version"`
+	VersionLastChecked  *time.Time          `gorm:"type:timestamp" json:"version_last_checked,omitempty"`
+	Enabled             bool                `gorm:"default:true" json:"enabled"`
+	Paused              bool                `gorm:"default:false" json:"paused"`
+	CreatedAt           time.Time           `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt           time.Time           `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // BeforeCreate hook for DatabaseConfig
@@ -185,16 +188,17 @@ func (d *DatabaseConfig) MarshalJSON() ([]byte, error) {
 
 // DatabaseConfigInput for API requests
 type DatabaseConfigInput struct {
-	Name           string         `json:"name" validate:"required" example:"Production DB"`
-	Host           string         `json:"host" validate:"required" example:"db.example.com"`
-	Port           int            `json:"port" validate:"required,min=1,max=65535" example:"5432"`
-	DBName         string         `json:"dbname" validate:"required" example:"proddb"`
-	Username       string         `json:"user" validate:"required" example:"backup_user"`
-	Password       string         `json:"password" validate:"required" example:"secure_password"`
-	Schedule       string         `json:"schedule" validate:"required" example:"0 2 * * *"`
-	StorageID      uuid.UUID      `json:"storage_id" validate:"required"`
-	NotificationID *uuid.UUID     `json:"notification_id,omitempty"`
-	RotationPolicy RotationPolicy `json:"rotation_policy" validate:"required"`
+	Name            string         `json:"name" validate:"required" example:"Production DB"`
+	Host            string         `json:"host" validate:"required" example:"db.example.com"`
+	Port            int            `json:"port" validate:"required,min=1,max=65535" example:"5432"`
+	DBName          string         `json:"dbname" validate:"required" example:"proddb"`
+	Username        string         `json:"user" validate:"required" example:"backup_user"`
+	Password        string         `json:"password" validate:"required" example:"secure_password"`
+	Schedule        string         `json:"schedule" validate:"required" example:"0 2 * * *"`
+	StorageID       uuid.UUID      `json:"storage_id" validate:"required"`
+	NotificationID  *uuid.UUID     `json:"notification_id,omitempty"`
+	PostgresVersion string         `json:"postgres_version" example:"14"` // Optional: "latest", "15", "14", "13", etc.
+	RotationPolicy  RotationPolicy `json:"rotation_policy" validate:"required"`
 }
 
 // BackupStatus represents the status of a backup

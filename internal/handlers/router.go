@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"github.com/gorilla/mux"
+	_ "github.com/monzim/db_proxy/v1/docs" // Import generated swagger docs
 	"github.com/monzim/db_proxy/v1/internal/auth"
 	"github.com/monzim/db_proxy/v1/internal/middleware"
 	httpSwagger "github.com/swaggo/http-swagger"
-	_ "github.com/monzim/db_proxy/v1/docs" // Import generated swagger docs
 )
 
 // SetupRoutes configures all HTTP routes
@@ -47,6 +47,8 @@ func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager) *mux.Router {
 	protected.HandleFunc("/databases/{id}", h.GetDatabaseConfig).Methods("GET")
 	protected.HandleFunc("/databases/{id}", h.UpdateDatabaseConfig).Methods("PUT")
 	protected.HandleFunc("/databases/{id}", h.DeleteDatabaseConfig).Methods("DELETE")
+	protected.HandleFunc("/databases/{id}/pause", h.PauseDatabaseConfig).Methods("POST")
+	protected.HandleFunc("/databases/{id}/unpause", h.UnpauseDatabaseConfig).Methods("POST")
 	protected.HandleFunc("/databases/{id}/backup", h.TriggerManualBackup).Methods("POST")
 	protected.HandleFunc("/databases/{id}/backups", h.ListBackupsByDatabase).Methods("GET")
 
