@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build docker-up docker-down deps migrate
+.PHONY: help build run test clean docker-build docker-up docker-down deps migrate swagger
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -55,5 +55,15 @@ format: ## Format code
 
 lint: ## Run linter
 	golangci-lint run
+
+swagger: ## Generate Swagger documentation
+	@if ! command -v swag > /dev/null; then \
+		echo "Installing swag..."; \
+		go install github.com/swaggo/swag/cmd/swag@v1.16.2; \
+	fi
+	@echo "Generating Swagger documentation..."
+	@swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+	@echo "✓ Swagger documentation generated in docs/"
+	@echo "  Access at: http://localhost:8080/swagger/index.html"
 
 .DEFAULT_GOAL := help

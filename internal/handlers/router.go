@@ -4,6 +4,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/monzim/db_proxy/v1/internal/auth"
 	"github.com/monzim/db_proxy/v1/internal/middleware"
+	httpSwagger "github.com/swaggo/http-swagger"
+	_ "github.com/monzim/db_proxy/v1/docs" // Import generated swagger docs
 )
 
 // SetupRoutes configures all HTTP routes
@@ -54,6 +56,9 @@ func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager) *mux.Router {
 
 	// Stats routes
 	protected.HandleFunc("/stats", h.GetStats).Methods("GET")
+
+	// Swagger documentation (public, no auth required)
+	r.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 
 	return r
 }
