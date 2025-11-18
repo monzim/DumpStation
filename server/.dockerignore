@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation (except generated swagger)
+*.md
+.github/
+
+# Build artifacts
+*.exe
+*.out
+backup-service
+coverage.out
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node modules (if any)
+node_modules/
+npm-debug.log
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Test files
+*_test.go
+test_*.go
+
+# Makefile (not needed in image)
+Makefile

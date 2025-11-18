@@ -1,0 +1,105 @@
+version: "3.8"
+
+# Production-optimized docker-compose configuration
+# Use: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  # PostgreSQL database for the backup service itself
+  postgres:
+    image: postgres:15-alpine
+    container_name: backup_service_db_prod
+    restart: always
+    environment:
+      POSTGRES_DB: backup_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_INITDB_ARGS: "-c shared_buffers=256MB -c effective_cache_size=1GB"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backup_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backup service API
+  backup-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backup_service_api_prod
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Server
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: backup_service
+      DB_SSLMODE: disable
+
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+
+      # Discord Notifications
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      OTP_EXPIRATION_MINUTES: ${OTP_EXPIRATION_MINUTES:-5}
+
+      # S3/R2 Configuration (configure via environment)
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_REGION: ${S3_REGION:-}
+    ports:
+      - "8080:8080"
+    networks:
+      - backup_network
+    volumes:
+      - ./logs:/root/logs
+      - /tmp/backups:/tmp/backups:rw
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "1"
+          memory: 1G
+
+volumes:
+  postgres_prod_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/postgres # Change to your data directory
+
+networks:
+  backup_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
