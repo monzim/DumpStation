@@ -51,7 +51,7 @@ func (vm *VersionManager) DetectPostgresVersion(dbConfig *models.DatabaseConfig)
 
 	cmd.Env = append(os.Environ(),
 		"PGPASSWORD="+dbConfig.Password,
-		"PGSSLMODE=disable",
+		"PGSSLMODE=require",
 	)
 
 	var stdout, stderr bytes.Buffer
@@ -212,8 +212,8 @@ func (vm *VersionManager) IsCompatibleVersion(pgDumpVersion string, dbVersion st
 	dbMajorInt, _ := strconv.Atoi(dbMajor)
 
 	// Best practice: pg_dump should be >= database version for safe backups
-	// Allow 1 version difference for testing
-	return dumpMajorInt >= (dbMajorInt - 1)
+	// pg_dump version must match or be newer than the database version
+	return dumpMajorInt >= dbMajorInt
 }
 
 // ExtractMajorVersion extracts just the major version number

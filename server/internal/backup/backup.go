@@ -130,7 +130,7 @@ func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
 	cmd := exec.CommandContext(ctx, pgDumpCmd, args...)
 	cmd.Env = append(os.Environ(),
 		"PGPASSWORD="+dbConfig.Password,
-		"PGSSLMODE=disable",
+		"PGSSLMODE=require",
 	)
 
 	// Create output file
@@ -374,7 +374,7 @@ func (s *Service) ExecuteRestore(backupID uuid.UUID, req *models.RestoreRequest)
 
 	cmd.Env = append(os.Environ(),
 		"PGPASSWORD="+targetPassword,
-		"PGSSLMODE=disable",
+		"PGSSLMODE=require",
 	)
 
 	var stderr bytes.Buffer

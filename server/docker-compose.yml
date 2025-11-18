@@ -1,0 +1,154 @@
+version: "3.8"
+
+services:
+  # PostgreSQL database for the backup service itself
+  postgres:
+    image: postgres:15-alpine
+    container_name: backup_service_db
+    environment:
+      POSTGRES_DB: backup_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL 12 - Legacy database
+  postgres-12:
+    image: postgres:12-alpine
+    container_name: backup_postgres_12
+    environment:
+      POSTGRES_DB: testdb_12
+      POSTGRES_USER: backup_user
+      POSTGRES_PASSWORD: backup_pass_12
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_12_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backup_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL 14 - Mid-version database
+  postgres-14:
+    image: postgres:14-alpine
+    container_name: backup_postgres_14
+    environment:
+      POSTGRES_DB: testdb_14
+      POSTGRES_USER: backup_user
+      POSTGRES_PASSWORD: backup_pass_14
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_14_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backup_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL 16 - Latest database
+  postgres-16:
+    image: postgres:16-alpine
+    container_name: backup_postgres_16
+    environment:
+      POSTGRES_DB: testdb_16
+      POSTGRES_USER: backup_user
+      POSTGRES_PASSWORD: backup_pass_16
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_16_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backup_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backup service API
+  backup-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backup_service_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-12:
+        condition: service_healthy
+      postgres-14:
+        condition: service_healthy
+      postgres-16:
+        condition: service_healthy
+    environment:
+      # Server
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+
+      # Database (connecting to the postgres service)
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: backup_service
+      DB_SSLMODE: disable
+
+      # JWT (change in production!)
+      JWT_SECRET: development-secret-change-in-production
+      JWT_EXPIRATION_HOURS: 24
+
+      # Discord (configure these)
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      OTP_EXPIRATION_MINUTES: 5
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    networks:
+      - backup_network
+    volumes:
+      - ./logs:/root/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # MinIO for local S3-compatible storage (optional, for testing)
+  minio:
+    image: minio/minio:latest
+    container_name: backup_minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - backup_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+volumes:
+  postgres_data:
+  postgres_12_data:
+  postgres_14_data:
+  postgres_16_data:
+  minio_data:
+
+networks:
+  backup_network:
+    driver: bridge
