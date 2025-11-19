@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
+  Activity,
   Archive,
   Bell,
   Database,
@@ -20,6 +21,7 @@ const navItems: NavItem[] = [
   { label: "Overview", value: "overview", icon: LayoutDashboard },
   { label: "Databases", value: "databases", icon: Database },
   { label: "Backups", value: "backups", icon: Archive },
+  { label: "Activity Logs", value: "logs", icon: Activity },
   { label: "Notifications", value: "notifications", icon: Bell },
   { label: "Storage", value: "storage", icon: HardDrive },
 ];

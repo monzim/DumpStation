@@ -273,7 +273,7 @@ func (h *Handler) CreateStorageConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Log storage creation
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionStorageCreated, models.LogLevelSuccess,
+	h.repo.LogActivity(userID, models.ActionStorageCreated, models.LogLevelSuccess,
 		"storage", &config.ID, config.Name,
 		fmt.Sprintf("Storage configuration '%s' (%s) created", config.Name, config.Provider),
 		"", getIPAddress(r))
@@ -364,7 +364,7 @@ func (h *Handler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Log storage update
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionStorageUpdated, models.LogLevelSuccess,
+	h.repo.LogActivity(userID, models.ActionStorageUpdated, models.LogLevelSuccess,
 		"storage", &config.ID, config.Name,
 		fmt.Sprintf("Storage configuration '%s' updated", config.Name),
 		"", getIPAddress(r))
@@ -405,7 +405,7 @@ func (h *Handler) DeleteStorageConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Log storage deletion
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionStorageDeleted, models.LogLevelInfo,
+	h.repo.LogActivity(userID, models.ActionStorageDeleted, models.LogLevelInfo,
 		"storage", &id, configName,
 		fmt.Sprintf("Storage configuration '%s' deleted", configName),
 		"", getIPAddress(r))
@@ -649,7 +649,7 @@ func (h *Handler) CreateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Log database creation
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionDatabaseCreated, models.LogLevelSuccess,
+	h.repo.LogActivity(userID, models.ActionDatabaseCreated, models.LogLevelSuccess,
 		"database", &config.ID, config.Name,
 		fmt.Sprintf("Database configuration '%s' created with schedule: %s", config.Name, config.Schedule),
 		"", getIPAddress(r))
@@ -746,7 +746,7 @@ func (h *Handler) UpdateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Log database update
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionDatabaseUpdated, models.LogLevelSuccess,
+	h.repo.LogActivity(userID, models.ActionDatabaseUpdated, models.LogLevelSuccess,
 		"database", &config.ID, config.Name,
 		fmt.Sprintf("Database configuration '%s' updated", config.Name),
 		"", getIPAddress(r))
@@ -789,7 +789,7 @@ func (h *Handler) DeleteDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Log database deletion
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionDatabaseDeleted, models.LogLevelInfo,
+	h.repo.LogActivity(userID, models.ActionDatabaseDeleted, models.LogLevelInfo,
 		"database", &id, configName,
 		fmt.Sprintf("Database configuration '%s' deleted", configName),
 		"", getIPAddress(r))
@@ -843,7 +843,7 @@ func (h *Handler) PauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Log database pause
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionDatabasePaused, models.LogLevelInfo,
+	h.repo.LogActivity(userID, models.ActionDatabasePaused, models.LogLevelInfo,
 		"database", &config.ID, config.Name,
 		fmt.Sprintf("Database configuration '%s' paused", config.Name),
 		"", getIPAddress(r))
@@ -901,7 +901,7 @@ func (h *Handler) UnpauseDatabaseConfig(w http.ResponseWriter, r *http.Request) 
 
 	// Log database unpause
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionDatabaseUnpaused, models.LogLevelInfo,
+	h.repo.LogActivity(userID, models.ActionDatabaseUnpaused, models.LogLevelInfo,
 		"database", &config.ID, config.Name,
 		fmt.Sprintf("Database configuration '%s' resumed", config.Name),
 		"", getIPAddress(r))
@@ -947,7 +947,7 @@ func (h *Handler) TriggerManualBackup(w http.ResponseWriter, r *http.Request) {
 
 	// Log backup trigger
 	userID := getUserIDFromContext(r)
-	h.logActivity(userID, models.ActionBackupTriggered, models.LogLevelInfo,
+	h.repo.LogActivity(userID, models.ActionBackupTriggered, models.LogLevelInfo,
 		"backup", &backup.ID, config.Name,
 		fmt.Sprintf("Manual backup triggered for database '%s'", config.Name),
 		"", getIPAddress(r))

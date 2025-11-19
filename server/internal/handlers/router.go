@@ -60,6 +60,10 @@ func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager) *mux.Router {
 	// Stats routes
 	protected.HandleFunc("/stats", h.GetStats).Methods("GET", "OPTIONS")
 
+	// Activity Log routes
+	protected.HandleFunc("/logs", h.ListActivityLogs).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/logs/{id}", h.GetActivityLog).Methods("GET", "OPTIONS")
+
 	// Swagger documentation (public, no auth required)
 	r.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
 

@@ -519,3 +519,122 @@ func (r *Repository) CreateRestoreJob(backupID uuid.UUID, req *models.RestoreReq
 
 	return job, nil
 }
+
+// Activity Log operations
+
+// CreateActivityLog creates a new activity log entry
+func (r *Repository) CreateActivityLog(log *models.ActivityLog) error {
+	result := r.db.Create(log)
+	if result.Error != nil {
+		return fmt.Errorf("failed to create activity log: %w", result.Error)
+	}
+	return nil
+}
+
+// LogActivity is a helper function to quickly log an activity
+func (r *Repository) LogActivity(userID *uuid.UUID, action models.ActivityLogAction, level models.ActivityLogLevel,
+	entityType string, entityID *uuid.UUID, entityName, description, metadata, ipAddress string) error {
+
+	// If metadata is empty, set it to null or empty JSON object
+	if metadata == "" {
+		metadata = "{}"
+	}
+
+	log := &models.ActivityLog{
+		UserID:      userID,
+		Action:      action,
+		Level:       level,
+		EntityType:  entityType,
+		EntityID:    entityID,
+		EntityName:  entityName,
+		Description: description,
+		Metadata:    metadata,
+		IPAddress:   ipAddress,
+	}
+
+	return r.CreateActivityLog(log)
+}
+
+// GetActivityLog retrieves a single activity log by ID
+func (r *Repository) GetActivityLog(id uuid.UUID) (*models.ActivityLog, error) {
+	var log models.ActivityLog
+	result := r.db.Preload("User").First(&log, "id = ?", id)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get activity log: %w", result.Error)
+	}
+
+	return &log, nil
+}
+
+// ListActivityLogs retrieves activity logs with optional filtering and pagination
+func (r *Repository) ListActivityLogs(params *models.ActivityLogListParams) ([]*models.ActivityLog, int64, error) {
+	var logs []*models.ActivityLog
+	var total int64
+
+	query := r.db.Model(&models.ActivityLog{}).Preload("User")
+
+	// Apply filters
+	if params.UserID != nil {
+		query = query.Where("user_id = ?", params.UserID)
+	}
+	if params.Action != nil {
+		query = query.Where("action = ?", params.Action)
+	}
+	if params.Level != nil {
+		query = query.Where("level = ?", params.Level)
+	}
+	if params.EntityType != nil {
+		query = query.Where("entity_type = ?", params.EntityType)
+	}
+	if params.EntityID != nil {
+		query = query.Where("entity_id = ?", params.EntityID)
+	}
+	if params.StartDate != nil {
+		query = query.Where("created_at >= ?", params.StartDate)
+	}
+	if params.EndDate != nil {
+		query = query.Where("created_at <= ?", params.EndDate)
+	}
+
+	// Count total records
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count activity logs: %w", err)
+	}
+
+	// Apply pagination
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 50 // Default limit
+	}
+	offset := params.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Retrieve logs
+	result := query.Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&logs)
+
+	if result.Error != nil {
+		return nil, 0, fmt.Errorf("failed to list activity logs: %w", result.Error)
+	}
+
+	return logs, total, nil
+}
+
+// DeleteOldActivityLogs deletes activity logs older than the specified duration
+func (r *Repository) DeleteOldActivityLogs(olderThan time.Time) (int64, error) {
+	result := r.db.Where("created_at < ?", olderThan).Delete(&models.ActivityLog{})
+
+	if result.Error != nil {
+		return 0, fmt.Errorf("failed to delete old activity logs: %w", result.Error)
+	}
+
+	return result.RowsAffected, nil
+}
