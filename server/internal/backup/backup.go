@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -143,12 +144,6 @@ func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID 
 		args = append(args, "--format=plain")
 	}
 
-	cmd := exec.CommandContext(ctx, pgDumpCmd, args...)
-	cmd.Env = append(os.Environ(),
-		"PGPASSWORD="+dbConfig.Password,
-		"PGSSLMODE=require",
-	)
-
 	// Create output file
 	outFile, err := os.Create(tempFilePath)
 	if err != nil {
@@ -157,19 +152,13 @@ func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID 
 	defer outFile.Close()
 	defer os.Remove(tempFilePath)
 
-	cmd.Stdout = outFile
-
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	// Execute backup
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return s.handleBackupError(backup.ID, dbConfig, "pg_dump timed out after 30 minutes")
-		}
-		errMsg := fmt.Sprintf("pg_dump failed: %v, stderr: %s", err, stderr.String())
-		return s.handleBackupError(backup.ID, dbConfig, errMsg)
+	// Execute backup with SSL fallback
+	sslMode, err := s.executeBackupWithSSLFallback(ctx, pgDumpCmd, args, dbConfig, outFile)
+	if err != nil {
+		return s.handleBackupError(backup.ID, dbConfig, fmt.Sprintf("pg_dump failed: %v", err))
 	}
+
+	log.Printf("Backup executed successfully with SSL mode: %s", sslMode)
 
 	// Get file size
 	fileInfo, err := outFile.Stat()
@@ -238,6 +227,154 @@ func (s *Service) handleBackupError(backupID uuid.UUID, dbConfig *models.Databas
 	}
 
 	return fmt.Errorf("%s", errorMsg)
+}
+
+// executeBackupWithSSLFallback executes pg_dump with automatic SSL fallback
+// Tries with SSL first, then without SSL if the first attempt fails with SSL-related errors
+func (s *Service) executeBackupWithSSLFallback(ctx context.Context, pgDumpCmd string, args []string, dbConfig *models.DatabaseConfig, outFile *os.File) (SSLMode, error) {
+	// Try with SSL first
+	sslMode := SSLModeRequire
+	cmd := exec.CommandContext(ctx, pgDumpCmd, args...)
+	cmd.Env = append(os.Environ(),
+		"PGPASSWORD="+dbConfig.Password,
+		fmt.Sprintf("PGSSLMODE=%s", sslMode),
+	)
+
+	cmd.Stdout = outFile
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err == nil {
+		// Success with SSL
+		return sslMode, nil
+	}
+
+	stderrMsg := stderr.String()
+
+	// Check if error is SSL-related
+	isSSLError := false
+	sslErrorPatterns := []string{
+		"server does not support SSL",
+		"SSL",
+		"certificate",
+		"sslmode",
+	}
+
+	lowerStderr := strings.ToLower(stderrMsg)
+	for _, pattern := range sslErrorPatterns {
+		if strings.Contains(lowerStderr, strings.ToLower(pattern)) {
+			isSSLError = true
+			break
+		}
+	}
+
+	// If SSL error, try without SSL
+	if isSSLError {
+		log.Printf("SSL connection failed for %s, attempting without SSL: %s", dbConfig.Name, stderrMsg)
+
+		// Reset the stderr buffer for the second attempt
+		var stderr2 bytes.Buffer
+
+		// Try without SSL
+		sslMode = SSLModeDisable
+		cmd2 := exec.CommandContext(ctx, pgDumpCmd, args...)
+		cmd2.Env = append(os.Environ(),
+			"PGPASSWORD="+dbConfig.Password,
+			fmt.Sprintf("PGSSLMODE=%s", sslMode),
+		)
+
+		cmd2.Stdout = outFile
+		cmd2.Stderr = &stderr2
+
+		err2 := cmd2.Run()
+		if err2 == nil {
+			// Success without SSL - update cache
+			log.Printf("Backup succeeded without SSL for database: %s", dbConfig.Name)
+			cacheKey := fmt.Sprintf("%s:%d", dbConfig.Host, dbConfig.Port)
+			s.versionManager.sslModeCache[cacheKey] = SSLModeDisable
+			return sslMode, nil
+		}
+
+		// Both attempts failed
+		return sslMode, fmt.Errorf("pg_dump failed with both SSL and non-SSL modes. SSL error: %s, Non-SSL error: %s", stderrMsg, stderr2.String())
+	}
+
+	// Not an SSL error, just return the original error
+	return sslMode, fmt.Errorf("pg_dump failed: %v, stderr: %s", err, stderrMsg)
+}
+
+// executeRestoreWithSSLFallback executes psql restore with automatic SSL fallback
+func (s *Service) executeRestoreWithSSLFallback(ctx context.Context, psqlCmd string, args []string, targetDBConfig *models.DatabaseConfig) (SSLMode, error) {
+	// Try with SSL first
+	sslMode := SSLModeRequire
+	cmd := exec.CommandContext(ctx, psqlCmd, args...)
+	cmd.Env = append(os.Environ(),
+		"PGPASSWORD="+targetDBConfig.Password,
+		fmt.Sprintf("PGSSLMODE=%s", sslMode),
+	)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err == nil {
+		// Success with SSL
+		return sslMode, nil
+	}
+
+	stderrMsg := stderr.String()
+
+	// Check if error is SSL-related
+	isSSLError := false
+	sslErrorPatterns := []string{
+		"server does not support SSL",
+		"SSL",
+		"certificate",
+		"sslmode",
+	}
+
+	lowerStderr := strings.ToLower(stderrMsg)
+	for _, pattern := range sslErrorPatterns {
+		if strings.Contains(lowerStderr, strings.ToLower(pattern)) {
+			isSSLError = true
+			break
+		}
+	}
+
+	// If SSL error, try without SSL
+	if isSSLError {
+		log.Printf("SSL connection failed for restore, attempting without SSL: %s", stderrMsg)
+
+		// Reset the stderr buffer for the second attempt
+		var stderr2 bytes.Buffer
+
+		// Try without SSL
+		sslMode = SSLModeDisable
+		cmd2 := exec.CommandContext(ctx, psqlCmd, args...)
+		cmd2.Env = append(os.Environ(),
+			"PGPASSWORD="+targetDBConfig.Password,
+			fmt.Sprintf("PGSSLMODE=%s", sslMode),
+		)
+
+		cmd2.Stderr = &stderr2
+
+		err2 := cmd2.Run()
+		if err2 == nil {
+			// Success without SSL - update cache
+			log.Printf("Restore succeeded without SSL for database: %s", targetDBConfig.Name)
+			cacheKey := fmt.Sprintf("%s:%d", targetDBConfig.Host, targetDBConfig.Port)
+			s.versionManager.sslModeCache[cacheKey] = SSLModeDisable
+			return sslMode, nil
+		}
+
+		// Both attempts failed
+		return sslMode, fmt.Errorf("psql failed with both SSL and non-SSL modes. SSL error: %s, Non-SSL error: %s", stderrMsg, stderr2.String())
+	}
+
+	// Not an SSL error, just return the original error
+	return sslMode, fmt.Errorf("psql failed: %v, stderr: %s", err, stderrMsg)
 }
 
 // cleanupOldBackups removes old backups based on retention policy
@@ -379,27 +516,36 @@ func (s *Service) ExecuteRestore(backupID uuid.UUID, req *models.RestoreRequest)
 	}
 	psqlCmd := s.versionManager.GetPsqlVersion(postgresVersion)
 
-	cmd := exec.CommandContext(ctx, psqlCmd,
+	args := []string{
 		"--host", targetHost,
 		"--port", fmt.Sprintf("%d", targetPort),
 		"--username", targetUser,
 		"--dbname", targetDBName,
 		"--no-password",
 		"--file", tempFilePath,
-	)
+	}
 
-	cmd.Env = append(os.Environ(),
-		"PGPASSWORD="+targetPassword,
-		"PGSSLMODE=require",
-	)
+	// Create a temporary file to capture output
+	tmpOutFile, err := os.Create(filepath.Join(os.TempDir(), fmt.Sprintf("psql_output_%s.log", job.ID)))
+	if err == nil {
+		defer tmpOutFile.Close()
+		defer os.Remove(tmpOutFile.Name())
+	}
 
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	// Execute restore with SSL fallback
+	targetDBConfig := &models.DatabaseConfig{
+		Host:     targetHost,
+		Port:     targetPort,
+		Username: targetUser,
+		DBName:   targetDBName,
+		Password: targetPassword,
+		Name:     "restore_target",
+	}
 
-	if err := cmd.Run(); err != nil {
-		errMsg := fmt.Sprintf("psql failed: %v, stderr: %s", err, stderr.String())
-		log.Printf("Restore error: %s", errMsg)
-		return fmt.Errorf("%s", errMsg)
+	_, err = s.executeRestoreWithSSLFallback(ctx, psqlCmd, args, targetDBConfig)
+	if err != nil {
+		log.Printf("Restore error: %s", err)
+		return fmt.Errorf("%s", err)
 	}
 
 	log.Printf("Restore completed successfully for backup %s", backupID)

@@ -16,17 +16,19 @@ import (
 
 // VersionManager handles PostgreSQL version detection and management
 type VersionManager struct {
-	versionCache map[string]string // Cache detected versions
+	versionCache map[string]string  // Cache detected versions
+	sslModeCache map[string]SSLMode // Cache SSL mode that worked for each database
 }
 
 // NewVersionManager creates a new version manager
 func NewVersionManager() *VersionManager {
 	return &VersionManager{
 		versionCache: make(map[string]string),
+		sslModeCache: make(map[string]SSLMode),
 	}
 }
 
-// DetectPostgresVersion detects the PostgreSQL version of a database
+// DetectPostgresVersion detects the PostgreSQL version of a database with SSL fallback
 func (vm *VersionManager) DetectPostgresVersion(dbConfig *models.DatabaseConfig) (string, error) {
 	// Check cache first
 	cacheKey := fmt.Sprintf("%s:%d", dbConfig.Host, dbConfig.Port)
@@ -38,8 +40,17 @@ func (vm *VersionManager) DetectPostgresVersion(dbConfig *models.DatabaseConfig)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Query PostgreSQL version
-	cmd := exec.CommandContext(ctx, "psql",
+	// Create SSL connector for automatic fallback
+	connector := NewSSLConnector(
+		dbConfig.Host,
+		fmt.Sprintf("%d", dbConfig.Port),
+		dbConfig.Username,
+		dbConfig.DBName,
+		dbConfig.Password,
+	)
+
+	// Query PostgreSQL version with SSL fallback
+	args := []string{
 		"--host", dbConfig.Host,
 		"--port", fmt.Sprintf("%d", dbConfig.Port),
 		"--username", dbConfig.Username,
@@ -47,28 +58,23 @@ func (vm *VersionManager) DetectPostgresVersion(dbConfig *models.DatabaseConfig)
 		"--no-password",
 		"--tuples-only",
 		"--command", "SELECT version();",
-	)
-
-	cmd.Env = append(os.Environ(),
-		"PGPASSWORD="+dbConfig.Password,
-		"PGSSLMODE=require",
-	)
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("failed to detect PostgreSQL version: %w, stderr: %s", err, stderr.String())
 	}
 
-	versionOutput := stdout.String()
+	output, sslMode, err := connector.ExecuteWithSSLFallback(ctx, "psql", args)
+	if err != nil {
+		return "", fmt.Errorf("failed to detect PostgreSQL version: %w", err)
+	}
+
+	// Cache the SSL mode that worked
+	vm.sslModeCache[cacheKey] = sslMode
+
+	versionOutput := output
 	majorVersion := vm.ParseMajorVersion(versionOutput)
 
 	// Cache the result
 	vm.versionCache[cacheKey] = majorVersion
 
-	log.Printf("Detected PostgreSQL version for %s: %s (full: %s)", dbConfig.Name, majorVersion, versionOutput)
+	log.Printf("Detected PostgreSQL version for %s: %s (SSL mode: %s)", dbConfig.Name, majorVersion, sslMode)
 	return majorVersion, nil
 }
 
@@ -278,4 +284,15 @@ func (vm *VersionManager) GetDumpCompressionLevel(postgresVersion string) string
 	}
 
 	return "3" // Conservative compression for older versions
+}
+
+// GetSSLModeForDatabase returns the cached SSL mode that worked for a database
+// Returns "require" as default if not cached
+func (vm *VersionManager) GetSSLModeForDatabase(host string, port int) SSLMode {
+	cacheKey := fmt.Sprintf("%s:%d", host, port)
+	if sslMode, exists := vm.sslModeCache[cacheKey]; exists {
+		return sslMode
+	}
+	// Default to require, but actual execution will fallback if needed
+	return SSLModeRequire
 }
