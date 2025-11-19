@@ -77,7 +77,7 @@
 
 @theme inline {
   /* Using Quicksand font */
-  --font-sans: var(--font-quicksand), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -124,5 +124,6 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
   }
 }
