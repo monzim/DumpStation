@@ -906,6 +906,25 @@ func (h *Handler) ListBackupsByDatabase(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, backups)
 }
 
+// ListBackups godoc
+// @Summary List all backups
+// @Description Retrieve a list of all backups across all databases
+// @Tags Backups
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} models.Backup "List of all backups"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /backups [get]
+func (h *Handler) ListBackups(w http.ResponseWriter, r *http.Request) {
+	backups, err := h.repo.ListAllBackups()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list backups")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, backups)
+}
+
 // GetBackup godoc
 // @Summary Get a backup by ID
 // @Description Retrieve details of a specific backup including status, size, and storage path

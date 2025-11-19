@@ -426,6 +426,18 @@ func (r *Repository) ListBackupsByDatabase(databaseID uuid.UUID) ([]*models.Back
 	return backups, nil
 }
 
+func (r *Repository) ListAllBackups() ([]*models.Backup, error) {
+	var backups []*models.Backup
+	result := r.db.Preload("Database").
+		Order("started_at DESC").Find(&backups)
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list all backups: %w", result.Error)
+	}
+
+	return backups, nil
+}
+
 // Stats operations
 
 func (r *Repository) GetSystemStats() (*models.SystemStats, error) {

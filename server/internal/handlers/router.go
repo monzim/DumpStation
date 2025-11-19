@@ -20,44 +20,45 @@ func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager) *mux.Router {
 	api := r.PathPrefix("/api/v1").Subrouter()
 
 	// Public routes (no authentication required)
-	api.HandleFunc("/auth/login", h.Login).Methods("POST")
-	api.HandleFunc("/auth/verify", h.Verify).Methods("POST")
+	api.HandleFunc("/auth/login", h.Login).Methods("POST", "OPTIONS")
+	api.HandleFunc("/auth/verify", h.Verify).Methods("POST", "OPTIONS")
 
 	// Protected routes (authentication required)
 	protected := api.PathPrefix("").Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtMgr))
 
 	// Storage routes
-	protected.HandleFunc("/storage", h.ListStorageConfigs).Methods("GET")
-	protected.HandleFunc("/storage", h.CreateStorageConfig).Methods("POST")
-	protected.HandleFunc("/storage/{id}", h.GetStorageConfig).Methods("GET")
-	protected.HandleFunc("/storage/{id}", h.UpdateStorageConfig).Methods("PUT")
-	protected.HandleFunc("/storage/{id}", h.DeleteStorageConfig).Methods("DELETE")
+	protected.HandleFunc("/storage", h.ListStorageConfigs).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/storage", h.CreateStorageConfig).Methods("POST", "OPTIONS")
+	protected.HandleFunc("/storage/{id}", h.GetStorageConfig).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/storage/{id}", h.UpdateStorageConfig).Methods("PUT", "OPTIONS")
+	protected.HandleFunc("/storage/{id}", h.DeleteStorageConfig).Methods("DELETE", "OPTIONS")
 
 	// Notification routes
-	protected.HandleFunc("/notifications", h.ListNotificationConfigs).Methods("GET")
-	protected.HandleFunc("/notifications", h.CreateNotificationConfig).Methods("POST")
-	protected.HandleFunc("/notifications/{id}", h.GetNotificationConfig).Methods("GET")
-	protected.HandleFunc("/notifications/{id}", h.UpdateNotificationConfig).Methods("PUT")
-	protected.HandleFunc("/notifications/{id}", h.DeleteNotificationConfig).Methods("DELETE")
+	protected.HandleFunc("/notifications", h.ListNotificationConfigs).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/notifications", h.CreateNotificationConfig).Methods("POST", "OPTIONS")
+	protected.HandleFunc("/notifications/{id}", h.GetNotificationConfig).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/notifications/{id}", h.UpdateNotificationConfig).Methods("PUT", "OPTIONS")
+	protected.HandleFunc("/notifications/{id}", h.DeleteNotificationConfig).Methods("DELETE", "OPTIONS")
 
 	// Database routes
-	protected.HandleFunc("/databases", h.ListDatabaseConfigs).Methods("GET")
-	protected.HandleFunc("/databases", h.CreateDatabaseConfig).Methods("POST")
-	protected.HandleFunc("/databases/{id}", h.GetDatabaseConfig).Methods("GET")
-	protected.HandleFunc("/databases/{id}", h.UpdateDatabaseConfig).Methods("PUT")
-	protected.HandleFunc("/databases/{id}", h.DeleteDatabaseConfig).Methods("DELETE")
-	protected.HandleFunc("/databases/{id}/pause", h.PauseDatabaseConfig).Methods("POST")
-	protected.HandleFunc("/databases/{id}/unpause", h.UnpauseDatabaseConfig).Methods("POST")
-	protected.HandleFunc("/databases/{id}/backup", h.TriggerManualBackup).Methods("POST")
-	protected.HandleFunc("/databases/{id}/backups", h.ListBackupsByDatabase).Methods("GET")
+	protected.HandleFunc("/databases", h.ListDatabaseConfigs).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/databases", h.CreateDatabaseConfig).Methods("POST", "OPTIONS")
+	protected.HandleFunc("/databases/{id}", h.GetDatabaseConfig).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/databases/{id}", h.UpdateDatabaseConfig).Methods("PUT", "OPTIONS")
+	protected.HandleFunc("/databases/{id}", h.DeleteDatabaseConfig).Methods("DELETE", "OPTIONS")
+	protected.HandleFunc("/databases/{id}/pause", h.PauseDatabaseConfig).Methods("POST", "OPTIONS")
+	protected.HandleFunc("/databases/{id}/unpause", h.UnpauseDatabaseConfig).Methods("POST", "OPTIONS")
+	protected.HandleFunc("/databases/{id}/backup", h.TriggerManualBackup).Methods("POST", "OPTIONS")
+	protected.HandleFunc("/databases/{id}/backups", h.ListBackupsByDatabase).Methods("GET", "OPTIONS")
 
 	// Backup routes
-	protected.HandleFunc("/backups/{id}", h.GetBackup).Methods("GET")
-	protected.HandleFunc("/backups/{id}/restore", h.RestoreBackup).Methods("POST")
+	protected.HandleFunc("/backups", h.ListBackups).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/backups/{id}", h.GetBackup).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/backups/{id}/restore", h.RestoreBackup).Methods("POST", "OPTIONS")
 
 	// Stats routes
-	protected.HandleFunc("/stats", h.GetStats).Methods("GET")
+	protected.HandleFunc("/stats", h.GetStats).Methods("GET", "OPTIONS")
 
 	// Swagger documentation (public, no auth required)
 	r.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)
