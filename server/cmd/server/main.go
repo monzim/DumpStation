@@ -11,9 +11,11 @@ import (
 
 	"github.com/monzim/db_proxy/v1/internal/auth"
 	"github.com/monzim/db_proxy/v1/internal/backup"
+	"github.com/monzim/db_proxy/v1/internal/cleanup"
 	"github.com/monzim/db_proxy/v1/internal/config"
 	"github.com/monzim/db_proxy/v1/internal/database"
 	"github.com/monzim/db_proxy/v1/internal/handlers"
+	"github.com/monzim/db_proxy/v1/internal/models"
 	"github.com/monzim/db_proxy/v1/internal/notification"
 	"github.com/monzim/db_proxy/v1/internal/repository"
 	"github.com/monzim/db_proxy/v1/internal/scheduler"
@@ -77,11 +79,25 @@ func main() {
 	}
 	defer sched.Stop()
 
+	// Initialize activity log cleanup service (60 days retention)
+	cleanupSvc := cleanup.NewService(repo, 60*24*time.Hour)
+	if err := cleanupSvc.Start(); err != nil {
+		log.Fatalf("Failed to start cleanup service: %v", err)
+	}
+	defer cleanupSvc.Stop()
+
 	// Initialize Discord notifier
 	var notifier *notification.DiscordNotifier
 	if cfg.Discord.WebhookURL != "" {
 		notifier = notification.NewDiscordNotifier(cfg.Discord.WebhookURL, "PostgreSQL Backup Service")
 		notifier.SendMessage("🚀 **PostgreSQL Backup Service Started**\n✅ System is now online and ready to manage backups.")
+	}
+
+	// Log system startup
+	if err := repo.LogActivity(nil, models.ActionSystemStartup, models.LogLevelInfo,
+		"system", nil, "System",
+		"PostgreSQL Backup Service started successfully", "", ""); err != nil {
+		log.Printf("[ACTIVITY_LOG] ⚠️  Failed to log system startup: %v", err)
 	}
 
 	// Initialize handlers
@@ -115,6 +131,13 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down server...")
+
+	// Log system shutdown
+	if err := repo.LogActivity(nil, models.ActionSystemShutdown, models.LogLevelInfo,
+		"system", nil, "System",
+		"PostgreSQL Backup Service shutting down", "", ""); err != nil {
+		log.Printf("[ACTIVITY_LOG] ⚠️  Failed to log system shutdown: %v", err)
+	}
 
 	// Send shutdown notification
 	if notifier != nil {

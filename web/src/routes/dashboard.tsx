@@ -1,3 +1,4 @@
+import { ActivityLogList } from "@/components/activity-log-list";
 import { useAuth } from "@/components/auth-provider";
 import { BackupList } from "@/components/backup-list";
 import { DashboardNav } from "@/components/dashboard-nav";
@@ -197,6 +198,12 @@ function RouteComponent() {
         {currentTab === "notifications" && (
           <div className="animate-in fade-in duration-300">
             <NotificationList />
+          </div>
+        )}
+
+        {currentTab === "logs" && (
+          <div className="animate-in fade-in duration-300">
+            <ActivityLogList />
           </div>
         )}
 

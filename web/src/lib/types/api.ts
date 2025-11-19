@@ -135,6 +135,76 @@ export interface RestoreJob {
   error_message: string;
 }
 
+// Activity Log Types
+export type ActivityLogAction =
+  | 'login'
+  | 'logout'
+  | 'storage_created'
+  | 'storage_updated'
+  | 'storage_deleted'
+  | 'notification_created'
+  | 'notification_updated'
+  | 'notification_deleted'
+  | 'database_created'
+  | 'database_updated'
+  | 'database_deleted'
+  | 'database_paused'
+  | 'database_unpaused'
+  | 'backup_triggered'
+  | 'backup_started'
+  | 'backup_completed'
+  | 'backup_failed'
+  | 'restore_triggered'
+  | 'restore_started'
+  | 'restore_completed'
+  | 'restore_failed'
+  | 'system_startup'
+  | 'system_shutdown';
+
+export type ActivityLogLevel = 'info' | 'warning' | 'error' | 'success';
+
+export interface User {
+  id: string;
+  discord_user_id: string;
+  discord_username: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  user_id?: string;
+  user?: User;
+  action: ActivityLogAction;
+  level: ActivityLogLevel;
+  entity_type?: string;
+  entity_id?: string;
+  entity_name?: string;
+  description: string;
+  metadata?: string;
+  ip_address?: string;
+  created_at: string;
+}
+
+export interface ActivityLogListParams {
+  user_id?: string;
+  action?: ActivityLogAction;
+  level?: ActivityLogLevel;
+  entity_type?: string;
+  entity_id?: string;
+  start_date?: string;
+  end_date?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ActivityLogListResponse {
+  logs: ActivityLog[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 // Error Types
 export interface ValidationError {
   field: string;

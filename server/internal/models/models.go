@@ -298,3 +298,79 @@ type APIError struct {
 	Code    string `json:"code" example:"Bad Request"`
 	Message string `json:"message" example:"Invalid request parameters"`
 }
+
+// ActivityLogAction represents the type of action performed
+type ActivityLogAction string
+
+const (
+	ActionLogin              ActivityLogAction = "login"
+	ActionLogout             ActivityLogAction = "logout"
+	ActionStorageCreated     ActivityLogAction = "storage_created"
+	ActionStorageUpdated     ActivityLogAction = "storage_updated"
+	ActionStorageDeleted     ActivityLogAction = "storage_deleted"
+	ActionNotificationCreated ActivityLogAction = "notification_created"
+	ActionNotificationUpdated ActivityLogAction = "notification_updated"
+	ActionNotificationDeleted ActivityLogAction = "notification_deleted"
+	ActionDatabaseCreated    ActivityLogAction = "database_created"
+	ActionDatabaseUpdated    ActivityLogAction = "database_updated"
+	ActionDatabaseDeleted    ActivityLogAction = "database_deleted"
+	ActionDatabasePaused     ActivityLogAction = "database_paused"
+	ActionDatabaseUnpaused   ActivityLogAction = "database_unpaused"
+	ActionBackupTriggered    ActivityLogAction = "backup_triggered"
+	ActionBackupStarted      ActivityLogAction = "backup_started"
+	ActionBackupCompleted    ActivityLogAction = "backup_completed"
+	ActionBackupFailed       ActivityLogAction = "backup_failed"
+	ActionRestoreTriggered   ActivityLogAction = "restore_triggered"
+	ActionRestoreStarted     ActivityLogAction = "restore_started"
+	ActionRestoreCompleted   ActivityLogAction = "restore_completed"
+	ActionRestoreFailed      ActivityLogAction = "restore_failed"
+	ActionSystemStartup      ActivityLogAction = "system_startup"
+	ActionSystemShutdown     ActivityLogAction = "system_shutdown"
+)
+
+// ActivityLogLevel represents the severity level of the log
+type ActivityLogLevel string
+
+const (
+	LogLevelInfo    ActivityLogLevel = "info"
+	LogLevelWarning ActivityLogLevel = "warning"
+	LogLevelError   ActivityLogLevel = "error"
+	LogLevelSuccess ActivityLogLevel = "success"
+)
+
+// ActivityLog represents a system activity log entry
+type ActivityLog struct {
+	ID          uuid.UUID         `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID      *uuid.UUID        `gorm:"type:uuid;index" json:"user_id,omitempty"`
+	User        *User             `gorm:"foreignKey:UserID;constraint:OnDelete:SET NULL" json:"user,omitempty"`
+	Action      ActivityLogAction `gorm:"type:varchar(100);not null;index" json:"action"`
+	Level       ActivityLogLevel  `gorm:"type:varchar(20);not null;default:'info';index" json:"level"`
+	EntityType  string            `gorm:"type:varchar(100);index" json:"entity_type,omitempty"`
+	EntityID    *uuid.UUID        `gorm:"type:uuid;index" json:"entity_id,omitempty"`
+	EntityName  string            `gorm:"type:varchar(255)" json:"entity_name,omitempty"`
+	Description string            `gorm:"type:text;not null" json:"description"`
+	Metadata    string            `gorm:"type:jsonb" json:"metadata,omitempty"`
+	IPAddress   string            `gorm:"type:varchar(45)" json:"ip_address,omitempty"`
+	CreatedAt   time.Time         `gorm:"autoCreateTime;index" json:"created_at"`
+}
+
+// BeforeCreate hook for ActivityLog
+func (a *ActivityLog) BeforeCreate(tx *gorm.DB) error {
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+	return nil
+}
+
+// ActivityLogListParams for filtering activity logs
+type ActivityLogListParams struct {
+	UserID     *uuid.UUID         `json:"user_id,omitempty"`
+	Action     *ActivityLogAction `json:"action,omitempty"`
+	Level      *ActivityLogLevel  `json:"level,omitempty"`
+	EntityType *string            `json:"entity_type,omitempty"`
+	EntityID   *uuid.UUID         `json:"entity_id,omitempty"`
+	StartDate  *time.Time         `json:"start_date,omitempty"`
+	EndDate    *time.Time         `json:"end_date,omitempty"`
+	Limit      int                `json:"limit,omitempty"`
+	Offset     int                `json:"offset,omitempty"`
+}
