@@ -104,6 +104,7 @@ export interface DatabaseConfigInput {
 
 export interface Backup {
   id: string;
+  name: string;
   database_id: string;
   status: BackupStatus;
   size_bytes: number;

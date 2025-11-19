@@ -88,10 +88,13 @@ export function DatabaseBackupsDialog({
                   <div className="mt-1">{getStatusIcon(backup.status)}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-mono text-sm">{backup.id}</span>
+                      <span className="font-semibold text-base">{backup.name}</span>
                       {getStatusBadge(backup.status)}
                     </div>
                     <div className="text-sm text-muted-foreground space-y-1">
+                      <p className="font-mono text-xs text-muted-foreground/70">
+                        ID: {backup.id}
+                      </p>
                       <p>
                         Started: {new Date(backup.timestamp).toLocaleString()}
                       </p>

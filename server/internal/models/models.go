@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/monzim/db_proxy/v1/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -214,6 +215,7 @@ const (
 // Backup represents a backup record
 type Backup struct {
 	ID           uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	Name         string         `gorm:"type:varchar(255);not null;default:''" json:"name"`
 	DatabaseID   uuid.UUID      `gorm:"type:uuid;not null;index" json:"database_id"`
 	Database     DatabaseConfig `gorm:"foreignKey:DatabaseID;constraint:OnDelete:CASCADE" json:"-"`
 	Status       BackupStatus   `gorm:"type:varchar(20);not null;default:'pending';check:status IN ('pending','running','success','failed');index" json:"status"`
@@ -229,6 +231,10 @@ type Backup struct {
 func (b *Backup) BeforeCreate(tx *gorm.DB) error {
 	if b.ID == uuid.Nil {
 		b.ID = uuid.New()
+	}
+	// Generate name if not set
+	if b.Name == "" {
+		b.Name = utils.GenerateBackupName()
 	}
 	return nil
 }

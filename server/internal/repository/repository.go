@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/monzim/db_proxy/v1/internal/models"
+	"github.com/monzim/db_proxy/v1/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -373,6 +374,7 @@ func (r *Repository) UnpauseDatabaseConfig(id uuid.UUID) error {
 
 func (r *Repository) CreateBackup(databaseID uuid.UUID, status models.BackupStatus) (*models.Backup, error) {
 	backup := &models.Backup{
+		Name:       utils.GenerateBackupName(),
 		DatabaseID: databaseID,
 		Status:     status,
 		StartedAt:  time.Now(),
