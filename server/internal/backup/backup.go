@@ -33,16 +33,32 @@ func NewService(repo *repository.Repository) *Service {
 
 // ExecuteBackup performs a database backup
 func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
+	return s.ExecuteBackupWithID(dbConfig, uuid.Nil)
+}
+
+// ExecuteBackupWithID performs a database backup with an optional existing backup ID
+func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID uuid.UUID) error {
 	// Check if config is paused
 	if dbConfig.Paused {
 		log.Printf("Skipping backup for paused database: %s", dbConfig.Name)
 		return nil
 	}
 
-	// Create backup record
-	backup, err := s.repo.CreateBackup(dbConfig.ID, models.BackupStatusPending)
-	if err != nil {
-		return fmt.Errorf("failed to create backup record: %w", err)
+	var backup *models.Backup
+	var err error
+
+	// If backupID is provided (from manual trigger), use it; otherwise create a new one
+	if backupID != uuid.Nil {
+		backup, err = s.repo.GetBackup(backupID)
+		if err != nil || backup == nil {
+			return fmt.Errorf("failed to get existing backup record: %w", err)
+		}
+	} else {
+		// Create backup record for scheduled backups
+		backup, err = s.repo.CreateBackup(dbConfig.ID, models.BackupStatusPending)
+		if err != nil {
+			return fmt.Errorf("failed to create backup record: %w", err)
+		}
 	}
 
 	// Update to running
