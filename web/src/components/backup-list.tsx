@@ -159,7 +159,7 @@ export function BackupList() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       <Archive className="h-5 w-5 text-muted-foreground" />
-                      <CardTitle className="text-lg">Backup</CardTitle>
+                      <CardTitle className="text-lg">{backup.name}</CardTitle>
                     </div>
                     <Badge variant={config.variant}>{config.label}</Badge>
                   </div>

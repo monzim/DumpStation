@@ -4,6 +4,7 @@ import { BackupList } from "@/components/backup-list";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { DatabaseList } from "@/components/database-list";
 import { NotificationList } from "@/components/notification-list";
+import { RecentActivity } from "@/components/recent-activity";
 import { StatsCard } from "@/components/stats-card";
 import { StorageList } from "@/components/storage-list";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,11 @@ function RouteComponent() {
                   isLoading={isLoading}
                 />
               </div>
+            </div>
+
+            {/* Recent Activity Section */}
+            <div>
+              <RecentActivity onViewAll={() => setCurrentTab("logs")} />
             </div>
           </div>
         )}

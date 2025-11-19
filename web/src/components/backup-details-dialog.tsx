@@ -105,7 +105,7 @@ export function BackupDetailsDialog({
               <Archive className="h-6 w-6 text-primary" />
             </div>
             <div className="flex-1">
-              <DialogTitle className="text-xl">Backup Details</DialogTitle>
+              <DialogTitle className="text-xl">{backup.name}</DialogTitle>
               <DialogDescription className="flex items-center gap-2 mt-1">
                 <Database className="h-3 w-3" />
                 {databaseName}
