@@ -452,8 +452,8 @@ function RouteComponent() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm font-medium truncate">
-                            {backup.storage_path || "Backup in progress"}
+                          <p className="font-medium truncate max-w-xs overflow-hidden text-xs md:text-sm">
+                            {backup.name || `${backup.id}`}
                           </p>
                           <Badge variant={config.variant}>{config.label}</Badge>
                         </div>

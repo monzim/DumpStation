@@ -16,7 +16,6 @@ import {
   CheckCircle2,
   Database,
   HardDrive,
-  LogOut,
   RefreshCw,
   XCircle,
 } from "lucide-react";
@@ -80,34 +79,21 @@ function RouteComponent() {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                  PostgreSQL Backup
+                  DumpStation
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Manage your backups
+                  PostgreSQL Backup Service
                 </p>
               </div>
             </div>
 
-            <DashboardNav currentTab={currentTab} onTabChange={setCurrentTab} />
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isRefetching}
-                className="hidden sm:flex"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 sm:mr-2 ${isRefetching ? "animate-spin" : ""}`}
-                />
-                <span className="hidden sm:inline">Refresh</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Logout</span>
-              </Button>
-            </div>
+            <DashboardNav
+              currentTab={currentTab}
+              onTabChange={setCurrentTab}
+              onRefresh={handleRefresh}
+              onLogout={handleLogout}
+              isRefreshing={isRefetching}
+            />
           </div>
         </div>
       </header>
@@ -117,11 +103,25 @@ function RouteComponent() {
           <div className="space-y-8 animate-in fade-in duration-300">
             {/* Overview Section */}
             <div>
-              <div className="mb-6">
-                <h2 className="text-3xl font-bold">System Overview</h2>
-                <p className="text-muted-foreground mt-1">
-                  Monitor your backup infrastructure
-                </p>
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold">System Overview</h2>
+                  <p className="text-muted-foreground mt-1">
+                    Monitor your backup infrastructure
+                  </p>
+                </div>
+                <Button
+                  onClick={handleRefresh}
+                  disabled={isRefetching}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
+                  />
+                  <span className="hidden sm:inline">Refresh</span>
+                </Button>
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <StatsCard
