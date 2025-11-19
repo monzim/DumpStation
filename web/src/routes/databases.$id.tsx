@@ -102,9 +102,8 @@ function RouteComponent() {
   };
 
   if (isDatabaseLoading) {
-    console.log("[v0] Database is loading...");
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 container mx-auto px-4 py-8">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -113,7 +112,6 @@ function RouteComponent() {
   }
 
   if (!database) {
-    console.log("[v0] Database not found");
     return (
       <div className="flex flex-col items-center justify-center py-12 container mx-auto px-4 py-8">
         <Database className="h-12 w-12 text-muted-foreground mb-4" />
@@ -134,8 +132,6 @@ function RouteComponent() {
       </div>
     );
   }
-
-  console.log("[v0] Rendering database detail page");
 
   return (
     <div className="space-y-6 container mx-auto px-4 py-8">

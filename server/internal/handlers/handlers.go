@@ -952,10 +952,10 @@ func (h *Handler) TriggerManualBackup(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Manual backup triggered for database '%s'", config.Name),
 		"", getIPAddress(r))
 
-	// Execute backup asynchronously
+	// Execute backup asynchronously, passing the backup ID to reuse the record
 	go func() {
-		if err := h.backupSvc.ExecuteBackup(config); err != nil {
-			// Error is already logged in ExecuteBackup
+		if err := h.backupSvc.ExecuteBackupWithID(config, backup.ID); err != nil {
+			// Error is already logged in ExecuteBackupWithID
 		}
 	}()
 
