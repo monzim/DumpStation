@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Activity,
   Archive,
@@ -20,15 +21,46 @@ interface NavItem {
   label: string;
   value: string;
   icon: React.ElementType;
+  route: string;
 }
 
 const navItems: NavItem[] = [
-  { label: "Overview", value: "overview", icon: LayoutDashboard },
-  { label: "Databases", value: "databases", icon: Database },
-  { label: "Backups", value: "backups", icon: Archive },
-  { label: "Activity", value: "logs", icon: Activity },
-  { label: "Notifications", value: "notifications", icon: Bell },
-  { label: "Storage", value: "storage", icon: HardDrive },
+  {
+    label: "Overview",
+    value: "overview",
+    icon: LayoutDashboard,
+    route: "/dashboard",
+  },
+  {
+    label: "Databases",
+    value: "databases",
+    icon: Database,
+    route: "/databases",
+  },
+  {
+    label: "Backups",
+    value: "backups",
+    icon: Archive,
+    route: "/backups",
+  },
+  {
+    label: "Activity",
+    value: "logs",
+    icon: Activity,
+    route: "/activity",
+  },
+  {
+    label: "Notifications",
+    value: "notifications",
+    icon: Bell,
+    route: "/notifications",
+  },
+  {
+    label: "Storage",
+    value: "storage",
+    icon: HardDrive,
+    route: "/storage",
+  },
 ];
 
 interface DashboardNavProps {
@@ -47,9 +79,11 @@ export function DashboardNav({
   isRefreshing,
 }: DashboardNavProps) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
-  const handleNavClick = (value: string) => {
-    onTabChange(value);
+  const handleNavClick = (item: NavItem) => {
+    navigate({ to: item.route });
+    onTabChange(item.value);
     setOpen(false);
   };
 
@@ -77,7 +111,7 @@ export function DashboardNav({
           return (
             <button
               key={item.value}
-              onClick={() => onTabChange(item.value)}
+              onClick={() => handleNavClick(item)}
               className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
                 "hover:bg-background/60",
@@ -142,7 +176,7 @@ export function DashboardNav({
                 return (
                   <button
                     key={item.value}
-                    onClick={() => handleNavClick(item.value)}
+                    onClick={() => handleNavClick(item)}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
                       isActive

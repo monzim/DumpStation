@@ -9,17 +9,43 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StorageRouteImport } from './routes/storage'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as BackupsRouteImport } from './routes/backups'
+import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DatabasesIndexRouteImport } from './routes/databases.index'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DatabasesIdRouteImport } from './routes/databases.$id'
 
+const StorageRoute = StorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
+const BackupsRoute = BackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityRoute = ActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRouteRoute = DashboardRouteRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
@@ -29,6 +55,16 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DatabasesIndexRoute = DatabasesIndexRouteImport.update({
+  id: '/databases/',
+  path: '/databases/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DatabasesIdRoute = DatabasesIdRouteImport.update({
   id: '/databases/$id',
   path: '/databases/$id',
@@ -37,40 +73,106 @@ const DatabasesIdRoute = DatabasesIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/dashboard': typeof DashboardRouteRouteWithChildren
+  '/activity': typeof ActivityRoute
+  '/backups': typeof BackupsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/databases': typeof DatabasesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/activity': typeof ActivityRoute
+  '/backups': typeof BackupsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
+  '/dashboard': typeof DashboardIndexRoute
+  '/databases': typeof DatabasesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/dashboard': typeof DashboardRouteRouteWithChildren
+  '/activity': typeof ActivityRoute
+  '/backups': typeof BackupsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/databases/': typeof DatabasesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/login' | '/databases/$id'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/activity'
+    | '/backups'
+    | '/login'
+    | '/notifications'
+    | '/storage'
+    | '/databases/$id'
+    | '/dashboard/'
+    | '/databases'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/login' | '/databases/$id'
-  id: '__root__' | '/' | '/dashboard' | '/login' | '/databases/$id'
+  to:
+    | '/'
+    | '/activity'
+    | '/backups'
+    | '/login'
+    | '/notifications'
+    | '/storage'
+    | '/databases/$id'
+    | '/dashboard'
+    | '/databases'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/activity'
+    | '/backups'
+    | '/login'
+    | '/notifications'
+    | '/storage'
+    | '/databases/$id'
+    | '/dashboard/'
+    | '/databases/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRoute
+  DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
+  ActivityRoute: typeof ActivityRoute
+  BackupsRoute: typeof BackupsRoute
   LoginRoute: typeof LoginRoute
+  NotificationsRoute: typeof NotificationsRoute
+  StorageRoute: typeof StorageRoute
   DatabasesIdRoute: typeof DatabasesIdRoute
+  DatabasesIndexRoute: typeof DatabasesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/storage': {
+      id: '/storage'
+      path: '/storage'
+      fullPath: '/storage'
+      preLoaderRoute: typeof StorageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -78,11 +180,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/backups': {
+      id: '/backups'
+      path: '/backups'
+      fullPath: '/backups'
+      preLoaderRoute: typeof BackupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity': {
+      id: '/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof ActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+      preLoaderRoute: typeof DashboardRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -91,6 +207,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/databases/': {
+      id: '/databases/'
+      path: '/databases'
+      fullPath: '/databases'
+      preLoaderRoute: typeof DatabasesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRouteRoute
     }
     '/databases/$id': {
       id: '/databases/$id'
@@ -102,11 +232,28 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface DashboardRouteRouteChildren {
+  DashboardIndexRoute: typeof DashboardIndexRoute
+}
+
+const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
+  DashboardIndexRoute: DashboardIndexRoute,
+}
+
+const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
+  DashboardRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRoute,
+  DashboardRouteRoute: DashboardRouteRouteWithChildren,
+  ActivityRoute: ActivityRoute,
+  BackupsRoute: BackupsRoute,
   LoginRoute: LoginRoute,
+  NotificationsRoute: NotificationsRoute,
+  StorageRoute: StorageRoute,
   DatabasesIdRoute: DatabasesIdRoute,
+  DatabasesIndexRoute: DatabasesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
