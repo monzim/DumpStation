@@ -1,3 +1,10 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+
+# Disallow authenticated routes
+Disallow: /dashboard
+Disallow: /databases/
+
+# Sitemap
+Sitemap: https://dumpstation.io/sitemap.xml

@@ -93,6 +93,32 @@ All configuration is done via environment variables. See [.env.example](.env.exa
 - **Database**: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
 - **JWT**: `JWT_SECRET`, `JWT_EXPIRATION_HOURS`
 - **Discord**: `DISCORD_WEBHOOK_URL`, `OTP_EXPIRATION_MINUTES`
+- **CORS**: `CORS_ALLOWED_ORIGINS`, `CORS_ALLOWED_METHODS`, `CORS_ALLOWED_HEADERS`, `CORS_EXPOSED_HEADERS`, `CORS_ALLOW_CREDENTIALS`, `CORS_MAX_AGE`, `CORS_DEBUG`
+
+### CORS Configuration
+
+The service supports configurable CORS settings via environment variables:
+
+| Variable                 | Description                                            | Default                                                     |
+| ------------------------ | ------------------------------------------------------ | ----------------------------------------------------------- |
+| `CORS_ALLOWED_ORIGINS`   | Comma-separated list of allowed origins                | `*`                                                         |
+| `CORS_ALLOWED_METHODS`   | Comma-separated list of allowed HTTP methods           | `GET,POST,PUT,DELETE,OPTIONS,PATCH`                         |
+| `CORS_ALLOWED_HEADERS`   | Comma-separated list of allowed headers                | `Origin,Content-Type,Accept,Authorization,X-Requested-With` |
+| `CORS_EXPOSED_HEADERS`   | Comma-separated list of headers exposed to the browser | (empty)                                                     |
+| `CORS_ALLOW_CREDENTIALS` | Allow credentials (cookies, auth headers)              | `true`                                                      |
+| `CORS_MAX_AGE`           | Preflight request cache duration in seconds            | `86400` (24 hours)                                          |
+| `CORS_DEBUG`             | Enable CORS debug logging                              | `false`                                                     |
+
+**Example configuration for production:**
+
+```bash
+CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+CORS_ALLOWED_METHODS=GET,POST,PUT,DELETE,OPTIONS
+CORS_ALLOWED_HEADERS=Origin,Content-Type,Accept,Authorization
+CORS_ALLOW_CREDENTIALS=true
+CORS_MAX_AGE=86400
+CORS_DEBUG=false
+```
 
 ## Running the Service
 

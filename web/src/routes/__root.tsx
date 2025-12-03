@@ -12,6 +12,10 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import appCss from "../styles.css?url";
 
+const SITE_URL = "https://dumpstation.io";
+const SITE_NAME = "DumpStation";
+const DEFAULT_OG_IMAGE = `${SITE_URL}/images/og.webp`;
+
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
@@ -24,6 +28,48 @@ export const Route = createRootRouteWithContext<{
       {
         name: "viewport",
         content: "width=device-width, initial-scale=1",
+      },
+      {
+        name: "theme-color",
+        content: "#000000",
+      },
+      {
+        name: "robots",
+        content: "index, follow",
+      },
+      // Open Graph defaults
+      {
+        property: "og:type",
+        content: "website",
+      },
+      {
+        property: "og:site_name",
+        content: SITE_NAME,
+      },
+      {
+        property: "og:image",
+        content: DEFAULT_OG_IMAGE,
+      },
+      {
+        property: "og:image:width",
+        content: "1200",
+      },
+      {
+        property: "og:image:height",
+        content: "630",
+      },
+      {
+        property: "og:image:type",
+        content: "image/webp",
+      },
+      // Twitter Card defaults
+      {
+        name: "twitter:card",
+        content: "summary_large_image",
+      },
+      {
+        name: "twitter:image",
+        content: DEFAULT_OG_IMAGE,
       },
     ],
     links: [

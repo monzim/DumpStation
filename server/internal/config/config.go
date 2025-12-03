@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds all application configuration
@@ -12,6 +13,7 @@ type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	Discord  DiscordConfig
+	CORS     CORSConfig
 }
 
 // ServerConfig holds server-related configuration
@@ -42,6 +44,17 @@ type DiscordConfig struct {
 	OTPExpiration int    // OTP expiration in minutes
 }
 
+// CORSConfig holds CORS configuration
+type CORSConfig struct {
+	AllowedOrigins   []string // Comma-separated list of allowed origins
+	AllowedMethods   []string // Comma-separated list of allowed HTTP methods
+	AllowedHeaders   []string // Comma-separated list of allowed headers
+	ExposedHeaders   []string // Comma-separated list of exposed headers
+	AllowCredentials bool     // Whether to allow credentials
+	MaxAge           int      // Preflight request cache duration in seconds
+	Debug            bool     // Enable debug mode for CORS
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -64,6 +77,15 @@ func Load() (*Config, error) {
 		Discord: DiscordConfig{
 			WebhookURL:    getEnv("DISCORD_WEBHOOK_URL", ""),
 			OTPExpiration: getEnvAsInt("OTP_EXPIRATION_MINUTES", 5),
+		},
+		CORS: CORSConfig{
+			AllowedOrigins:   getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
+			AllowedMethods:   getEnvAsSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}),
+			AllowedHeaders:   getEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}),
+			ExposedHeaders:   getEnvAsSlice("CORS_EXPOSED_HEADERS", []string{}),
+			AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
+			MaxAge:           getEnvAsInt("CORS_MAX_AGE", 86400),
+			Debug:            getEnvAsBool("CORS_DEBUG", false),
 		},
 	}
 
@@ -104,4 +126,39 @@ func getEnvAsInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	return value
+}
+
+// getEnvAsBool retrieves an environment variable as bool or returns a default value
+func getEnvAsBool(key string, defaultValue bool) bool {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+// getEnvAsSlice retrieves an environment variable as a slice of strings (comma-separated)
+func getEnvAsSlice(key string, defaultValue []string) []string {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	parts := strings.Split(valueStr, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+
+	if len(result) == 0 {
+		return defaultValue
+	}
+	return result
 }
