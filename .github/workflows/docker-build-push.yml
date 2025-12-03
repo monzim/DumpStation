@@ -1,6 +1,6 @@
 # =============================================================================
 # Docker Build and Push to GHCR
-# Builds the server Docker image and pushes to GitHub Container Registry
+# Builds platforms in parallel for faster builds and lower CI costs
 # =============================================================================
 
 name: Build and Push Docker Image
@@ -33,20 +33,29 @@ env:
     IMAGE_NAME: monzim/dumpstation
 
 jobs:
-    build-and-push:
-        name: Build and Push Docker Image
+    # =========================================================================
+    # Build each platform in parallel
+    # =========================================================================
+    build:
+        name: Build ${{ matrix.platform }}
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 15
         permissions:
             contents: read
             packages: write
-            attestations: write
-            id-token: write
+        strategy:
+            fail-fast: false
+            matrix:
+                platform:
+                    - linux/amd64
+                    - linux/arm64
 
         steps:
-            # ---------------------------------------------------------------------
-            # Setup
-            # ---------------------------------------------------------------------
+            - name: Prepare platform name
+              run: |
+                  platform=${{ matrix.platform }}
+                  echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+
             - name: Checkout Repository
               uses: actions/checkout@v4
 
@@ -56,79 +65,120 @@ jobs:
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
 
-            # ---------------------------------------------------------------------
-            # Authentication
-            # ---------------------------------------------------------------------
             - name: Log in to GitHub Container Registry
-              if: github.event_name != 'pull_request'
               uses: docker/login-action@v3
               with:
                   registry: ${{ env.REGISTRY }}
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            # ---------------------------------------------------------------------
-            # Metadata
-            # ---------------------------------------------------------------------
+            - name: Extract Docker Metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+            - name: Build and Push by digest
+              id: build
+              uses: docker/build-push-action@v6
+              with:
+                  context: ./server
+                  file: ./server/Dockerfile
+                  platforms: ${{ matrix.platform }}
+                  push: ${{ github.event_name != 'pull_request' }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha,scope=build-${{ env.PLATFORM_PAIR }}
+                  cache-to: type=gha,mode=max,scope=build-${{ env.PLATFORM_PAIR }}
+                  outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
+
+            - name: Export digest
+              if: github.event_name != 'pull_request'
+              run: |
+                  mkdir -p /tmp/digests
+                  digest="${{ steps.build.outputs.digest }}"
+                  touch "/tmp/digests/${digest#sha256:}"
+
+            - name: Upload digest
+              if: github.event_name != 'pull_request'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: digests-${{ env.PLATFORM_PAIR }}
+                  path: /tmp/digests/*
+                  if-no-files-found: error
+                  retention-days: 1
+
+    # =========================================================================
+    # Merge all platform images into a single manifest
+    # =========================================================================
+    merge:
+        name: Create Multi-Platform Manifest
+        runs-on: ubuntu-latest
+        if: github.event_name != 'pull_request'
+        needs: build
+        permissions:
+            contents: read
+            packages: write
+            attestations: write
+            id-token: write
+
+        steps:
+            - name: Download digests
+              uses: actions/download-artifact@v4
+              with:
+                  path: /tmp/digests
+                  pattern: digests-*
+                  merge-multiple: true
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Extract Docker Metadata
               id: meta
               uses: docker/metadata-action@v5
               with:
                   images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
                   tags: |
-                      # Use custom tag if provided via workflow_dispatch
                       type=raw,value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
-                      # Tag with branch name
                       type=ref,event=branch
-                      # Tag with PR number
                       type=ref,event=pr
-                      # Tag with semver (v1.2.3 -> 1.2.3, latest)
                       type=semver,pattern={{version}}
                       type=semver,pattern={{major}}.{{minor}}
                       type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
-                      # Tag with SHA
                       type=sha,prefix=sha-,format=short
-                      # Latest tag for main/master branch
                       type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
                   labels: |
                       org.opencontainers.image.title=DumpStation
                       org.opencontainers.image.description=Database backup service with multi-version PostgreSQL support
                       org.opencontainers.image.vendor=monzim
 
-            # ---------------------------------------------------------------------
-            # Build and Push
-            # ---------------------------------------------------------------------
-            - name: Build and Push Docker Image
-              id: build-push
-              uses: docker/build-push-action@v6
-              with:
-                  context: ./server
-                  file: ./server/Dockerfile
-                  platforms: linux/amd64,linux/arm64
-                  push: ${{ github.event_name != 'pull_request' }}
-                  tags: ${{ steps.meta.outputs.tags }}
-                  labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha
-                  cache-to: type=gha,mode=max
-                  provenance: true
-                  sbom: true
+            - name: Create manifest list and push
+              working-directory: /tmp/digests
+              run: |
+                  docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+                    $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
 
-            # ---------------------------------------------------------------------
-            # Attestation (for non-PR builds)
-            # ---------------------------------------------------------------------
-            - name: Generate Artifact Attestation
-              if: github.event_name != 'pull_request'
-              uses: actions/attest-build-provenance@v2
-              with:
-                  subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-                  subject-digest: ${{ steps.build-push.outputs.digest }}
-                  push-to-registry: true
+            - name: Inspect image
+              run: |
+                  docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
 
-            # ---------------------------------------------------------------------
-            # Discord Notifications
-            # ---------------------------------------------------------------------
+    # =========================================================================
+    # Discord Notifications
+    # =========================================================================
+    notify:
+        name: Send Notifications
+        runs-on: ubuntu-latest
+        needs: [build, merge]
+        if: always() && github.event_name != 'pull_request'
+        steps:
             - name: Send Discord Success Notification
-              if: success() && github.event_name != 'pull_request'
+              if: needs.merge.result == 'success'
               uses: tsickert/discord-webhook@v6.0.0
               with:
                   webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -137,21 +187,14 @@ jobs:
                       **Repository:** ${{ github.repository }}
                       **Branch:** ${{ github.ref_name }}
                       **Commit:** `${{ github.sha }}`
-                      **Commit Message:** ${{ github.event.head_commit.message }}
                       **Triggered by:** ${{ github.actor }}
 
                       **Image:** `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}`
-                      **Digest:** `${{ steps.build-push.outputs.digest }}`
-                      **Tags:** 
-                      ```
-                      ${{ steps.meta.outputs.tags }}
-                      ```
                   embed-color: 3066993
-                  embed-timestamp: ${{ github.event.head_commit.timestamp }}
                   embed-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
             - name: Send Discord Failure Notification
-              if: failure()
+              if: needs.build.result == 'failure' || needs.merge.result == 'failure'
               uses: tsickert/discord-webhook@v6.0.0
               with:
                   webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -159,28 +202,8 @@ jobs:
                   embed-description: |
                       **Repository:** ${{ github.repository }}
                       **Branch:** ${{ github.ref_name }}
-                      **Commit:** `${{ github.sha }}`
-                      **Commit Message:** ${{ github.event.head_commit.message }}
                       **Triggered by:** ${{ github.actor }}
 
                       Please check the workflow logs for details.
                   embed-color: 15158332
-                  embed-timestamp: ${{ github.event.head_commit.timestamp }}
-                  embed-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            - name: Send Discord Cancelled Notification
-              if: cancelled()
-              uses: tsickert/discord-webhook@v6.0.0
-              with:
-                  webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-                  embed-title: "⚠️ DumpStation Docker Build Cancelled"
-                  embed-description: |
-                      **Repository:** ${{ github.repository }}
-                      **Branch:** ${{ github.ref_name }}
-                      **Commit:** `${{ github.sha }}`
-                      **Triggered by:** ${{ github.actor }}
-
-                      The workflow was cancelled.
-                  embed-color: 16776960
-                  embed-timestamp: ${{ github.event.head_commit.timestamp }}
                   embed-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

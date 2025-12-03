@@ -1,73 +1,27 @@
 # =============================================================================
 # Multi-stage Dockerfile for DumpStation
 # Supports PostgreSQL client versions 12, 13, 14, 15, 16, 17
+# Optimized for faster CI/CD builds with better layer caching
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage 1: Build the Go binary
+# Stage 1: Base image with PostgreSQL clients (cached layer)
+# This layer rarely changes and can be cached across builds
 # -----------------------------------------------------------------------------
-FROM golang:1.24-bookworm AS builder
+FROM debian:bookworm-slim AS postgres-base
 
-WORKDIR /build
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Copy go mod files first for better layer caching
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download && go mod verify
-
-# Copy the source code
-COPY . .
-
-# Verify swagger docs exist
-RUN ls -la docs/ && head -5 docs/docs.go
-
-# Build the application
-# CGO_ENABLED=0 creates a static binary
-# -ldflags="-s -w" strips debug info for smaller binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-s -w" \
-    -a -installsuffix cgo \
-    -o backup-service \
-    ./cmd/server
-
-# -----------------------------------------------------------------------------
-# Stage 2: Runtime image with PostgreSQL client tools
-# Using Debian for proper multi-version PostgreSQL support
-# -----------------------------------------------------------------------------
-FROM debian:bookworm-slim AS runtime
-
-# Labels for container metadata
-LABEL org.opencontainers.image.title="DumpStation"
-LABEL org.opencontainers.image.description="Database backup service with multi-version PostgreSQL support"
-LABEL org.opencontainers.image.source="https://github.com/monzim/DumpStation"
-
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive \
-    TZ=UTC \
-    # Application defaults
-    SERVER_HOST=0.0.0.0 \
-    SERVER_PORT=8080
-
-WORKDIR /app
-
-# Install essential packages and PostgreSQL repository
+# Install essential packages and PostgreSQL clients in ONE layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     gnupg \
     lsb-release \
     tzdata \
-    && rm -rf /var/lib/apt/lists/*
-
-# Add PostgreSQL official APT repository
-RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
-    > /etc/apt/sources.list.d/pgdg.list
-
-# Install PostgreSQL client tools for versions 12-17
-# Each version installs to /usr/lib/postgresql/{VERSION}/bin/
-RUN apt-get update && apt-get install -y --no-install-recommends \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client-12 \
     postgresql-client-13 \
     postgresql-client-14 \
@@ -75,16 +29,53 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client-16 \
     postgresql-client-17 \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean \
+    && rm -rf /var/cache/apt/archives/*
 
-# Verify PostgreSQL tools installation
-RUN echo "=== PostgreSQL Tools Verification ===" \
-    && for version in 12 13 14 15 16 17; do \
-        echo "PostgreSQL $version:"; \
-        /usr/lib/postgresql/$version/bin/pg_dump --version; \
-        /usr/lib/postgresql/$version/bin/psql --version; \
-        /usr/lib/postgresql/$version/bin/pg_restore --version; \
-    done
+# -----------------------------------------------------------------------------
+# Stage 2: Build the Go binary
+# -----------------------------------------------------------------------------
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+
+# Build arguments for cross-compilation
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /build
+
+# Copy go mod files first for better layer caching
+COPY go.mod go.sum ./
+
+# Download dependencies (cached if go.mod/go.sum unchanged)
+RUN go mod download
+
+# Copy the source code
+COPY . .
+
+# Build the application for target platform
+# CGO_ENABLED=0 creates a static binary
+# -ldflags="-s -w" strips debug info for smaller binary
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w" \
+    -o backup-service \
+    ./cmd/server
+
+# -----------------------------------------------------------------------------
+# Stage 3: Runtime image
+# -----------------------------------------------------------------------------
+FROM postgres-base AS runtime
+
+# Labels for container metadata
+LABEL org.opencontainers.image.title="DumpStation"
+LABEL org.opencontainers.image.description="Database backup service with multi-version PostgreSQL support"
+LABEL org.opencontainers.image.source="https://github.com/monzim/DumpStation"
+
+# Set environment variables
+ENV TZ=UTC \
+    SERVER_HOST=0.0.0.0 \
+    SERVER_PORT=8080
+
+WORKDIR /app
 
 # Create non-root user for security
 RUN groupadd --gid 1000 appgroup \
@@ -97,10 +88,8 @@ RUN mkdir -p /app/migrations /app/docs /tmp/backups \
 # Copy the binary from builder
 COPY --from=builder --chown=appuser:appgroup /build/backup-service /app/backup-service
 
-# Copy migrations
+# Copy migrations and docs
 COPY --chown=appuser:appgroup migrations/ /app/migrations/
-
-# Copy swagger docs
 COPY --chown=appuser:appgroup docs/ /app/docs/
 
 # Switch to non-root user
