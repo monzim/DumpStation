@@ -18,6 +18,50 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
+  head: () => ({
+    meta: [
+      { title: "Sign In - DumpStation" },
+      {
+        name: "description",
+        content:
+          "Sign in to DumpStation to manage your PostgreSQL database backups. Secure Discord-based OTP authentication.",
+      },
+      {
+        name: "robots",
+        content: "noindex, nofollow",
+      },
+      // Open Graph
+      {
+        property: "og:title",
+        content: "Sign In - DumpStation",
+      },
+      {
+        property: "og:description",
+        content:
+          "Access your DumpStation dashboard to manage PostgreSQL backups.",
+      },
+      {
+        property: "og:url",
+        content: "https://dumpstation.io/login",
+      },
+      // Twitter Card
+      {
+        name: "twitter:title",
+        content: "Sign In - DumpStation",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "Access your DumpStation dashboard to manage PostgreSQL backups.",
+      },
+    ],
+    links: [
+      {
+        rel: "canonical",
+        href: "https://dumpstation.io/login",
+      },
+    ],
+  }),
 });
 
 const DEFAULT_USERNAME = "system";

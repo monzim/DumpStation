@@ -52,6 +52,49 @@ import {
 
 export const Route = createFileRoute("/databases/$id")({
   component: RouteComponent,
+  head: ({ params }) => ({
+    meta: [
+      { title: `Database Details - DumpStation` },
+      {
+        name: "description",
+        content: `View and manage database configuration, backup history, and settings for database ${params.id}.`,
+      },
+      {
+        name: "robots",
+        content: "noindex, nofollow",
+      },
+      // Open Graph
+      {
+        property: "og:title",
+        content: "Database Details - DumpStation",
+      },
+      {
+        property: "og:description",
+        content:
+          "View database configuration, backup history, and manage settings.",
+      },
+      {
+        property: "og:url",
+        content: `https://dumpstation.io/databases/${params.id}`,
+      },
+      // Twitter Card
+      {
+        name: "twitter:title",
+        content: "Database Details - DumpStation",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "View database configuration, backup history, and manage settings.",
+      },
+    ],
+    links: [
+      {
+        rel: "canonical",
+        href: `https://dumpstation.io/databases/${params.id}`,
+      },
+    ],
+  }),
 });
 
 const statusConfig: Record<

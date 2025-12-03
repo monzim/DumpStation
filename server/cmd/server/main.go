@@ -105,7 +105,7 @@ func main() {
 	h := handlers.New(repo, jwtMgr, backupSvc, sched, notifier, otpExpiry)
 
 	// Setup routes
-	router := handlers.SetupRoutes(h, jwtMgr)
+	router := handlers.SetupRoutes(h, jwtMgr, cfg)
 
 	// Start HTTP server
 	addr := cfg.Server.Host + ":" + cfg.Server.Port

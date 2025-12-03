@@ -24,6 +24,50 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
   component: RouteComponent,
+  head: () => ({
+    meta: [
+      { title: "Dashboard - DumpStation" },
+      {
+        name: "description",
+        content:
+          "Monitor and manage your PostgreSQL database backups. View backup status, storage usage, and system health in real-time.",
+      },
+      {
+        name: "robots",
+        content: "noindex, nofollow",
+      },
+      // Open Graph
+      {
+        property: "og:title",
+        content: "Dashboard - DumpStation",
+      },
+      {
+        property: "og:description",
+        content:
+          "Monitor and manage your PostgreSQL database backups in real-time.",
+      },
+      {
+        property: "og:url",
+        content: "https://dumpstation.io/dashboard",
+      },
+      // Twitter Card
+      {
+        name: "twitter:title",
+        content: "Dashboard - DumpStation",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "Monitor and manage your PostgreSQL database backups in real-time.",
+      },
+    ],
+    links: [
+      {
+        rel: "canonical",
+        href: "https://dumpstation.io/dashboard",
+      },
+    ],
+  }),
 });
 
 function RouteComponent() {

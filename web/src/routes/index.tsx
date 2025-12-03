@@ -23,7 +23,54 @@ import {
   Zap,
 } from "lucide-react";
 
-export const Route = createFileRoute("/")({ component: LandingPage });
+export const Route = createFileRoute("/")({
+  component: LandingPage,
+  head: () => ({
+    meta: [
+      { title: "DumpStation - Automated PostgreSQL Backup Service" },
+      {
+        name: "description",
+        content:
+          "DumpStation is a powerful self-hosted backup service that automates your PostgreSQL database backups with cloud storage, smart scheduling, and instant notifications.",
+      },
+      {
+        name: "keywords",
+        content:
+          "PostgreSQL backup, database backup, automated backup, cloud storage, AWS S3, Cloudflare R2, self-hosted, open source, backup service",
+      },
+      // Open Graph
+      {
+        property: "og:title",
+        content: "DumpStation - Automated PostgreSQL Backup Service",
+      },
+      {
+        property: "og:description",
+        content:
+          "Never lose your PostgreSQL data again. Automate backups with cloud storage, smart scheduling, and instant notifications.",
+      },
+      {
+        property: "og:url",
+        content: "https://dumpstation.io",
+      },
+      // Twitter Card
+      {
+        name: "twitter:title",
+        content: "DumpStation - Automated PostgreSQL Backup Service",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "Never lose your PostgreSQL data again. Automate backups with cloud storage, smart scheduling, and instant notifications.",
+      },
+    ],
+    links: [
+      {
+        rel: "canonical",
+        href: "https://dumpstation.io",
+      },
+    ],
+  }),
+});
 
 function LandingPage() {
   return (

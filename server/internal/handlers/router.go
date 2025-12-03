@@ -4,16 +4,17 @@ import (
 	"github.com/gorilla/mux"
 	_ "github.com/monzim/db_proxy/v1/docs" // Import generated swagger docs
 	"github.com/monzim/db_proxy/v1/internal/auth"
+	"github.com/monzim/db_proxy/v1/internal/config"
 	"github.com/monzim/db_proxy/v1/internal/middleware"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 // SetupRoutes configures all HTTP routes
-func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager) *mux.Router {
+func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config) *mux.Router {
 	r := mux.NewRouter()
 
 	// Apply global middleware
-	r.Use(middleware.CORS)
+	r.Use(middleware.NewCORSMiddleware(&cfg.CORS))
 	r.Use(middleware.Logger)
 
 	// API v1 routes
