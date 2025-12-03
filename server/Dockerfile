@@ -1,5 +1,5 @@
 # =============================================================================
-# Multi-stage Dockerfile for DB Proxy Backup Service
+# Multi-stage Dockerfile for DumpStation
 # Supports PostgreSQL client versions 12, 13, 14, 15, 16, 17
 # =============================================================================
 
@@ -38,9 +38,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 FROM debian:bookworm-slim AS runtime
 
 # Labels for container metadata
-LABEL org.opencontainers.image.title="DB Proxy Backup Service"
+LABEL org.opencontainers.image.title="DumpStation"
 LABEL org.opencontainers.image.description="Database backup service with multi-version PostgreSQL support"
-LABEL org.opencontainers.image.source="https://github.com/monzim/db_proxy"
+LABEL org.opencontainers.image.source="https://github.com/monzim/DumpStation"
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
