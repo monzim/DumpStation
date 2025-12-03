@@ -150,7 +150,7 @@ export function DashboardNav({
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                   >
-                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <Icon className="h-5 w-5 shrink-0" />
                     <span>{item.label}</span>
                   </button>
                 );
@@ -174,7 +174,7 @@ export function DashboardNav({
                     >
                       <RefreshCw
                         className={cn(
-                          "h-5 w-5 flex-shrink-0",
+                          "h-5 w-5 shrink-0",
                           isRefreshing && "animate-spin"
                         )}
                       />
@@ -186,7 +186,7 @@ export function DashboardNav({
                       onClick={handleLogout}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-destructive hover:bg-destructive/10"
                     >
-                      <LogOut className="h-5 w-5 flex-shrink-0" />
+                      <LogOut className="h-5 w-5 shrink-0" />
                       <span>Logout</span>
                     </button>
                   )}

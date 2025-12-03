@@ -122,7 +122,7 @@ export function RecentActivity({ onViewAll }: RecentActivityProps) {
           <div className="space-y-3">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="flex items-start gap-3">
-                <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />
+                <Skeleton className="h-8 w-8 rounded-full shrink-0" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-32" />
                   <Skeleton className="h-3 w-full" />
@@ -147,7 +147,7 @@ export function RecentActivity({ onViewAll }: RecentActivityProps) {
                   className="flex items-start gap-3 pb-4 border-b last:border-0 last:pb-0"
                 >
                   <div
-                    className={`${config.color} bg-muted rounded-full p-2 flex-shrink-0`}
+                    className={`${config.color} bg-muted rounded-full p-2 shrink-0`}
                   >
                     <Icon className="h-4 w-4" />
                   </div>
@@ -156,7 +156,7 @@ export function RecentActivity({ onViewAll }: RecentActivityProps) {
                       <p className="font-medium text-sm">
                         {getActionLabel(log.action)}
                       </p>
-                      <Badge variant={config.variant} className="flex-shrink-0">
+                      <Badge variant={config.variant} className="shrink-0">
                         {log.level}
                       </Badge>
                     </div>
