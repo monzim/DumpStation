@@ -1,100 +1,117 @@
-# Build stage
-FROM golang:1.24-alpine AS builder
+# =============================================================================
+# Multi-stage Dockerfile for DB Proxy Backup Service
+# Supports PostgreSQL client versions 12, 13, 14, 15, 16, 17
+# =============================================================================
 
-# Install build dependencies
-RUN apk add --no-cache git
+# -----------------------------------------------------------------------------
+# Stage 1: Build the Go binary
+# -----------------------------------------------------------------------------
+FROM golang:1.24-bookworm AS builder
 
-WORKDIR /app
+WORKDIR /build
 
-# Copy go mod files first
+# Copy go mod files first for better layer caching
 COPY go.mod go.sum ./
-RUN go mod download
 
-# Copy all source code and generated files
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy the source code
 COPY . .
 
-# Verify swagger docs exist and are readable
+# Verify swagger docs exist
 RUN ls -la docs/ && head -5 docs/docs.go
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o backup-service ./cmd/server
+# CGO_ENABLED=0 creates a static binary
+# -ldflags="-s -w" strips debug info for smaller binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w" \
+    -a -installsuffix cgo \
+    -o backup-service \
+    ./cmd/server
 
-# PostgreSQL client tools stage - builds directory structure with multiple versions
-FROM alpine:latest AS pg-tools-builder
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime image with PostgreSQL client tools
+# Using Debian for proper multi-version PostgreSQL support
+# -----------------------------------------------------------------------------
+FROM debian:bookworm-slim AS runtime
 
-# Install PostgreSQL client tools from standard repository
-RUN apk add --no-cache \
-    postgresql-client
+# Labels for container metadata
+LABEL org.opencontainers.image.title="DB Proxy Backup Service"
+LABEL org.opencontainers.image.description="Database backup service with multi-version PostgreSQL support"
+LABEL org.opencontainers.image.source="https://github.com/monzim/db_proxy"
 
-# Create version-specific directories structure for compatibility
-RUN mkdir -p /pg-tools && \
-    for version in 12 13 14 15 16; do \
-      mkdir -p /pg-tools/$version/bin; \
-    done && \
-    # Copy available tools to all version directories (symlinks for compatibility)
-    mkdir -p /pg-tools/latest/bin && \
-    for tool in pg_dump pg_restore psql pg_basebackup pg_receivewal pg_recvlogical createdb dropdb createuser dropuser vacuumdb reindexdb clusterdb vacuumlo; do \
-      if command -v "$tool" > /dev/null 2>&1; then \
-        for version in 12 13 14 15 16; do \
-          ln -sf "$(which "$tool")" /pg-tools/$version/bin/$tool 2>/dev/null || true; \
-        done; \
-        ln -sf "$(which "$tool")" /pg-tools/latest/bin/$tool 2>/dev/null || true; \
-      fi; \
-    done && \
-    # Verify at least pg_dump is available
-    if [ ! -f /pg-tools/latest/bin/pg_dump ]; then \
-      cp /usr/bin/pg_dump* /pg-tools/latest/bin/ 2>/dev/null || true; \
-      for version in 12 13 14 15 16; do \
-        cp /usr/bin/pg_dump* /pg-tools/$version/bin/ 2>/dev/null || true; \
-      done; \
-    fi
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC \
+    # Application defaults
+    SERVER_HOST=0.0.0.0 \
+    SERVER_PORT=8080
 
-# Runtime stage
-FROM alpine:latest
+WORKDIR /app
 
-# Install runtime dependencies and CA certificates
-RUN apk add --no-cache \
+# Install essential packages and PostgreSQL repository
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    tzdata \
-    bash \
     curl \
-    libpq \
-    openssl
+    gnupg \
+    lsb-release \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy PostgreSQL client tools from builder
-COPY --from=pg-tools-builder /pg-tools /usr/lib/postgresql
+# Add PostgreSQL official APT repository
+RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+    > /etc/apt/sources.list.d/pgdg.list
 
-# Create symlinks for standard PostgreSQL paths
-RUN for version in 12 13 14 15 16; do \
-      mkdir -p /usr/lib/postgresql/$version/bin && \
-      if [ -d "/usr/lib/postgresql/$version/bin" ]; then \
-        ln -sf /usr/lib/postgresql/$version/bin/* /usr/local/bin/ || true; \
-      fi; \
+# Install PostgreSQL client tools for versions 12-17
+# Each version installs to /usr/lib/postgresql/{VERSION}/bin/
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client-12 \
+    postgresql-client-13 \
+    postgresql-client-14 \
+    postgresql-client-15 \
+    postgresql-client-16 \
+    postgresql-client-17 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Verify PostgreSQL tools installation
+RUN echo "=== PostgreSQL Tools Verification ===" \
+    && for version in 12 13 14 15 16 17; do \
+        echo "PostgreSQL $version:"; \
+        /usr/lib/postgresql/$version/bin/pg_dump --version; \
+        /usr/lib/postgresql/$version/bin/psql --version; \
+        /usr/lib/postgresql/$version/bin/pg_restore --version; \
     done
 
-# Create healthcheck helper
-RUN echo '#!/bin/bash\nset -e\ntest -f /root/backup-service || exit 1' > /healthcheck.sh && chmod +x /healthcheck.sh
-
-WORKDIR /root/
-
-# Copy the binary from builder
-COPY --from=builder /app/backup-service .
-
-# Copy migrations
-COPY --from=builder /app/migrations ./migrations
+# Create non-root user for security
+RUN groupadd --gid 1000 appgroup \
+    && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
 
 # Create necessary directories
-RUN mkdir -p /root/logs /tmp/backups
+RUN mkdir -p /app/migrations /app/docs /tmp/backups \
+    && chown -R appuser:appgroup /app /tmp/backups
 
-# Set permissions
-RUN chmod +x /root/backup-service
+# Copy the binary from builder
+COPY --from=builder --chown=appuser:appgroup /build/backup-service /app/backup-service
 
-# Expose port
+# Copy migrations
+COPY --chown=appuser:appgroup migrations/ /app/migrations/
+
+# Copy swagger docs
+COPY --chown=appuser:appgroup docs/ /app/docs/
+
+# Switch to non-root user
+USER appuser
+
+# Expose the application port
 EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/api/v1/stats || exit 1
+    CMD curl -f http://localhost:8080/api/v1/health || exit 1
 
-# Run the service with graceful shutdown support
-CMD ["./backup-service"]
+# Run the application
+ENTRYPOINT ["/app/backup-service"]

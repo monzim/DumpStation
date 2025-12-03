@@ -1,48 +1,83 @@
+# =============================================================================
+# Docker Ignore for DB Proxy Backup Service
+# =============================================================================
+
 # Git
 .git
 .gitignore
 .gitattributes
 
-# Documentation (except generated swagger)
+# Documentation (except generated swagger docs - they are needed!)
 *.md
+!README.md
 .github/
+LICENSE
 
 # Build artifacts
 *.exe
 *.out
 backup-service
 coverage.out
+*.test
 
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+Thumbs.db
 
-# Environment
+# Environment files (secrets should not be in image)
 .env
-.env.local
-.env.*.local
+.env.*
+*.env.local
 
 # Node modules (if any)
 node_modules/
 npm-debug.log
+yarn-error.log
 
-# Temporary
+# Temporary files
 tmp/
 temp/
 *.tmp
+*.log
+*.cache
 
-# Docker
+# Docker files (not needed inside the image)
 Dockerfile*
 docker-compose*.yml
+docker-compose*.yaml
 .dockerignore
 
-# Test files
+# Test files (not needed in production image)
 *_test.go
-test_*.go
+**/*_test.go
+test/
+tests/
+testdata/
+coverage/
+*.cover
 
-# Makefile (not needed in image)
+# Development tools
 Makefile
+scripts/
+*.sh
+!docker-build.sh
+
+# Vendor (if using go modules, not needed)
+# vendor/
+
+# Profiling and debugging
+*.pprof
+*.prof
+debug
+
+# Security - never include these
+*.pem
+*.key
+*.crt
+secrets/
+credentials/

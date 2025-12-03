@@ -19,6 +19,10 @@ func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager) *mux.Router {
 	// API v1 routes
 	api := r.PathPrefix("/api/v1").Subrouter()
 
+	// Health check route (no authentication required)
+	api.HandleFunc("/health", h.HealthCheck).Methods("GET", "OPTIONS")
+	api.HandleFunc("/health", h.HealthCheck).Methods("GET", "GET")
+
 	// Public routes (no authentication required)
 	api.HandleFunc("/auth/login", h.Login).Methods("POST", "OPTIONS")
 	api.HandleFunc("/auth/verify", h.Verify).Methods("POST", "OPTIONS")
