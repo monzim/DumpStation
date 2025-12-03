@@ -1,0 +1,185 @@
+# =============================================================================
+# Docker Build and Push to GHCR
+# Builds the server Docker image and pushes to GitHub Container Registry
+# =============================================================================
+
+name: Build and Push Docker Image
+
+on:
+    push:
+        branches:
+            - main
+            - master
+        paths:
+            - "server/**"
+            - ".github/workflows/docker-build-push.yml"
+        tags:
+            - "v*.*.*"
+    pull_request:
+        branches:
+            - main
+            - master
+        paths:
+            - "server/**"
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Image tag (optional, defaults to SHA)"
+                required: false
+                type: string
+
+env:
+    REGISTRY: ghcr.io
+    IMAGE_NAME: monzim/dumpstation
+
+jobs:
+    build-and-push:
+        name: Build and Push Docker Image
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+            attestations: write
+            id-token: write
+
+        steps:
+            # ---------------------------------------------------------------------
+            # Setup
+            # ---------------------------------------------------------------------
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            # ---------------------------------------------------------------------
+            # Authentication
+            # ---------------------------------------------------------------------
+            - name: Log in to GitHub Container Registry
+              if: github.event_name != 'pull_request'
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # ---------------------------------------------------------------------
+            # Metadata
+            # ---------------------------------------------------------------------
+            - name: Extract Docker Metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+                  tags: |
+                      # Use custom tag if provided via workflow_dispatch
+                      type=raw,value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
+                      # Tag with branch name
+                      type=ref,event=branch
+                      # Tag with PR number
+                      type=ref,event=pr
+                      # Tag with semver (v1.2.3 -> 1.2.3, latest)
+                      type=semver,pattern={{version}}
+                      type=semver,pattern={{major}}.{{minor}}
+                      type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+                      # Tag with SHA
+                      type=sha,prefix=sha-,format=short
+                      # Latest tag for main/master branch
+                      type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+                  labels: |
+                      org.opencontainers.image.title=DumpStation
+                      org.opencontainers.image.description=Database backup service with multi-version PostgreSQL support
+                      org.opencontainers.image.vendor=monzim
+
+            # ---------------------------------------------------------------------
+            # Build and Push
+            # ---------------------------------------------------------------------
+            - name: Build and Push Docker Image
+              id: build-push
+              uses: docker/build-push-action@v6
+              with:
+                  context: ./server
+                  file: ./server/Dockerfile
+                  platforms: linux/amd64,linux/arm64
+                  push: ${{ github.event_name != 'pull_request' }}
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+                  provenance: true
+                  sbom: true
+
+            # ---------------------------------------------------------------------
+            # Attestation (for non-PR builds)
+            # ---------------------------------------------------------------------
+            - name: Generate Artifact Attestation
+              if: github.event_name != 'pull_request'
+              uses: actions/attest-build-provenance@v2
+              with:
+                  subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+                  subject-digest: ${{ steps.build-push.outputs.digest }}
+                  push-to-registry: true
+
+            # ---------------------------------------------------------------------
+            # Discord Notifications
+            # ---------------------------------------------------------------------
+            - name: Send Discord Success Notification
+              if: success() && github.event_name != 'pull_request'
+              uses: tsickert/discord-webhook@v6.0.0
+              with:
+                  webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+                  embed-title: "✅ DumpStation Docker Build Successful"
+                  embed-description: |
+                      **Repository:** ${{ github.repository }}
+                      **Branch:** ${{ github.ref_name }}
+                      **Commit:** `${{ github.sha }}`
+                      **Commit Message:** ${{ github.event.head_commit.message }}
+                      **Triggered by:** ${{ github.actor }}
+
+                      **Image:** `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}`
+                      **Digest:** `${{ steps.build-push.outputs.digest }}`
+                      **Tags:** 
+                      ```
+                      ${{ steps.meta.outputs.tags }}
+                      ```
+                  embed-color: 3066993
+                  embed-timestamp: ${{ github.event.head_commit.timestamp }}
+                  embed-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            - name: Send Discord Failure Notification
+              if: failure()
+              uses: tsickert/discord-webhook@v6.0.0
+              with:
+                  webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+                  embed-title: "❌ DumpStation Docker Build Failed"
+                  embed-description: |
+                      **Repository:** ${{ github.repository }}
+                      **Branch:** ${{ github.ref_name }}
+                      **Commit:** `${{ github.sha }}`
+                      **Commit Message:** ${{ github.event.head_commit.message }}
+                      **Triggered by:** ${{ github.actor }}
+
+                      Please check the workflow logs for details.
+                  embed-color: 15158332
+                  embed-timestamp: ${{ github.event.head_commit.timestamp }}
+                  embed-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            - name: Send Discord Cancelled Notification
+              if: cancelled()
+              uses: tsickert/discord-webhook@v6.0.0
+              with:
+                  webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+                  embed-title: "⚠️ DumpStation Docker Build Cancelled"
+                  embed-description: |
+                      **Repository:** ${{ github.repository }}
+                      **Branch:** ${{ github.ref_name }}
+                      **Commit:** `${{ github.sha }}`
+                      **Triggered by:** ${{ github.actor }}
+
+                      The workflow was cancelled.
+                  embed-color: 16776960
+                  embed-timestamp: ${{ github.event.head_commit.timestamp }}
+                  embed-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
