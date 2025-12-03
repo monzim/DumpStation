@@ -214,6 +214,21 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Health check handler
+
+// HealthCheck godoc
+// @Summary Health check endpoint
+// @Description Returns the health status of the service
+// @Tags Health
+// @Produce json
+// @Success 200 {object} map[string]string "Service is healthy"
+// @Router /health [get]
+func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "healthy",
+	})
+}
+
 // Storage handlers
 
 // ListStorageConfigs godoc
