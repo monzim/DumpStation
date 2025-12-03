@@ -1,8 +1,9 @@
-// API Client with proper error handling
-
 import type { ApiError } from "@/lib/types/api";
 
-const API_BASE_URL = "http://localhost:8080/api/v1";
+// Use Vite's import.meta.env for environment variables
+// VITE_API_BASE_URL is set at build time via .env files or Cloudflare vars
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";
 
 export class ApiClient {
   private token: string | null = null;
