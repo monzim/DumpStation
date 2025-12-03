@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CronBuilder } from "@/components/cron-builder";
 import { useCreateDatabase, useUpdateDatabase } from "@/lib/api/databases";
 import { useNotifications } from "@/lib/api/notifications";
 import { useStorageConfigs } from "@/lib/api/storage";
@@ -247,23 +248,6 @@ export function DatabaseDialog({
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="schedule">Schedule (Cron) *</Label>
-              <Input
-                id="schedule"
-                placeholder="0 2 * * *"
-                {...register("schedule", { required: "Schedule is required" })}
-              />
-              {errors.schedule && (
-                <p className="text-sm text-destructive">
-                  {errors.schedule.message}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Daily at 2 AM: 0 2 * * *
-              </p>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="postgres_version">PostgreSQL Version</Label>
               <Input
                 id="postgres_version"
@@ -274,6 +258,15 @@ export function DatabaseDialog({
                 e.g., &quot;15&quot;, &quot;14&quot;, &quot;latest&quot;
               </p>
             </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-semibold mb-3">Backup Schedule</h4>
+            <CronBuilder
+              value={watch("schedule")}
+              onChange={(value) => setValue("schedule", value)}
+              error={errors.schedule?.message}
+            />
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
