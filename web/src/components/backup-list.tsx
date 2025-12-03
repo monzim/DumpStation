@@ -182,7 +182,7 @@ export function BackupList() {
                     )}
                     {backup.error_message && (
                       <div className="flex items-start gap-2 text-destructive text-xs">
-                        <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                         <span className="line-clamp-2">
                           {backup.error_message}
                         </span>

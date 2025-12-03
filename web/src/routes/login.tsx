@@ -1,38 +1,38 @@
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLogin, useVerify } from "@/lib/api/auth";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Database, Loader2 } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  Database,
+  KeyRound,
+  Loader2,
+  Lock,
+  MessageCircle,
+  Shield,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
-  component: RouteComponent,
+  component: LoginPage,
 });
 
-function RouteComponent() {
+const DEFAULT_USERNAME = "system";
+
+function LoginPage() {
   const [step, setStep] = useState<"login" | "verify">("login");
-  const [username, setUsername] = useState("admin");
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
   const { setIsAuthenticated } = useAuth();
   const loginMutation = useLogin();
   const verifyMutation = useVerify();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleLogin = async () => {
     try {
-      await loginMutation.mutateAsync({ username });
+      await loginMutation.mutateAsync({ username: DEFAULT_USERNAME });
       toast.success("OTP sent successfully", {
         description: "Check your Discord for the verification code.",
       });
@@ -49,14 +49,12 @@ function RouteComponent() {
     e.preventDefault();
 
     try {
-      await verifyMutation.mutateAsync({ username, otp });
+      await verifyMutation.mutateAsync({ username: DEFAULT_USERNAME, otp });
       toast.success("Login successful", {
         description: "Welcome to the PostgreSQL Backup Service.",
       });
       setIsAuthenticated(true);
-      navigate({
-        to: "/dashboard",
-      });
+      navigate({ to: "/dashboard" });
     } catch (error: unknown) {
       const apiError = error as { message?: string };
       toast.error("Verification failed", {
@@ -66,103 +64,256 @@ function RouteComponent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center mb-8">
-          <div className="bg-primary text-primary-foreground p-3 rounded-lg">
-            <Database className="h-8 w-8" />
-          </div>
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left Panel - Branding (hidden on mobile, visible on lg+) */}
+      <div className="hidden lg:flex lg:w-1/2 xl:w-2/5 bg-linear-to-br from-primary via-primary/90 to-primary/80 relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-white rounded-full blur-3xl" />
         </div>
 
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">
-              {step === "login" ? "Welcome Back" : "Verify OTP"}
-            </CardTitle>
-            <CardDescription className="text-center">
-              {step === "login"
-                ? "Sign in to access your PostgreSQL backup dashboard"
-                : "Enter the verification code sent to Discord"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {step === "login" ? (
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="admin"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    disabled={loginMutation.isPending}
-                    required
-                  />
+        <div className="relative z-10 flex flex-col justify-between p-12 text-primary-foreground w-full">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl group-hover:bg-white/30 transition-colors">
+              <Database className="h-7 w-7" />
+            </div>
+            <span className="text-2xl font-bold">DumpStation</span>
+          </Link>
+
+          {/* Hero Content */}
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <h1 className="text-4xl xl:text-5xl font-bold leading-tight">
+                Secure PostgreSQL Backup Management
+              </h1>
+              <p className="text-lg text-primary-foreground/80 leading-relaxed max-w-md">
+                Automate your database backups with cloud storage, smart
+                scheduling, and real-time notifications.
+              </p>
+            </div>
+
+            {/* Features */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center">
+                  <Shield className="h-5 w-5" />
                 </div>
+                <div>
+                  <p className="font-medium">Enterprise Security</p>
+                  <p className="text-sm text-primary-foreground/70">
+                    JWT authentication & encrypted backups
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center">
+                  <MessageCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-medium">Discord Integration</p>
+                  <p className="text-sm text-primary-foreground/70">
+                    OTP verification & instant alerts
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <p className="text-sm text-primary-foreground/60">
+            © {new Date().getFullYear()} DumpStation. All rights reserved.
+          </p>
+        </div>
+      </div>
+
+      {/* Right Panel - Login Form */}
+      <div className="flex-1 flex flex-col min-h-screen bg-background">
+        {/* Mobile Header */}
+        <header className="lg:hidden border-b bg-background/80 backdrop-blur-md sticky top-0 z-50">
+          <div className="flex items-center justify-between px-4 py-4">
+            <Link to="/" className="flex items-center gap-2">
+              <div className="bg-primary text-primary-foreground p-2 rounded-xl">
+                <Database className="h-5 w-5" />
+              </div>
+              <span className="font-bold text-lg bg-linear-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                DumpStation
+              </span>
+            </Link>
+          </div>
+        </header>
+
+        {/* Form Container */}
+        <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-12">
+          <div className="w-full max-w-sm space-y-8">
+            {/* Form Header */}
+            <div className="text-center space-y-2">
+              <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-4">
+                {step === "login" ? (
+                  <Lock className="h-8 w-8 text-primary" />
+                ) : (
+                  <KeyRound className="h-8 w-8 text-primary" />
+                )}
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                {step === "login" ? "Welcome back" : "Enter verification code"}
+              </h2>
+              <p className="text-muted-foreground">
+                {step === "login"
+                  ? "Sign in to access your backup dashboard"
+                  : "We've sent a code to your Discord"}
+              </p>
+            </div>
+
+            {/* Login Step */}
+            {step === "login" ? (
+              <div className="space-y-6">
                 <Button
-                  type="submit"
-                  className="w-full"
+                  onClick={handleLogin}
                   disabled={loginMutation.isPending}
+                  className="w-full h-12 text-base"
+                  size="lg"
+                >
+                  {loginMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Sending OTP...
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle className="mr-2 h-5 w-5" />
+                      Continue with Discord
+                    </>
+                  )}
+                </Button>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Secure authentication
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-center text-sm text-muted-foreground">
+                  A one-time password will be sent to your configured Discord
+                  channel for verification.
+                </p>
+              </div>
+            ) : (
+              /* Verify Step */
+              <form onSubmit={handleVerify} className="space-y-6">
+                <div className="space-y-3">
+                  <Label htmlFor="otp" className="text-sm font-medium">
+                    Verification Code
+                  </Label>
+                  <Input
+                    id="otp"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="000000"
+                    value={otp}
+                    onChange={(e) =>
+                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    disabled={verifyMutation.isPending}
+                    maxLength={6}
+                    required
+                    autoFocus
+                    className="h-14 text-center text-2xl font-mono tracking-[0.5em] placeholder:tracking-[0.5em]"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">
+                    Enter the 6-digit code from Discord
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base"
+                    size="lg"
+                    disabled={verifyMutation.isPending || otp.length !== 6}
+                  >
+                    {verifyMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Verifying...
+                      </>
+                    ) : (
+                      "Verify & Sign In"
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setStep("login");
+                      setOtp("");
+                    }}
+                    disabled={verifyMutation.isPending}
+                    className="w-full"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to login
+                  </Button>
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Didn't receive it?
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleLogin}
+                  disabled={loginMutation.isPending}
+                  className="w-full"
                 >
                   {loginMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sending OTP...
+                      Resending...
                     </>
                   ) : (
-                    "Send OTP"
+                    "Resend code"
                   )}
                 </Button>
               </form>
-            ) : (
-              <form onSubmit={handleVerify} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="otp">Verification Code</Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    disabled={verifyMutation.isPending}
-                    maxLength={6}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use <span className="font-mono font-semibold">123456</span>{" "}
-                    for demo
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setStep("login")}
-                    disabled={verifyMutation.isPending}
-                    className="flex-1"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1"
-                    disabled={verifyMutation.isPending}
-                  >
-                    {verifyMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Verifying...
-                      </>
-                    ) : (
-                      "Verify"
-                    )}
-                  </Button>
-                </div>
-              </form>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Desktop Footer */}
+        <footer className="hidden lg:block border-t py-6 px-12">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <p>PostgreSQL Backup Service</p>
+            <div className="flex items-center gap-4">
+              <Link to="/" className="hover:text-foreground transition-colors">
+                Home
+              </Link>
+              <a
+                href="https://github.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                GitHub
+              </a>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );
