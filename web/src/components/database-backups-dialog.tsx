@@ -11,6 +11,7 @@ import { useDatabaseBackups } from "@/lib/api/databases";
 import type { DatabaseConfig } from "@/lib/types/api";
 import { formatBytes } from "@/lib/utils/format";
 import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { DatabaseIcon } from "./database-icon";
 
 interface DatabaseBackupsDialogProps {
   open: boolean;
@@ -55,10 +56,15 @@ export function DatabaseBackupsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Backup History</DialogTitle>
-          <DialogDescription>
-            {database?.name} - {database?.dbname}
-          </DialogDescription>
+          <div className="flex items-center gap-3">
+            {database && <DatabaseIcon databaseId={database.id} size="lg" />}
+            <div>
+              <DialogTitle>Backup History</DialogTitle>
+              <DialogDescription>
+                {database?.name} - {database?.dbname}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -88,7 +94,9 @@ export function DatabaseBackupsDialog({
                   <div className="mt-1">{getStatusIcon(backup.status)}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-base">{backup.name}</span>
+                      <span className="font-semibold text-base">
+                        {backup.name}
+                      </span>
                       {getStatusBadge(backup.status)}
                     </div>
                     <div className="text-sm text-muted-foreground space-y-1">

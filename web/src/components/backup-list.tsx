@@ -23,7 +23,6 @@ import {
   AlertCircle,
   Archive,
   Calendar,
-  Database,
   Grid3X3,
   HardDrive,
   List,
@@ -32,6 +31,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BackupDetailsDialog } from "./backup-details-dialog";
+import { DatabaseIconSimple } from "./database-icon";
 
 type ViewMode = "card" | "list";
 
@@ -139,7 +139,7 @@ export function BackupList() {
                 </Badge>
               </div>
               <CardDescription className="flex items-center gap-2 truncate">
-                <Database className="h-3 w-3 shrink-0" />
+                <DatabaseIconSimple databaseId={backup.database_id} size="xs" />
                 {getDatabaseName(backup.database_id)}
               </CardDescription>
             </CardHeader>
@@ -204,7 +204,10 @@ export function BackupList() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 min-w-0">
-                  <Database className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <DatabaseIconSimple
+                    databaseId={backup.database_id}
+                    size="sm"
+                  />
                   <span className="truncate">
                     {getDatabaseName(backup.database_id)}
                   </span>

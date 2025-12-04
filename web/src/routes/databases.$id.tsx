@@ -73,6 +73,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { DatabaseIcon } from "@/components/database-icon";
 
 export const Route = createFileRoute("/databases/$id")({
   component: RouteComponent,
@@ -411,6 +412,7 @@ function RouteComponent() {
               </Button>
               <div className="space-y-1">
                 <div className="flex items-center gap-3 flex-wrap">
+                  <DatabaseIcon databaseId={database.id} size="lg" />
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                     {database.name}
                   </h1>
