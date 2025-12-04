@@ -27,6 +27,7 @@ import {
 import { formatBytes, formatDate } from "@/lib/utils/format";
 import { toast } from "sonner";
 import type { Backup, RestoreRequest } from "@/lib/types/api";
+import { DatabaseIconSimple } from "./database-icon";
 
 interface BackupDetailsDialogProps {
   backup: Backup;
@@ -107,7 +108,7 @@ export function BackupDetailsDialog({
             <div className="flex-1">
               <DialogTitle className="text-xl">{backup.name}</DialogTitle>
               <DialogDescription className="flex items-center gap-2 mt-1">
-                <Database className="h-3 w-3" />
+                <DatabaseIconSimple databaseId={backup.database_id} size="xs" />
                 {databaseName}
               </DialogDescription>
             </div>
@@ -135,7 +136,10 @@ export function BackupDetailsDialog({
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Database className="h-3 w-3" />
+                  <DatabaseIconSimple
+                    databaseId={backup.database_id}
+                    size="xs"
+                  />
                   Database ID
                 </Label>
                 <p className="text-sm font-mono bg-muted px-2 py-1 rounded">

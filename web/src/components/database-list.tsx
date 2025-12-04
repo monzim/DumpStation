@@ -51,6 +51,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { DatabaseBackupsDialog } from "./database-backups-dialog";
+import { DatabaseIcon } from "./database-icon";
 
 type ViewMode = "card" | "list";
 
@@ -197,7 +198,7 @@ export function DatabaseList() {
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <Database className="h-5 w-5 text-primary shrink-0" />
+                <DatabaseIcon databaseId={database.id} size="md" />
                 <CardTitle className="text-lg truncate">
                   {database.name}
                 </CardTitle>
@@ -264,7 +265,7 @@ export function DatabaseList() {
             {/* Desktop Row */}
             <div className="hidden md:grid md:grid-cols-[2fr_1.5fr_1fr_1fr_auto] gap-4 p-4 items-center">
               <div className="flex items-center gap-3 min-w-0">
-                <Database className="h-5 w-5 text-primary shrink-0" />
+                <DatabaseIcon databaseId={database.id} size="md" />
                 <div className="min-w-0">
                   <p className="font-medium truncate">{database.name}</p>
                   <p className="text-sm text-muted-foreground font-mono truncate">
@@ -302,7 +303,7 @@ export function DatabaseList() {
             <div className="md:hidden p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <Database className="h-5 w-5 text-primary shrink-0" />
+                  <DatabaseIcon databaseId={database.id} size="md" />
                   <div className="min-w-0">
                     <p className="font-medium truncate">{database.name}</p>
                     <p className="text-sm text-muted-foreground font-mono truncate">
