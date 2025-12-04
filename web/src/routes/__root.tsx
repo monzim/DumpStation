@@ -1,4 +1,5 @@
 import { AuthProvider } from "@/components/auth-provider";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
@@ -15,6 +16,17 @@ import appCss from "../styles.css?url";
 const SITE_URL = "https://dumpstation.monzim.com";
 const SITE_NAME = "DumpStation";
 const DEFAULT_OG_IMAGE = `${SITE_URL}/images/og.webp`;
+
+// Script to prevent FOUC (Flash of Unstyled Content)
+const themeScript = `
+  (function() {
+    const storageKey = 'dumpstation-theme';
+    const theme = localStorage.getItem(storageKey);
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    const resolvedTheme = theme === 'system' || !theme ? systemTheme : theme;
+    document.documentElement.classList.add(resolvedTheme);
+  })();
+`;
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -125,13 +137,16 @@ function RootComponent() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <HeadContent />
       </head>
       <body>
-        <AuthProvider> {children}</AuthProvider>
-        <Toaster />
+        <ThemeProvider defaultTheme="system" storageKey="dumpstation-theme">
+          <AuthProvider>{children}</AuthProvider>
+          <Toaster />
+        </ThemeProvider>
         <TanStackDevtools
           config={{
             position: "bottom-right",
