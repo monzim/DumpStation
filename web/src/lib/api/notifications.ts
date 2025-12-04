@@ -117,3 +117,16 @@ export const useDeleteNotification = () => {
     },
   });
 };
+
+export const useTestNotification = () => {
+  return useMutation<void, ApiError, string>({
+    mutationFn: async (id) => {
+      if (USE_MOCK) {
+        // Simulate test notification
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return;
+      }
+      await apiClient.post(`/notifications/${id}/test`);
+    },
+  });
+};
