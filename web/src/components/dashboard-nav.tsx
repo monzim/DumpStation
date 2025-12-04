@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -12,7 +14,10 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Monitor,
+  Moon,
   RefreshCw,
+  Sun,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -80,6 +85,7 @@ export function DashboardNav({
 }: DashboardNavProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
 
   const handleNavClick = (item: NavItem) => {
     navigate({ to: item.route });
@@ -104,28 +110,31 @@ export function DashboardNav({
   return (
     <>
       {/* Desktop Navigation - Clean pill-style tabs */}
-      <nav className="hidden md:flex items-center gap-1 bg-muted/40 p-1 rounded-full">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentTab === item.value;
-          return (
-            <button
-              key={item.value}
-              onClick={() => handleNavClick(item)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
-                "hover:bg-background/60",
-                isActive
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="hidden lg:inline">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      <div className="hidden md:flex items-center gap-2">
+        <nav className="flex items-center gap-1 bg-muted/40 p-1 rounded-full">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.value;
+            return (
+              <button
+                key={item.value}
+                onClick={() => handleNavClick(item)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
+                  "hover:bg-background/60",
+                  isActive
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden lg:inline">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <ThemeToggle />
+      </div>
 
       {/* Mobile Navigation - Bottom sheet with modern design */}
       <Sheet open={open} onOpenChange={setOpen}>
@@ -230,7 +239,48 @@ export function DashboardNav({
           </div>
 
           {/* Mobile footer with version/info */}
-          <div className="border-t p-4">
+          <div className="border-t p-4 space-y-4">
+            {/* Theme selector */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-muted-foreground">
+                Theme
+              </span>
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+                <button
+                  onClick={() => setTheme("light")}
+                  className={cn(
+                    "p-1.5 rounded-md transition-colors",
+                    theme === "light"
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Sun className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setTheme("dark")}
+                  className={cn(
+                    "p-1.5 rounded-md transition-colors",
+                    theme === "dark"
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Moon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setTheme("system")}
+                  className={cn(
+                    "p-1.5 rounded-md transition-colors",
+                    theme === "system"
+                      ? "bg-background shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Monitor className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
             <div className="text-xs text-muted-foreground text-center">
               <p className="font-medium">DumpStation v1.0</p>
               <p className="mt-1">PostgreSQL Backup Service</p>
