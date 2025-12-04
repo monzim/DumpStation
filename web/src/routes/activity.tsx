@@ -27,7 +27,7 @@ export const Route = createFileRoute("/activity")({
       },
       {
         property: "og:url",
-        content: "https://dumpstation.io/activity",
+        content: "https://dumpstation.monzim.com/activity",
       },
       {
         name: "twitter:title",
@@ -42,7 +42,7 @@ export const Route = createFileRoute("/activity")({
     links: [
       {
         rel: "canonical",
-        href: "https://dumpstation.io/activity",
+        href: "https://dumpstation.monzim.com/activity",
       },
     ],
   }),

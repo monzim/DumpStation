@@ -12,7 +12,7 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import appCss from "../styles.css?url";
 
-const SITE_URL = "https://dumpstation.io";
+const SITE_URL = "https://dumpstation.monzim.com";
 const SITE_NAME = "DumpStation";
 const DEFAULT_OG_IMAGE = `${SITE_URL}/images/og.webp`;
 
