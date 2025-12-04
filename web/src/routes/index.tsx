@@ -50,7 +50,7 @@ export const Route = createFileRoute("/")({
       },
       {
         property: "og:url",
-        content: "https://dumpstation.io",
+        content: "https://dumpstation.monzim.com",
       },
       // Twitter Card
       {
@@ -66,7 +66,7 @@ export const Route = createFileRoute("/")({
     links: [
       {
         rel: "canonical",
-        href: "https://dumpstation.io",
+        href: "https://dumpstation.monzim.com",
       },
     ],
   }),
