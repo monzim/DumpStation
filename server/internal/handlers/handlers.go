@@ -199,7 +199,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		logInfo("2FA is enabled for user: %s, generating 2FA token...", user.DiscordUsername)
 
 		// Generate a temporary 2FA token
-		twoFAToken, expiresAt, err := h.jwtMgr.Generate2FAToken(user.ID, user.DiscordUserID)
+		twoFAToken, expiresAt, err := h.jwtMgr.Generate2FAToken(user.ID, user.DiscordUserID, user.IsAdmin)
 		if err != nil {
 			logError(fmt.Sprintf("Failed to generate 2FA token for user: %s", user.DiscordUsername), err)
 			writeError(w, http.StatusInternalServerError, "failed to generate token")
@@ -223,7 +223,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// No 2FA - generate full access token
-	token, expiresAt, err := h.jwtMgr.GenerateToken(user.ID, user.DiscordUserID)
+	token, expiresAt, err := h.jwtMgr.GenerateToken(user.ID, user.DiscordUserID, user.IsAdmin)
 	if err != nil {
 		logError(fmt.Sprintf("Failed to generate JWT for user: %s", req.Username), err)
 		writeError(w, http.StatusInternalServerError, "failed to generate token")
@@ -242,6 +242,57 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		Token:       token,
 		ExpiresAt:   expiresAt,
 		Requires2FA: false,
+	})
+}
+
+// DemoLogin godoc
+// @Summary Login as demo user
+// @Description Instantly login as a demo user to explore the system. Demo accounts have read-only access and cannot create backups or modify settings.
+// @Tags Authentication
+// @Produce json
+// @Success 200 {object} models.DemoAuthResponse "Demo login successful with JWT token"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /auth/demo-login [post]
+func (h *Handler) DemoLogin(w http.ResponseWriter, r *http.Request) {
+	logInfo("Demo login request received")
+
+	// Get the demo user
+	user, err := h.repo.GetDemoUser()
+	if err != nil {
+		logError("Failed to get demo user", err)
+		writeError(w, http.StatusInternalServerError, "demo login unavailable")
+		return
+	}
+
+	if user == nil {
+		logError("Demo user not found", nil)
+		writeError(w, http.StatusInternalServerError, "demo account not configured")
+		return
+	}
+
+	logInfo("✅ Demo user found: %s (ID: %s)", user.DiscordUsername, user.ID)
+
+	// Generate demo token (bypasses OTP and 2FA)
+	token, expiresAt, err := h.jwtMgr.GenerateDemoToken(user.ID, user.DiscordUserID)
+	if err != nil {
+		logError("Failed to generate demo JWT", err)
+		writeError(w, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	logInfo("✅ Demo JWT token generated (expires: %v)", expiresAt)
+
+	// Log the demo login
+	h.logActivity(&user.ID, models.ActionLogin, models.LogLevelInfo,
+		"user", &user.ID, user.DiscordUsername,
+		"Demo user logged in",
+		`{"demo": true}`, getIPAddress(r))
+
+	writeJSON(w, http.StatusOK, models.DemoAuthResponse{
+		Token:     token,
+		ExpiresAt: expiresAt,
+		IsDemo:    true,
+		Message:   "Welcome to DumpStation demo! This is a read-only account for exploring the system.",
 	})
 }
 
@@ -272,7 +323,14 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /storage [get]
 func (h *Handler) ListStorageConfigs(w http.ResponseWriter, r *http.Request) {
-	configs, err := h.repo.ListStorageConfigs()
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	configs, err := h.repo.ListStorageConfigsByUser(*userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list storage configs")
 		return
@@ -295,6 +353,18 @@ func (h *Handler) ListStorageConfigs(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /storage [post]
 func (h *Handler) CreateStorageConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// Demo users cannot create resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot create storage configurations")
+		return
+	}
+
 	var input models.StorageConfigInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		logError("Invalid JSON in storage config request", err)
@@ -313,14 +383,13 @@ func (h *Handler) CreateStorageConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config, err := h.repo.CreateStorageConfig(&input)
+	config, err := h.repo.CreateStorageConfig(*userID, &input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create storage config")
 		return
 	}
 
 	// Log storage creation
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionStorageCreated, models.LogLevelSuccess,
 		"storage", &config.ID, config.Name,
 		fmt.Sprintf("Storage configuration '%s' (%s) created", config.Name, config.Provider),
@@ -343,13 +412,20 @@ func (h *Handler) CreateStorageConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /storage/{id} [get]
 func (h *Handler) GetStorageConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	config, err := h.repo.GetStorageConfig(id)
+	config, err := h.repo.GetStorageConfigByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get storage config")
 		return
@@ -378,6 +454,19 @@ func (h *Handler) GetStorageConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /storage/{id} [put]
 func (h *Handler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot update resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot update storage configurations")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
@@ -402,7 +491,7 @@ func (h *Handler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config, err := h.repo.UpdateStorageConfig(id, &input)
+	config, err := h.repo.UpdateStorageConfigByUser(id, *userID, isAdmin, &input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update storage config")
 		return
@@ -413,7 +502,6 @@ func (h *Handler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log storage update
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionStorageUpdated, models.LogLevelSuccess,
 		"storage", &config.ID, config.Name,
 		fmt.Sprintf("Storage configuration '%s' updated", config.Name),
@@ -436,26 +524,42 @@ func (h *Handler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /storage/{id} [delete]
 func (h *Handler) DeleteStorageConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot delete resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot delete storage configurations")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	// Get config before deletion for logging
-	config, _ := h.repo.GetStorageConfig(id)
+	// Get config before deletion for logging (with user check)
+	config, _ := h.repo.GetStorageConfigByUser(id, *userID, isAdmin)
 	configName := "Unknown"
 	if config != nil {
 		configName = config.Name
+	} else {
+		// Config not found or not authorized
+		writeError(w, http.StatusNotFound, "storage config not found")
+		return
 	}
 
-	if err := h.repo.DeleteStorageConfig(id); err != nil {
+	if err := h.repo.DeleteStorageConfigByUser(id, *userID, isAdmin); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete storage config")
 		return
 	}
 
 	// Log storage deletion
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionStorageDeleted, models.LogLevelInfo,
 		"storage", &id, configName,
 		fmt.Sprintf("Storage configuration '%s' deleted", configName),
@@ -476,7 +580,14 @@ func (h *Handler) DeleteStorageConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /notifications [get]
 func (h *Handler) ListNotificationConfigs(w http.ResponseWriter, r *http.Request) {
-	configs, err := h.repo.ListNotificationConfigs()
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	configs, err := h.repo.ListNotificationConfigsByUser(*userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list notification configs")
 		return
@@ -499,6 +610,18 @@ func (h *Handler) ListNotificationConfigs(w http.ResponseWriter, r *http.Request
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /notifications [post]
 func (h *Handler) CreateNotificationConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// Demo users cannot create resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot create notification configurations")
+		return
+	}
+
 	var input models.NotificationConfigInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		logError("Invalid JSON in notification config request", err)
@@ -517,7 +640,7 @@ func (h *Handler) CreateNotificationConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	config, err := h.repo.CreateNotificationConfig(&input)
+	config, err := h.repo.CreateNotificationConfig(*userID, &input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create notification config")
 		return
@@ -540,13 +663,20 @@ func (h *Handler) CreateNotificationConfig(w http.ResponseWriter, r *http.Reques
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /notifications/{id} [get]
 func (h *Handler) GetNotificationConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	config, err := h.repo.GetNotificationConfig(id)
+	config, err := h.repo.GetNotificationConfigByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get notification config")
 		return
@@ -575,6 +705,19 @@ func (h *Handler) GetNotificationConfig(w http.ResponseWriter, r *http.Request) 
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /notifications/{id} [put]
 func (h *Handler) UpdateNotificationConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot update resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot update notification configurations")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
@@ -599,7 +742,7 @@ func (h *Handler) UpdateNotificationConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	config, err := h.repo.UpdateNotificationConfig(id, &input)
+	config, err := h.repo.UpdateNotificationConfigByUser(id, *userID, isAdmin, &input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update notification config")
 		return
@@ -626,13 +769,26 @@ func (h *Handler) UpdateNotificationConfig(w http.ResponseWriter, r *http.Reques
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /notifications/{id} [delete]
 func (h *Handler) DeleteNotificationConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot delete resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot delete notification configurations")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	if err := h.repo.DeleteNotificationConfig(id); err != nil {
+	if err := h.repo.DeleteNotificationConfigByUser(id, *userID, isAdmin); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete notification config")
 		return
 	}
@@ -652,7 +808,14 @@ func (h *Handler) DeleteNotificationConfig(w http.ResponseWriter, r *http.Reques
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases [get]
 func (h *Handler) ListDatabaseConfigs(w http.ResponseWriter, r *http.Request) {
-	configs, err := h.repo.ListDatabaseConfigs()
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	configs, err := h.repo.ListDatabaseConfigsByUser(*userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list database configs")
 		return
@@ -675,6 +838,18 @@ func (h *Handler) ListDatabaseConfigs(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases [post]
 func (h *Handler) CreateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// Demo users cannot create resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot create database configurations")
+		return
+	}
+
 	var input models.DatabaseConfigInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		logError("Invalid JSON in database config request", err)
@@ -693,7 +868,7 @@ func (h *Handler) CreateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config, err := h.repo.CreateDatabaseConfig(&input)
+	config, err := h.repo.CreateDatabaseConfig(*userID, &input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create database config")
 		return
@@ -706,7 +881,6 @@ func (h *Handler) CreateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log database creation
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionDatabaseCreated, models.LogLevelSuccess,
 		"database", &config.ID, config.Name,
 		fmt.Sprintf("Database configuration '%s' created with schedule: %s", config.Name, config.Schedule),
@@ -729,13 +903,20 @@ func (h *Handler) CreateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases/{id} [get]
 func (h *Handler) GetDatabaseConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	config, err := h.repo.GetDatabaseConfig(id)
+	config, err := h.repo.GetDatabaseConfigByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get database config")
 		return
@@ -764,6 +945,19 @@ func (h *Handler) GetDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases/{id} [put]
 func (h *Handler) UpdateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot update resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot update database configurations")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
@@ -788,7 +982,7 @@ func (h *Handler) UpdateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config, err := h.repo.UpdateDatabaseConfig(id, &input)
+	config, err := h.repo.UpdateDatabaseConfigByUser(id, *userID, isAdmin, &input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update database config")
 		return
@@ -805,7 +999,6 @@ func (h *Handler) UpdateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log database update
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionDatabaseUpdated, models.LogLevelSuccess,
 		"database", &config.ID, config.Name,
 		fmt.Sprintf("Database configuration '%s' updated", config.Name),
@@ -827,29 +1020,45 @@ func (h *Handler) UpdateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases/{id} [delete]
 func (h *Handler) DeleteDatabaseConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot delete resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot delete database configurations")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	// Get config before deletion for logging
-	config, _ := h.repo.GetDatabaseConfig(id)
+	// Get config before deletion for logging (with user check)
+	config, _ := h.repo.GetDatabaseConfigByUser(id, *userID, isAdmin)
 	configName := "Unknown"
 	if config != nil {
 		configName = config.Name
+	} else {
+		// Config not found or not authorized
+		writeError(w, http.StatusNotFound, "database config not found")
+		return
 	}
 
 	// Remove from scheduler
 	h.scheduler.RemoveJob(id)
 
-	if err := h.repo.DeleteDatabaseConfig(id); err != nil {
+	if err := h.repo.DeleteDatabaseConfigByUser(id, *userID, isAdmin); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete database config")
 		return
 	}
 
 	// Log database deletion
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionDatabaseDeleted, models.LogLevelInfo,
 		"database", &id, configName,
 		fmt.Sprintf("Database configuration '%s' deleted", configName),
@@ -871,14 +1080,27 @@ func (h *Handler) DeleteDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases/{id}/pause [post]
 func (h *Handler) PauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot pause resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot pause database configurations")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	// Check if config exists
-	config, err := h.repo.GetDatabaseConfig(id)
+	// Check if config exists (with user check)
+	config, err := h.repo.GetDatabaseConfigByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get database config")
 		return
@@ -889,7 +1111,7 @@ func (h *Handler) PauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Pause the config
-	if err := h.repo.PauseDatabaseConfig(id); err != nil {
+	if err := h.repo.PauseDatabaseConfigByUser(id, *userID, isAdmin); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to pause database config")
 		return
 	}
@@ -898,12 +1120,11 @@ func (h *Handler) PauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 	h.scheduler.RemoveJob(id)
 
 	// Reload config to get updated state
-	config, _ = h.repo.GetDatabaseConfig(id)
+	config, _ = h.repo.GetDatabaseConfigByUser(id, *userID, isAdmin)
 
 	logInfo("Database config paused: %s (ID: %s)", config.Name, config.ID)
 
 	// Log database pause
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionDatabasePaused, models.LogLevelInfo,
 		"database", &config.ID, config.Name,
 		fmt.Sprintf("Database configuration '%s' paused", config.Name),
@@ -926,14 +1147,27 @@ func (h *Handler) PauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases/{id}/unpause [post]
 func (h *Handler) UnpauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot unpause resources
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot unpause database configurations")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	// Check if config exists
-	config, err := h.repo.GetDatabaseConfig(id)
+	// Check if config exists (with user check)
+	config, err := h.repo.GetDatabaseConfigByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get database config")
 		return
@@ -944,13 +1178,13 @@ func (h *Handler) UnpauseDatabaseConfig(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Unpause the config
-	if err := h.repo.UnpauseDatabaseConfig(id); err != nil {
+	if err := h.repo.UnpauseDatabaseConfigByUser(id, *userID, isAdmin); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to unpause database config")
 		return
 	}
 
 	// Reload config to get updated state
-	config, _ = h.repo.GetDatabaseConfig(id)
+	config, _ = h.repo.GetDatabaseConfigByUser(id, *userID, isAdmin)
 
 	// Re-add job to scheduler
 	if config.Enabled {
@@ -962,7 +1196,6 @@ func (h *Handler) UnpauseDatabaseConfig(w http.ResponseWriter, r *http.Request) 
 	logInfo("Database config resumed: %s (ID: %s)", config.Name, config.ID)
 
 	// Log database unpause
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionDatabaseUnpaused, models.LogLevelInfo,
 		"database", &config.ID, config.Name,
 		fmt.Sprintf("Database configuration '%s' resumed", config.Name),
@@ -985,13 +1218,26 @@ func (h *Handler) UnpauseDatabaseConfig(w http.ResponseWriter, r *http.Request) 
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases/{id}/backup [post]
 func (h *Handler) TriggerManualBackup(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot trigger backups
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot trigger backups")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	config, err := h.repo.GetDatabaseConfig(id)
+	config, err := h.repo.GetDatabaseConfigByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get database config")
 		return
@@ -1009,7 +1255,6 @@ func (h *Handler) TriggerManualBackup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log backup trigger
-	userID := getUserIDFromContext(r)
 	h.logActivity(userID, models.ActionBackupTriggered, models.LogLevelInfo,
 		"backup", &backup.ID, config.Name,
 		fmt.Sprintf("Manual backup triggered for database '%s'", config.Name),
@@ -1039,13 +1284,20 @@ func (h *Handler) TriggerManualBackup(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases/{id}/backups [get]
 func (h *Handler) ListBackupsByDatabase(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	backups, err := h.repo.ListBackupsByDatabase(id)
+	backups, err := h.repo.ListBackupsByDatabaseByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list backups")
 		return
@@ -1064,7 +1316,14 @@ func (h *Handler) ListBackupsByDatabase(w http.ResponseWriter, r *http.Request) 
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /backups [get]
 func (h *Handler) ListBackups(w http.ResponseWriter, r *http.Request) {
-	backups, err := h.repo.ListAllBackups()
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	backups, err := h.repo.ListAllBackupsByUser(*userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list backups")
 		return
@@ -1086,13 +1345,20 @@ func (h *Handler) ListBackups(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /backups/{id} [get]
 func (h *Handler) GetBackup(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	backup, err := h.repo.GetBackup(id)
+	backup, err := h.repo.GetBackupByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get backup")
 		return
@@ -1120,9 +1386,33 @@ func (h *Handler) GetBackup(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /backups/{id}/restore [post]
 func (h *Handler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	// Demo users cannot restore backups
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot restore backups")
+		return
+	}
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
+		return
+	}
+
+	// Verify backup belongs to user
+	backup, err := h.repo.GetBackupByUser(id, *userID, isAdmin)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get backup")
+		return
+	}
+	if backup == nil {
+		writeError(w, http.StatusNotFound, "backup not found")
 		return
 	}
 
@@ -1167,14 +1457,22 @@ func (h *Handler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /logs [get]
 func (h *Handler) ListActivityLogs(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
 	params := &models.ActivityLogListParams{}
 
 	// Parse query parameters
 	query := r.URL.Query()
 
-	if userIDStr := query.Get("user_id"); userIDStr != "" {
-		if userID, err := uuid.Parse(userIDStr); err == nil {
-			params.UserID = &userID
+	// Only admins can filter by user_id (to see other users' logs)
+	if userIDStr := query.Get("user_id"); userIDStr != "" && isAdmin {
+		if parsedUserID, err := uuid.Parse(userIDStr); err == nil {
+			params.UserID = &parsedUserID
 		}
 	}
 
@@ -1218,8 +1516,8 @@ func (h *Handler) ListActivityLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Sscanf(offsetStr, "%d", &params.Offset)
 	}
 
-	// Retrieve logs
-	logs, total, err := h.repo.ListActivityLogs(params)
+	// Retrieve logs filtered by user
+	logs, total, err := h.repo.ListActivityLogsByUser(*userID, isAdmin, params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list activity logs")
 		return
@@ -1247,13 +1545,20 @@ func (h *Handler) ListActivityLogs(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /logs/{id} [get]
 func (h *Handler) GetActivityLog(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
 	id, err := parseUUID(mux.Vars(r)["id"])
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
-	log, err := h.repo.GetActivityLog(id)
+	log, err := h.repo.GetActivityLogByUser(id, *userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get activity log")
 		return
@@ -1278,7 +1583,14 @@ func (h *Handler) GetActivityLog(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /stats [get]
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := h.repo.GetSystemStats()
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	stats, err := h.repo.GetSystemStatsByUser(*userID, isAdmin)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get stats")
 		return
@@ -1344,6 +1656,26 @@ func getUserIDFromContext(r *http.Request) *uuid.UUID {
 	}
 
 	return nil
+}
+
+// getIsAdminFromContext extracts admin status from request context
+func getIsAdminFromContext(r *http.Request) bool {
+	if claims := r.Context().Value(middleware.UserContextKey); claims != nil {
+		if authClaims, ok := claims.(*auth.Claims); ok {
+			return authClaims.IsAdmin
+		}
+	}
+	return false
+}
+
+// isDemoUserFromContext checks if the current user is a demo user
+func isDemoUserFromContext(r *http.Request) bool {
+	if claims := r.Context().Value(middleware.UserContextKey); claims != nil {
+		if authClaims, ok := claims.(*auth.Claims); ok {
+			return authClaims.IsDemo
+		}
+	}
+	return false
 }
 
 // getIPAddress extracts IP address from request

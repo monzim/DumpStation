@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/components/auth-provider";
 import {
   Card,
   CardContent,
@@ -19,6 +20,7 @@ import { NotificationDialog } from "./notification-dialog";
 import type { NotificationConfig } from "@/lib/types/api";
 
 export function NotificationList() {
+  const { isDemo } = useAuth();
   const { data: notifications, isLoading } = useNotifications();
   const deleteNotification = useDeleteNotification();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -76,7 +78,7 @@ export function NotificationList() {
             Manage Discord webhook notifications
           </p>
         </div>
-        <Button onClick={handleCreate}>
+        <Button onClick={handleCreate} disabled={isDemo}>
           <Plus className="h-4 w-4 mr-2" />
           Add Notification
         </Button>
@@ -92,7 +94,7 @@ export function NotificationList() {
             <p className="text-muted-foreground text-center mb-4">
               Add a Discord webhook to receive backup notifications
             </p>
-            <Button onClick={handleCreate}>
+            <Button onClick={handleCreate} disabled={isDemo}>
               <Plus className="h-4 w-4 mr-2" />
               Add Your First Notification
             </Button>
@@ -124,6 +126,7 @@ export function NotificationList() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleEdit(notification)}
+                      disabled={isDemo}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -133,7 +136,7 @@ export function NotificationList() {
                       onClick={() =>
                         handleDelete(notification.id, notification.name)
                       }
-                      disabled={deleteNotification.isPending}
+                      disabled={deleteNotification.isPending || isDemo}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>

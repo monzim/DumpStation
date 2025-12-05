@@ -118,8 +118,9 @@ func (r *Repository) VerifyOTP(userID uuid.UUID, otpCode string) (bool, error) {
 
 // Storage operations
 
-func (r *Repository) CreateStorageConfig(input *models.StorageConfigInput) (*models.StorageConfig, error) {
+func (r *Repository) CreateStorageConfig(userID uuid.UUID, input *models.StorageConfigInput) (*models.StorageConfig, error) {
 	storage := &models.StorageConfig{
+		UserID:    userID,
 		Name:      input.Name,
 		Provider:  input.Provider,
 		Bucket:    input.Bucket,
@@ -151,9 +152,44 @@ func (r *Repository) GetStorageConfig(id uuid.UUID) (*models.StorageConfig, erro
 	return &storage, nil
 }
 
+// GetStorageConfigByUser retrieves a storage config by ID only if it belongs to the user (or user is admin)
+func (r *Repository) GetStorageConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) (*models.StorageConfig, error) {
+	var storage models.StorageConfig
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.First(&storage)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get storage config: %w", result.Error)
+	}
+
+	return &storage, nil
+}
+
 func (r *Repository) ListStorageConfigs() ([]*models.StorageConfig, error) {
 	var configs []*models.StorageConfig
 	result := r.db.Order("created_at DESC").Find(&configs)
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list storage configs: %w", result.Error)
+	}
+
+	return configs, nil
+}
+
+// ListStorageConfigsByUser lists storage configs for a specific user (or all if admin)
+func (r *Repository) ListStorageConfigsByUser(userID uuid.UUID, isAdmin bool) ([]*models.StorageConfig, error) {
+	var configs []*models.StorageConfig
+	query := r.db.Order("created_at DESC")
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Find(&configs)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("failed to list storage configs: %w", result.Error)
@@ -166,6 +202,38 @@ func (r *Repository) UpdateStorageConfig(id uuid.UUID, input *models.StorageConf
 	var storage models.StorageConfig
 
 	if err := r.db.First(&storage, "id = ?", id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find storage config: %w", err)
+	}
+
+	// Update fields
+	storage.Name = input.Name
+	storage.Provider = input.Provider
+	storage.Bucket = input.Bucket
+	storage.Region = input.Region
+	storage.Endpoint = input.Endpoint
+	storage.AccessKey = input.AccessKey
+	storage.SecretKey = input.SecretKey
+
+	result := r.db.Save(&storage)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to update storage config: %w", result.Error)
+	}
+
+	return &storage, nil
+}
+
+// UpdateStorageConfigByUser updates a storage config only if it belongs to the user (or user is admin)
+func (r *Repository) UpdateStorageConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool, input *models.StorageConfigInput) (*models.StorageConfig, error) {
+	var storage models.StorageConfig
+
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&storage).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -203,10 +271,30 @@ func (r *Repository) DeleteStorageConfig(id uuid.UUID) error {
 	return nil
 }
 
+// DeleteStorageConfigByUser deletes a storage config only if it belongs to the user (or user is admin)
+func (r *Repository) DeleteStorageConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) error {
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Delete(&models.StorageConfig{})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete storage config: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
 // Notification operations
 
-func (r *Repository) CreateNotificationConfig(input *models.NotificationConfigInput) (*models.NotificationConfig, error) {
+func (r *Repository) CreateNotificationConfig(userID uuid.UUID, input *models.NotificationConfigInput) (*models.NotificationConfig, error) {
 	notification := &models.NotificationConfig{
+		UserID:            userID,
 		Name:              input.Name,
 		DiscordWebhookURL: input.DiscordWebhookURL,
 	}
@@ -233,9 +321,44 @@ func (r *Repository) GetNotificationConfig(id uuid.UUID) (*models.NotificationCo
 	return &notification, nil
 }
 
+// GetNotificationConfigByUser retrieves a notification config only if it belongs to the user (or user is admin)
+func (r *Repository) GetNotificationConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) (*models.NotificationConfig, error) {
+	var notification models.NotificationConfig
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.First(&notification)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get notification config: %w", result.Error)
+	}
+
+	return &notification, nil
+}
+
 func (r *Repository) ListNotificationConfigs() ([]*models.NotificationConfig, error) {
 	var configs []*models.NotificationConfig
 	result := r.db.Order("created_at DESC").Find(&configs)
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list notification configs: %w", result.Error)
+	}
+
+	return configs, nil
+}
+
+// ListNotificationConfigsByUser lists notification configs for a specific user (or all if admin)
+func (r *Repository) ListNotificationConfigsByUser(userID uuid.UUID, isAdmin bool) ([]*models.NotificationConfig, error) {
+	var configs []*models.NotificationConfig
+	query := r.db.Order("created_at DESC")
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Find(&configs)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("failed to list notification configs: %w", result.Error)
@@ -248,6 +371,32 @@ func (r *Repository) UpdateNotificationConfig(id uuid.UUID, input *models.Notifi
 	var notification models.NotificationConfig
 
 	if err := r.db.First(&notification, "id = ?", id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find notification config: %w", err)
+	}
+
+	notification.Name = input.Name
+	notification.DiscordWebhookURL = input.DiscordWebhookURL
+
+	result := r.db.Save(&notification)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to update notification config: %w", result.Error)
+	}
+
+	return &notification, nil
+}
+
+// UpdateNotificationConfigByUser updates a notification config only if it belongs to the user (or user is admin)
+func (r *Repository) UpdateNotificationConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool, input *models.NotificationConfigInput) (*models.NotificationConfig, error) {
+	var notification models.NotificationConfig
+
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&notification).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -279,10 +428,30 @@ func (r *Repository) DeleteNotificationConfig(id uuid.UUID) error {
 	return nil
 }
 
+// DeleteNotificationConfigByUser deletes a notification config only if it belongs to the user (or user is admin)
+func (r *Repository) DeleteNotificationConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) error {
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Delete(&models.NotificationConfig{})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete notification config: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
 // Database config operations
 
-func (r *Repository) CreateDatabaseConfig(input *models.DatabaseConfigInput) (*models.DatabaseConfig, error) {
+func (r *Repository) CreateDatabaseConfig(userID uuid.UUID, input *models.DatabaseConfigInput) (*models.DatabaseConfig, error) {
 	dbConfig := &models.DatabaseConfig{
+		UserID:         userID,
 		Name:           input.Name,
 		Host:           input.Host,
 		Port:           input.Port,
@@ -320,6 +489,25 @@ func (r *Repository) GetDatabaseConfig(id uuid.UUID) (*models.DatabaseConfig, er
 	return &dbConfig, nil
 }
 
+// GetDatabaseConfigByUser retrieves a database config only if it belongs to the user (or user is admin)
+func (r *Repository) GetDatabaseConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) (*models.DatabaseConfig, error) {
+	var dbConfig models.DatabaseConfig
+	query := r.db.Preload("Storage").Preload("Notification").Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.First(&dbConfig)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get database config: %w", result.Error)
+	}
+
+	return &dbConfig, nil
+}
+
 func (r *Repository) ListDatabaseConfigs() ([]*models.DatabaseConfig, error) {
 	var configs []*models.DatabaseConfig
 	result := r.db.Preload("Storage").Preload("Notification").
@@ -332,10 +520,61 @@ func (r *Repository) ListDatabaseConfigs() ([]*models.DatabaseConfig, error) {
 	return configs, nil
 }
 
+// ListDatabaseConfigsByUser lists database configs for a specific user (or all if admin)
+func (r *Repository) ListDatabaseConfigsByUser(userID uuid.UUID, isAdmin bool) ([]*models.DatabaseConfig, error) {
+	var configs []*models.DatabaseConfig
+	query := r.db.Preload("Storage").Preload("Notification").Order("created_at DESC")
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Find(&configs)
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list database configs: %w", result.Error)
+	}
+
+	return configs, nil
+}
+
 func (r *Repository) UpdateDatabaseConfig(id uuid.UUID, input *models.DatabaseConfigInput) (*models.DatabaseConfig, error) {
 	var dbConfig models.DatabaseConfig
 
 	if err := r.db.First(&dbConfig, "id = ?", id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find database config: %w", err)
+	}
+
+	// Update fields
+	dbConfig.Name = input.Name
+	dbConfig.Host = input.Host
+	dbConfig.Port = input.Port
+	dbConfig.DBName = input.DBName
+	dbConfig.Username = input.Username
+	dbConfig.Password = input.Password
+	dbConfig.Schedule = input.Schedule
+	dbConfig.StorageID = input.StorageID
+	dbConfig.NotificationID = input.NotificationID
+	dbConfig.SetRotationPolicy(input.RotationPolicy)
+
+	result := r.db.Save(&dbConfig)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to update database config: %w", result.Error)
+	}
+
+	return &dbConfig, nil
+}
+
+// UpdateDatabaseConfigByUser updates a database config only if it belongs to the user (or user is admin)
+func (r *Repository) UpdateDatabaseConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool, input *models.DatabaseConfigInput) (*models.DatabaseConfig, error) {
+	var dbConfig models.DatabaseConfig
+
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&dbConfig).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
 		}
@@ -376,6 +615,25 @@ func (r *Repository) DeleteDatabaseConfig(id uuid.UUID) error {
 	return nil
 }
 
+// DeleteDatabaseConfigByUser deletes a database config only if it belongs to the user (or user is admin)
+func (r *Repository) DeleteDatabaseConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) error {
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Delete(&models.DatabaseConfig{})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete database config: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
 // PauseDatabaseConfig pauses backup operations for a specific database config
 func (r *Repository) PauseDatabaseConfig(id uuid.UUID) error {
 	result := r.db.Model(&models.DatabaseConfig{}).Where("id = ?", id).Update("paused", true)
@@ -391,9 +649,47 @@ func (r *Repository) PauseDatabaseConfig(id uuid.UUID) error {
 	return nil
 }
 
+// PauseDatabaseConfigByUser pauses a database config only if it belongs to the user (or user is admin)
+func (r *Repository) PauseDatabaseConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) error {
+	query := r.db.Model(&models.DatabaseConfig{}).Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Update("paused", true)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to pause database config: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
 // UnpauseDatabaseConfig resumes backup operations for a specific database config
 func (r *Repository) UnpauseDatabaseConfig(id uuid.UUID) error {
 	result := r.db.Model(&models.DatabaseConfig{}).Where("id = ?", id).Update("paused", false)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to unpause database config: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// UnpauseDatabaseConfigByUser resumes a database config only if it belongs to the user (or user is admin)
+func (r *Repository) UnpauseDatabaseConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) error {
+	query := r.db.Model(&models.DatabaseConfig{}).Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Update("paused", false)
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to unpause database config: %w", result.Error)
@@ -452,6 +748,27 @@ func (r *Repository) GetBackup(id uuid.UUID) (*models.Backup, error) {
 	return &backup, nil
 }
 
+// GetBackupByUser retrieves a backup only if the associated database belongs to the user (or user is admin)
+func (r *Repository) GetBackupByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) (*models.Backup, error) {
+	var backup models.Backup
+	query := r.db.Preload("Database").
+		Joins("JOIN database_configs ON backups.database_id = database_configs.id").
+		Where("backups.id = ?", id)
+	if !isAdmin {
+		query = query.Where("database_configs.user_id = ?", userID)
+	}
+	result := query.First(&backup)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get backup: %w", result.Error)
+	}
+
+	return &backup, nil
+}
+
 func (r *Repository) ListBackupsByDatabase(databaseID uuid.UUID) ([]*models.Backup, error) {
 	var backups []*models.Backup
 	result := r.db.Where("database_id = ?", databaseID).
@@ -464,10 +781,44 @@ func (r *Repository) ListBackupsByDatabase(databaseID uuid.UUID) ([]*models.Back
 	return backups, nil
 }
 
+// ListBackupsByDatabaseByUser lists backups for a database only if it belongs to the user (or user is admin)
+func (r *Repository) ListBackupsByDatabaseByUser(databaseID uuid.UUID, userID uuid.UUID, isAdmin bool) ([]*models.Backup, error) {
+	var backups []*models.Backup
+	query := r.db.Joins("JOIN database_configs ON backups.database_id = database_configs.id").
+		Where("backups.database_id = ?", databaseID)
+	if !isAdmin {
+		query = query.Where("database_configs.user_id = ?", userID)
+	}
+	result := query.Order("backups.started_at DESC").Find(&backups)
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list backups: %w", result.Error)
+	}
+
+	return backups, nil
+}
+
 func (r *Repository) ListAllBackups() ([]*models.Backup, error) {
 	var backups []*models.Backup
 	result := r.db.Preload("Database").
 		Order("started_at DESC").Find(&backups)
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list all backups: %w", result.Error)
+	}
+
+	return backups, nil
+}
+
+// ListAllBackupsByUser lists all backups for a specific user (or all if admin)
+func (r *Repository) ListAllBackupsByUser(userID uuid.UUID, isAdmin bool) ([]*models.Backup, error) {
+	var backups []*models.Backup
+	query := r.db.Preload("Database").
+		Joins("JOIN database_configs ON backups.database_id = database_configs.id")
+	if !isAdmin {
+		query = query.Where("database_configs.user_id = ?", userID)
+	}
+	result := query.Order("backups.started_at DESC").Find(&backups)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("failed to list all backups: %w", result.Error)
@@ -518,6 +869,74 @@ func (r *Repository) GetSystemStats() (*models.SystemStats, error) {
 		Where("status = ?", models.BackupStatusSuccess).
 		Select("COALESCE(SUM(size_bytes), 0) as total").
 		Scan(&sumResult)
+
+	stats.TotalStorageUsedBytes = sumResult.Total
+
+	return stats, nil
+}
+
+// GetSystemStatsByUser returns system stats filtered by user's resources
+func (r *Repository) GetSystemStatsByUser(userID uuid.UUID, isAdmin bool) (*models.SystemStats, error) {
+	// If admin, return all stats
+	if isAdmin {
+		return r.GetSystemStats()
+	}
+
+	stats := &models.SystemStats{}
+
+	// Total databases for this user
+	var totalDatabases int64
+	r.db.Model(&models.DatabaseConfig{}).
+		Where("enabled = ? AND user_id = ?", true, userID).
+		Count(&totalDatabases)
+	stats.TotalDatabases = int(totalDatabases)
+
+	// Get user's database IDs for backup filtering
+	var dbIDs []uuid.UUID
+	r.db.Model(&models.DatabaseConfig{}).
+		Where("user_id = ?", userID).
+		Pluck("id", &dbIDs)
+
+	// Backups in last 24 hours for user's databases
+	yesterday := time.Now().Add(-24 * time.Hour)
+	var totalBackups24h int64
+	if len(dbIDs) > 0 {
+		r.db.Model(&models.Backup{}).
+			Where("created_at > ? AND database_id IN ?", yesterday, dbIDs).
+			Count(&totalBackups24h)
+	}
+	stats.TotalBackups24h = int(totalBackups24h)
+
+	// Success and failure counts for user's databases
+	var successCount int64
+	var failureCount int64
+
+	if len(dbIDs) > 0 {
+		r.db.Model(&models.Backup{}).
+			Where("status = ? AND created_at > ? AND database_id IN ?", models.BackupStatusSuccess, yesterday, dbIDs).
+			Count(&successCount)
+
+		r.db.Model(&models.Backup{}).
+			Where("status = ? AND created_at > ? AND database_id IN ?", models.BackupStatusFailed, yesterday, dbIDs).
+			Count(&failureCount)
+	}
+
+	if stats.TotalBackups24h > 0 {
+		stats.SuccessRate24h = float64(successCount) / float64(stats.TotalBackups24h) * 100
+		stats.FailureRate24h = float64(failureCount) / float64(stats.TotalBackups24h) * 100
+	}
+
+	// Total storage used by user's backups
+	type SumResult struct {
+		Total int64
+	}
+	var sumResult SumResult
+	if len(dbIDs) > 0 {
+		r.db.Model(&models.Backup{}).
+			Where("status = ? AND database_id IN ?", models.BackupStatusSuccess, dbIDs).
+			Select("COALESCE(SUM(size_bytes), 0) as total").
+			Scan(&sumResult)
+	}
 
 	stats.TotalStorageUsedBytes = sumResult.Total
 
@@ -666,6 +1085,93 @@ func (r *Repository) ListActivityLogs(params *models.ActivityLogListParams) ([]*
 	return logs, total, nil
 }
 
+// ListActivityLogsByUser retrieves activity logs for a specific user with optional filtering
+// If isAdmin is true, returns all logs (or filtered by params.UserID if specified)
+func (r *Repository) ListActivityLogsByUser(userID uuid.UUID, isAdmin bool, params *models.ActivityLogListParams) ([]*models.ActivityLog, int64, error) {
+	var logs []*models.ActivityLog
+	var total int64
+
+	query := r.db.Model(&models.ActivityLog{}).Preload("User")
+
+	// Apply user filter - admins can see all, regular users only their own logs
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	} else if params.UserID != nil {
+		// Admin can filter by specific user if they want
+		query = query.Where("user_id = ?", params.UserID)
+	}
+
+	// Apply other filters
+	if params.Action != nil {
+		query = query.Where("action = ?", params.Action)
+	}
+	if params.Level != nil {
+		query = query.Where("level = ?", params.Level)
+	}
+	if params.EntityType != nil {
+		query = query.Where("entity_type = ?", params.EntityType)
+	}
+	if params.EntityID != nil {
+		query = query.Where("entity_id = ?", params.EntityID)
+	}
+	if params.StartDate != nil {
+		query = query.Where("created_at >= ?", params.StartDate)
+	}
+	if params.EndDate != nil {
+		query = query.Where("created_at <= ?", params.EndDate)
+	}
+
+	// Count total records
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count activity logs: %w", err)
+	}
+
+	// Apply pagination
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := params.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Retrieve logs
+	result := query.Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&logs)
+
+	if result.Error != nil {
+		return nil, 0, fmt.Errorf("failed to list activity logs: %w", result.Error)
+	}
+
+	return logs, total, nil
+}
+
+// GetActivityLogByUser retrieves a single activity log by ID with user ownership check
+// If isAdmin is true, returns the log regardless of owner
+func (r *Repository) GetActivityLogByUser(id, userID uuid.UUID, isAdmin bool) (*models.ActivityLog, error) {
+	var log models.ActivityLog
+	query := r.db.Preload("User").Where("id = ?", id)
+
+	// Non-admins can only see their own logs
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	result := query.First(&log)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get activity log: %w", result.Error)
+	}
+
+	return &log, nil
+}
+
 // DeleteOldActivityLogs deletes activity logs older than the specified duration
 func (r *Repository) DeleteOldActivityLogs(olderThan time.Time) (int64, error) {
 	result := r.db.Where("created_at < ?", olderThan).Delete(&models.ActivityLog{})
@@ -795,4 +1301,50 @@ func (r *Repository) GetUser2FAStatus(userID uuid.UUID) (enabled bool, backupCod
 	}
 
 	return user.TwoFactorEnabled, len(user.TwoFactorBackupCodes), user.TwoFactorVerifiedAt, nil
+}
+
+// ========================================
+// Demo Account Operations
+// ========================================
+
+// GetDemoUser retrieves the demo user account
+func (r *Repository) GetDemoUser() (*models.User, error) {
+	var user models.User
+	result := r.db.Where("is_demo = ?", true).First(&user)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get demo user: %w", result.Error)
+	}
+
+	return &user, nil
+}
+
+// SeedDemoUser creates the demo user account
+func (r *Repository) SeedDemoUser(username, email string) (*models.User, error) {
+	// Check if demo user already exists
+	existing, err := r.GetDemoUser()
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+
+	user := &models.User{
+		ID:              uuid.New(),
+		DiscordUserID:   username,
+		DiscordUsername: username,
+		Email:           email,
+		IsDemo:          true,
+	}
+
+	result := r.db.Create(user)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to seed demo user: %w", result.Error)
+	}
+
+	return user, nil
 }

@@ -297,7 +297,7 @@ func (h *TwoFactorHandler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate full access token
-	token, expiresAt, err := h.jwtMgr.GenerateToken(claims.UserID, claims.DiscordUserID)
+	token, expiresAt, err := h.jwtMgr.GenerateToken(claims.UserID, claims.DiscordUserID, user.IsAdmin)
 	if err != nil {
 		logError("Failed to generate token after 2FA", err)
 		writeError(w, http.StatusInternalServerError, "failed to generate token")

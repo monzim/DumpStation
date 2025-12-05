@@ -1,6 +1,7 @@
 import type {
   AuthResponse,
   AuthResponseWith2FA,
+  DemoAuthResponse,
   LoginRequest,
   TwoFactorBackupCodesResponse,
   TwoFactorDisableRequest,
@@ -34,6 +35,19 @@ export const useVerify = () => {
         // Normal login - set the auth token
         apiClient.setToken(data.token);
       }
+    },
+  });
+};
+
+// Demo login hook - instantly login as demo user
+export const useDemoLogin = () => {
+  return useMutation({
+    mutationFn: async () => {
+      return apiClient.post<DemoAuthResponse>("/auth/demo-login");
+    },
+    onSuccess: (data) => {
+      apiClient.setToken(data.token);
+      apiClient.setIsDemo(data.is_demo);
     },
   });
 };

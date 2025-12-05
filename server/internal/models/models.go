@@ -10,12 +10,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// User represents a system user (single-user system - only one user allowed)
+// User represents a system user (multi-tenant system with role-based access)
 type User struct {
 	ID                   uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	DiscordUserID        string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"discord_user_id"`
 	DiscordUsername      string         `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
 	Email                string         `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
+	IsDemo               bool           `gorm:"default:false" json:"is_demo"`                           // Whether this is a demo account (read-only access)
+	IsAdmin              bool           `gorm:"default:false" json:"is_admin"`                          // Whether this user has admin privileges (can view all data)
 	TwoFactorSecret      string         `gorm:"type:text" json:"-"`                                     // Encrypted TOTP secret
 	TwoFactorEnabled     bool           `gorm:"default:false" json:"two_factor_enabled"`                // Whether 2FA is enabled
 	TwoFactorBackupCodes pq.StringArray `gorm:"type:text[]" json:"-"`                                   // Hashed backup recovery codes
@@ -62,6 +64,8 @@ const (
 // StorageConfig represents cloud storage configuration
 type StorageConfig struct {
 	ID        uuid.UUID       `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID    uuid.UUID       `gorm:"type:uuid;not null;index" json:"user_id"` // Owner of this storage config
+	User      User            `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Name      string          `gorm:"type:varchar(255);not null" json:"name"`
 	Provider  StorageProvider `gorm:"type:varchar(50);not null;check:provider IN ('s3','r2')" json:"provider"`
 	Bucket    string          `gorm:"type:varchar(255);not null" json:"bucket"`
@@ -133,6 +137,8 @@ func StorageConfigsToResponse(configs []*StorageConfig) []StorageConfigResponse 
 // NotificationConfig represents Discord notification configuration
 type NotificationConfig struct {
 	ID                uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID            uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"` // Owner of this notification config
+	User              User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Name              string    `gorm:"type:varchar(255);not null" json:"name"`
 	DiscordWebhookURL string    `gorm:"type:text;not null" json:"-"`
 	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
@@ -200,6 +206,8 @@ type RotationPolicy struct {
 // DatabaseConfig represents a database backup configuration
 type DatabaseConfig struct {
 	ID                  uuid.UUID           `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID              uuid.UUID           `gorm:"type:uuid;not null;index" json:"user_id"` // Owner of this database config
+	User                User                `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Name                string              `gorm:"type:varchar(255);not null" json:"name"`
 	Host                string              `gorm:"type:varchar(255);not null" json:"host"`
 	Port                int                 `gorm:"not null;default:5432" json:"port"`
@@ -467,6 +475,14 @@ type VerifyRequest struct {
 type AuthResponse struct {
 	Token     string    `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
 	ExpiresAt time.Time `json:"expires_at" example:"2025-11-17T22:00:00Z"`
+}
+
+// DemoAuthResponse for demo login authentication
+type DemoAuthResponse struct {
+	Token     string    `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	ExpiresAt time.Time `json:"expires_at" example:"2025-11-17T22:00:00Z"`
+	IsDemo    bool      `json:"is_demo" example:"true"`
+	Message   string    `json:"message" example:"Welcome to DumpStation demo!"`
 }
 
 // APIError represents a standard API error response

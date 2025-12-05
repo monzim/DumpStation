@@ -24,6 +24,14 @@ export interface AuthResponseWith2FA {
   message?: string;
 }
 
+// Demo Auth Response
+export interface DemoAuthResponse {
+  token: string;
+  expires_at: string;
+  is_demo: boolean;
+  message: string;
+}
+
 // Two-Factor Authentication Types
 export interface TwoFactorSetupResponse {
   secret: string;

@@ -1,3 +1,4 @@
+import { useAuth } from "@/components/auth-provider";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,12 +86,14 @@ function StorageCard({
   onEdit,
   onDelete,
   isDeleting,
+  isDemo,
 }: {
   storage: StorageConfig;
   linkedDatabases: number;
   onEdit: () => void;
   onDelete: () => void;
   isDeleting: boolean;
+  isDemo: boolean;
 }) {
   const isActive = linkedDatabases > 0;
   const isR2 = storage.provider === "r2";
@@ -166,6 +169,7 @@ function StorageCard({
                       variant="ghost"
                       size="icon"
                       onClick={onEdit}
+                      disabled={isDemo}
                       className="h-8 w-8 text-muted-foreground hover:text-foreground"
                     >
                       <Edit2 className="h-4 w-4" />
@@ -188,14 +192,14 @@ function StorageCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-36">
-                  <DropdownMenuItem onClick={onEdit}>
+                  <DropdownMenuItem onClick={onEdit} disabled={isDemo}>
                     <Edit2 className="h-4 w-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={onDelete}
-                    disabled={isDeleting}
+                    disabled={isDeleting || isDemo}
                     className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
@@ -218,14 +222,14 @@ function StorageCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-36">
-                  <DropdownMenuItem onClick={onEdit}>
+                  <DropdownMenuItem onClick={onEdit} disabled={isDemo}>
                     <Edit2 className="h-4 w-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={onDelete}
-                    disabled={isDeleting}
+                    disabled={isDeleting || isDemo}
                     className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
@@ -269,6 +273,7 @@ function StorageCard({
 }
 
 export function StorageList() {
+  const { isDemo } = useAuth();
   const {
     data: storageConfigs,
     isLoading,
@@ -368,7 +373,12 @@ export function StorageList() {
                 className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
               />
             </Button>
-            <Button onClick={handleCreate} size="sm" className="gap-2">
+            <Button
+              onClick={handleCreate}
+              size="sm"
+              className="gap-2"
+              disabled={isDemo}
+            >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Add Storage</span>
               <span className="sm:hidden">Add</span>
@@ -491,7 +501,11 @@ export function StorageList() {
               <p className="text-sm text-muted-foreground text-center mb-6 max-w-xs">
                 Add an S3 or R2 storage backend to store your database backups
               </p>
-              <Button onClick={handleCreate} className="gap-2">
+              <Button
+                onClick={handleCreate}
+                className="gap-2"
+                disabled={isDemo}
+              >
                 <Plus className="h-4 w-4" />
                 Add Your First Storage
               </Button>
@@ -507,6 +521,7 @@ export function StorageList() {
                 onEdit={() => handleEdit(storage)}
                 onDelete={() => handleDelete(storage)}
                 isDeleting={deleteStorageConfig.isPending}
+                isDemo={isDemo}
               />
             ))}
           </div>

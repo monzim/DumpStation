@@ -2,7 +2,13 @@ import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useLogin, useVerify, useVerify2FA } from "@/lib/api/auth";
+import {
+  useDemoLogin,
+  useLogin,
+  useVerify,
+  useVerify2FA,
+} from "@/lib/api/auth";
+import { apiClient } from "@/lib/api/client";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -10,6 +16,7 @@ import {
   KeyRound,
   Loader2,
   MessageCircle,
+  Play,
   Shield,
   Smartphone,
   User,
@@ -73,10 +80,11 @@ function LoginPage() {
   const [otp, setOtp] = useState("");
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const navigate = useNavigate();
-  const { setIsAuthenticated } = useAuth();
+  const { setIsAuthenticated, setIsDemo } = useAuth();
   const loginMutation = useLogin();
   const verifyMutation = useVerify();
   const verify2FAMutation = useVerify2FA();
+  const demoLoginMutation = useDemoLogin();
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -172,6 +180,24 @@ function LoginPage() {
       const apiError = error as { message?: string };
       toast.error("Failed to resend OTP", {
         description: apiError.message || "Please try again",
+      });
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    try {
+      const response = await demoLoginMutation.mutateAsync();
+      toast.success("Demo login successful", {
+        description: response.message || "Welcome to the demo!",
+      });
+      setIsAuthenticated(true);
+      setIsDemo(true);
+      apiClient.setIsDemo(true);
+      navigate({ to: "/dashboard" });
+    } catch (error: unknown) {
+      const apiError = error as { message?: string };
+      toast.error("Demo login failed", {
+        description: apiError.message || "Unable to login as demo user",
       });
     }
   };
@@ -300,7 +326,9 @@ function LoginPage() {
                     placeholder="Enter your username or email"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    disabled={loginMutation.isPending}
+                    disabled={
+                      loginMutation.isPending || demoLoginMutation.isPending
+                    }
                     required
                     autoFocus
                     autoComplete="username"
@@ -310,7 +338,11 @@ function LoginPage() {
 
                 <Button
                   type="submit"
-                  disabled={loginMutation.isPending || !username.trim()}
+                  disabled={
+                    loginMutation.isPending ||
+                    demoLoginMutation.isPending ||
+                    !username.trim()
+                  }
                   className="w-full h-12 text-base"
                   size="lg"
                 >
@@ -333,14 +365,36 @@ function LoginPage() {
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
                     <span className="bg-background px-2 text-muted-foreground">
-                      Secure authentication
+                      Or try it out
                     </span>
                   </div>
                 </div>
 
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDemoLogin}
+                  disabled={
+                    loginMutation.isPending || demoLoginMutation.isPending
+                  }
+                  className="w-full h-12 text-base border-primary/20 hover:bg-primary/5"
+                  size="lg"
+                >
+                  {demoLoginMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Loading demo...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-5 w-5" />
+                      Try Demo Account
+                    </>
+                  )}
+                </Button>
+
                 <p className="text-center text-sm text-muted-foreground">
-                  A one-time password will be sent to your configured Discord
-                  channel for verification.
+                  Demo account has read-only access to explore the system.
                 </p>
               </form>
             ) : step === "verify" ? (

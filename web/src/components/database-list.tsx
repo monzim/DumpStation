@@ -1,3 +1,4 @@
+import { useAuth } from "@/components/auth-provider";
 import { DatabaseDialog } from "@/components/database-dialog";
 import {
   AlertDialog,
@@ -85,6 +86,7 @@ function saveSettings(settings: DatabaseListSettings): void {
 }
 
 export function DatabaseList() {
+  const { isDemo } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDatabase, setEditingDatabase] = useState<DatabaseConfig | null>(
     null
@@ -146,11 +148,17 @@ export function DatabaseList() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenuItem onClick={() => setEditingDatabase(database)}>
+        <DropdownMenuItem
+          onClick={() => setEditingDatabase(database)}
+          disabled={isDemo}
+        >
           <Pencil className="h-4 w-4 mr-2" />
           Edit
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handlePauseToggle(database)}>
+        <DropdownMenuItem
+          onClick={() => handlePauseToggle(database)}
+          disabled={isDemo}
+        >
           {database.paused ? (
             <>
               <PlayCircle className="h-4 w-4 mr-2" />
@@ -163,7 +171,10 @@ export function DatabaseList() {
             </>
           )}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleTriggerBackup(database)}>
+        <DropdownMenuItem
+          onClick={() => handleTriggerBackup(database)}
+          disabled={isDemo}
+        >
           <Archive className="h-4 w-4 mr-2" />
           Trigger Backup
         </DropdownMenuItem>
@@ -175,6 +186,7 @@ export function DatabaseList() {
         <DropdownMenuItem
           className="text-destructive"
           onClick={() => setDeletingDatabase(database)}
+          disabled={isDemo}
         >
           <Trash2 className="h-4 w-4 mr-2" />
           Delete
@@ -406,7 +418,7 @@ export function DatabaseList() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={() => setIsCreateOpen(true)}>
+            <Button onClick={() => setIsCreateOpen(true)} disabled={isDemo}>
               <Plus className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Add Database</span>
               <span className="sm:hidden">Add</span>
@@ -517,7 +529,7 @@ export function DatabaseList() {
                 Get started by adding your first database configuration to
                 enable automated backups
               </p>
-              <Button onClick={() => setIsCreateOpen(true)}>
+              <Button onClick={() => setIsCreateOpen(true)} disabled={isDemo}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Database
               </Button>

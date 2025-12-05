@@ -71,6 +71,12 @@ func main() {
 		log.Fatalf("Failed to ensure system user exists: %v", err)
 	}
 
+	// Seed demo data (creates demo user and sample data)
+	if err := database.SeedDemoData(repo); err != nil {
+		log.Printf("[DEMO] ⚠️  Failed to seed demo data: %v", err)
+		// Don't fatal - demo data is optional
+	}
+
 	// Initialize JWT manager
 	jwtMgr := auth.NewJWTManager(cfg.JWT.Secret, cfg.JWT.Expiration)
 

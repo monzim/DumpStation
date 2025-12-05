@@ -1,7 +1,7 @@
 import { useAuth } from "@/components/auth-provider";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { useLocation } from "@tanstack/react-router";
-import { Database } from "lucide-react";
+import { AlertCircle, Database } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -10,7 +10,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { logout } = useAuth();
+  const { logout, isDemo } = useAuth();
   const location = useLocation();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -45,6 +45,19 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Demo Mode Banner */}
+      {isDemo && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 py-2 px-4">
+          <div className="container mx-auto flex items-center justify-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+            <AlertCircle className="h-4 w-4" />
+            <span>
+              <strong>Demo Mode</strong> — You're viewing sample data. Create,
+              update, and delete actions are disabled.
+            </span>
+          </div>
+        </div>
+      )}
+
       <header className="border-b bg-linear-to-r from-primary/5 via-primary/10 to-primary/5 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-4">

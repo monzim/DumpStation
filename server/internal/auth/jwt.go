@@ -22,6 +22,8 @@ type Claims struct {
 	DiscordUserID     string    `json:"discord_user_id"`
 	TwoFactorVerified bool      `json:"two_factor_verified,omitempty"` // True if 2FA was verified for this session
 	TokenType         TokenType `json:"token_type,omitempty"`          // Type of token (full or 2fa)
+	IsDemo            bool      `json:"is_demo,omitempty"`             // True if this is a demo account
+	IsAdmin           bool      `json:"is_admin,omitempty"`            // True if user has admin privileges
 	jwt.RegisteredClaims
 }
 
@@ -42,12 +44,17 @@ func NewJWTManager(secret string, expirationMinutes int) *JWTManager {
 }
 
 // GenerateToken generates a new JWT token
-func (jm *JWTManager) GenerateToken(userID uuid.UUID, discordUserID string) (string, time.Time, error) {
-	return jm.GenerateTokenWithOptions(userID, discordUserID, true, TokenTypeFull)
+func (jm *JWTManager) GenerateToken(userID uuid.UUID, discordUserID string, isAdmin bool) (string, time.Time, error) {
+	return jm.GenerateTokenWithOptions(userID, discordUserID, true, TokenTypeFull, false, isAdmin)
+}
+
+// GenerateDemoToken generates a JWT token for a demo account
+func (jm *JWTManager) GenerateDemoToken(userID uuid.UUID, discordUserID string) (string, time.Time, error) {
+	return jm.GenerateTokenWithOptions(userID, discordUserID, true, TokenTypeFull, true, false)
 }
 
 // GenerateTokenWithOptions generates a JWT token with additional options
-func (jm *JWTManager) GenerateTokenWithOptions(userID uuid.UUID, discordUserID string, twoFactorVerified bool, tokenType TokenType) (string, time.Time, error) {
+func (jm *JWTManager) GenerateTokenWithOptions(userID uuid.UUID, discordUserID string, twoFactorVerified bool, tokenType TokenType, isDemo bool, isAdmin bool) (string, time.Time, error) {
 	var expiration time.Duration
 	if tokenType == TokenType2FA {
 		expiration = jm.twoFAExpiration
@@ -62,6 +69,8 @@ func (jm *JWTManager) GenerateTokenWithOptions(userID uuid.UUID, discordUserID s
 		DiscordUserID:     discordUserID,
 		TwoFactorVerified: twoFactorVerified,
 		TokenType:         tokenType,
+		IsDemo:            isDemo,
+		IsAdmin:           isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -78,8 +87,8 @@ func (jm *JWTManager) GenerateTokenWithOptions(userID uuid.UUID, discordUserID s
 }
 
 // Generate2FAToken generates a temporary token for 2FA verification
-func (jm *JWTManager) Generate2FAToken(userID uuid.UUID, discordUserID string) (string, time.Time, error) {
-	return jm.GenerateTokenWithOptions(userID, discordUserID, false, TokenType2FA)
+func (jm *JWTManager) Generate2FAToken(userID uuid.UUID, discordUserID string, isAdmin bool) (string, time.Time, error) {
+	return jm.GenerateTokenWithOptions(userID, discordUserID, false, TokenType2FA, false, isAdmin)
 }
 
 // ValidateToken validates a JWT token and returns the claims

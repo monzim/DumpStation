@@ -32,6 +32,7 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	// Public routes (no authentication required)
 	api.HandleFunc("/auth/login", h.Login).Methods("POST", "OPTIONS")
 	api.HandleFunc("/auth/verify", h.Verify).Methods("POST", "OPTIONS")
+	api.HandleFunc("/auth/demo-login", h.DemoLogin).Methods("POST", "OPTIONS")
 
 	// 2FA verification route (uses X-2FA-Token header, not regular auth)
 	if totpMgr != nil {
@@ -43,52 +44,77 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	protected := api.PathPrefix("").Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtMgr))
 
-	// 2FA management routes (protected - require full authentication)
-	if totpMgr != nil {
-		tfaHandler := NewTwoFactorHandler(h, totpMgr)
-		protected.HandleFunc("/auth/2fa/setup", tfaHandler.Setup2FA).Methods("POST", "OPTIONS")
-		protected.HandleFunc("/auth/2fa/verify-setup", tfaHandler.VerifySetup2FA).Methods("POST", "OPTIONS")
-		protected.HandleFunc("/auth/2fa/disable", tfaHandler.Disable2FA).Methods("POST", "OPTIONS")
-		protected.HandleFunc("/auth/2fa/status", tfaHandler.Get2FAStatus).Methods("GET", "OPTIONS")
-		protected.HandleFunc("/auth/2fa/backup-codes", tfaHandler.RegenerateBackupCodes).Methods("POST", "OPTIONS")
-	}
+	// Routes that allow demo read access (no demo restriction middleware)
+	// - Storage, Notification, Database listing and details (GET only)
+	// - Backups listing and details (GET only)
+	// - Stats (GET only)
+	// - Activity logs (GET only)
 
-	// Storage routes
+	// Storage routes - GET allowed for demo, POST/PUT/DELETE blocked
 	protected.HandleFunc("/storage", h.ListStorageConfigs).Methods("GET", "OPTIONS")
-	protected.HandleFunc("/storage", h.CreateStorageConfig).Methods("POST", "OPTIONS")
 	protected.HandleFunc("/storage/{id}", h.GetStorageConfig).Methods("GET", "OPTIONS")
-	protected.HandleFunc("/storage/{id}", h.UpdateStorageConfig).Methods("PUT", "OPTIONS")
-	protected.HandleFunc("/storage/{id}", h.DeleteStorageConfig).Methods("DELETE", "OPTIONS")
 
-	// Notification routes
+	// Notification routes - GET allowed for demo
 	protected.HandleFunc("/notifications", h.ListNotificationConfigs).Methods("GET", "OPTIONS")
-	protected.HandleFunc("/notifications", h.CreateNotificationConfig).Methods("POST", "OPTIONS")
 	protected.HandleFunc("/notifications/{id}", h.GetNotificationConfig).Methods("GET", "OPTIONS")
-	protected.HandleFunc("/notifications/{id}", h.UpdateNotificationConfig).Methods("PUT", "OPTIONS")
-	protected.HandleFunc("/notifications/{id}", h.DeleteNotificationConfig).Methods("DELETE", "OPTIONS")
 
-	// Database routes
+	// Database routes - GET allowed for demo
 	protected.HandleFunc("/databases", h.ListDatabaseConfigs).Methods("GET", "OPTIONS")
-	protected.HandleFunc("/databases", h.CreateDatabaseConfig).Methods("POST", "OPTIONS")
 	protected.HandleFunc("/databases/{id}", h.GetDatabaseConfig).Methods("GET", "OPTIONS")
-	protected.HandleFunc("/databases/{id}", h.UpdateDatabaseConfig).Methods("PUT", "OPTIONS")
-	protected.HandleFunc("/databases/{id}", h.DeleteDatabaseConfig).Methods("DELETE", "OPTIONS")
-	protected.HandleFunc("/databases/{id}/pause", h.PauseDatabaseConfig).Methods("POST", "OPTIONS")
-	protected.HandleFunc("/databases/{id}/unpause", h.UnpauseDatabaseConfig).Methods("POST", "OPTIONS")
-	protected.HandleFunc("/databases/{id}/backup", h.TriggerManualBackup).Methods("POST", "OPTIONS")
 	protected.HandleFunc("/databases/{id}/backups", h.ListBackupsByDatabase).Methods("GET", "OPTIONS")
 
-	// Backup routes
+	// Backup routes - GET allowed for demo
 	protected.HandleFunc("/backups", h.ListBackups).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/backups/{id}", h.GetBackup).Methods("GET", "OPTIONS")
-	protected.HandleFunc("/backups/{id}/restore", h.RestoreBackup).Methods("POST", "OPTIONS")
 
-	// Stats routes
+	// Stats routes - GET allowed for demo
 	protected.HandleFunc("/stats", h.GetStats).Methods("GET", "OPTIONS")
 
-	// Activity Log routes
+	// Activity Log routes - GET allowed for demo
 	protected.HandleFunc("/logs", h.ListActivityLogs).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/logs/{id}", h.GetActivityLog).Methods("GET", "OPTIONS")
+
+	// Demo-restricted routes (write operations blocked for demo accounts)
+	demoRestricted := api.PathPrefix("").Subrouter()
+	demoRestricted.Use(middleware.AuthMiddleware(jwtMgr))
+	demoRestricted.Use(middleware.DemoRestrictionMiddleware)
+
+	// Storage write operations - blocked for demo
+	demoRestricted.HandleFunc("/storage", h.CreateStorageConfig).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/storage/{id}", h.UpdateStorageConfig).Methods("PUT", "OPTIONS")
+	demoRestricted.HandleFunc("/storage/{id}", h.DeleteStorageConfig).Methods("DELETE", "OPTIONS")
+
+	// Notification write operations - blocked for demo
+	demoRestricted.HandleFunc("/notifications", h.CreateNotificationConfig).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/notifications/{id}", h.UpdateNotificationConfig).Methods("PUT", "OPTIONS")
+	demoRestricted.HandleFunc("/notifications/{id}", h.DeleteNotificationConfig).Methods("DELETE", "OPTIONS")
+
+	// Database write operations - blocked for demo
+	demoRestricted.HandleFunc("/databases", h.CreateDatabaseConfig).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/databases/{id}", h.UpdateDatabaseConfig).Methods("PUT", "OPTIONS")
+	demoRestricted.HandleFunc("/databases/{id}", h.DeleteDatabaseConfig).Methods("DELETE", "OPTIONS")
+	demoRestricted.HandleFunc("/databases/{id}/pause", h.PauseDatabaseConfig).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/databases/{id}/unpause", h.UnpauseDatabaseConfig).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/databases/{id}/backup", h.TriggerManualBackup).Methods("POST", "OPTIONS")
+
+	// Backup write operations - blocked for demo
+	demoRestricted.HandleFunc("/backups/{id}/restore", h.RestoreBackup).Methods("POST", "OPTIONS")
+
+	// Demo-blocked routes (completely blocked for demo accounts - 2FA management)
+	demoBlocked := api.PathPrefix("").Subrouter()
+	demoBlocked.Use(middleware.AuthMiddleware(jwtMgr))
+	demoBlocked.Use(middleware.DemoBlockMiddleware)
+
+	// 2FA management routes (protected - require full authentication, blocked for demo)
+	if totpMgr != nil {
+		tfaHandler := NewTwoFactorHandler(h, totpMgr)
+		demoBlocked.HandleFunc("/auth/2fa/setup", tfaHandler.Setup2FA).Methods("POST", "OPTIONS")
+		demoBlocked.HandleFunc("/auth/2fa/verify-setup", tfaHandler.VerifySetup2FA).Methods("POST", "OPTIONS")
+		demoBlocked.HandleFunc("/auth/2fa/disable", tfaHandler.Disable2FA).Methods("POST", "OPTIONS")
+		demoBlocked.HandleFunc("/auth/2fa/backup-codes", tfaHandler.RegenerateBackupCodes).Methods("POST", "OPTIONS")
+		// 2FA status is read-only, so it goes to protected (allowed for demo to view)
+		protected.HandleFunc("/auth/2fa/status", tfaHandler.Get2FAStatus).Methods("GET", "OPTIONS")
+	}
 
 	// Swagger documentation (public, no auth required)
 	r.PathPrefix("/swagger/").Handler(httpSwagger.WrapHandler)

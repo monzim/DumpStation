@@ -6,15 +6,18 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";
 
 const TWO_FA_TOKEN_KEY = "2fa_token";
+const IS_DEMO_KEY = "is_demo";
 
 export class ApiClient {
   private token: string | null = null;
   private twoFAToken: string | null = null;
+  private isDemo: boolean = false;
 
   constructor() {
     if (typeof window !== "undefined") {
       this.token = localStorage.getItem("auth_token");
       this.twoFAToken = sessionStorage.getItem(TWO_FA_TOKEN_KEY);
+      this.isDemo = localStorage.getItem(IS_DEMO_KEY) === "true";
     }
   }
 
@@ -27,13 +30,26 @@ export class ApiClient {
 
   clearToken() {
     this.token = null;
+    this.isDemo = false;
     if (typeof window !== "undefined") {
       localStorage.removeItem("auth_token");
+      localStorage.removeItem(IS_DEMO_KEY);
     }
   }
 
   getToken(): string | null {
     return this.token;
+  }
+
+  setIsDemo(isDemo: boolean) {
+    this.isDemo = isDemo;
+    if (typeof window !== "undefined") {
+      localStorage.setItem(IS_DEMO_KEY, isDemo ? "true" : "false");
+    }
+  }
+
+  getIsDemo(): boolean {
+    return this.isDemo;
   }
 
   set2FAToken(token: string) {
