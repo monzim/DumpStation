@@ -82,14 +82,14 @@ RUN groupadd --gid 1000 appgroup \
     && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
 
 # Create necessary directories
-RUN mkdir -p /app/migrations /app/docs /tmp/backups \
+RUN mkdir -p /app/docs /tmp/backups \
     && chown -R appuser:appgroup /app /tmp/backups
 
 # Copy the binary from builder
 COPY --from=builder --chown=appuser:appgroup /build/backup-service /app/backup-service
 
 # Copy migrations and docs
-COPY --chown=appuser:appgroup migrations/ /app/migrations/
+# COPY --chown=appuser:appgroup migrations/ /app/migrations/
 COPY --chown=appuser:appgroup docs/ /app/docs/
 
 # Switch to non-root user
