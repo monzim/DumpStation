@@ -1,3 +1,4 @@
+import { useTheme } from "@/components/theme-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,9 +18,14 @@ import {
   Database,
   Github,
   HardDrive,
+  KeyRound,
+  Moon,
+  Play,
   RefreshCw,
   Server,
   Shield,
+  Smartphone,
+  Sun,
   Zap,
 } from "lucide-react";
 
@@ -73,6 +79,16 @@ export const Route = createFileRoute("/")({
 });
 
 function LandingPage() {
+  const { theme, setTheme, resolvedTheme } = useTheme();
+
+  const toggleTheme = () => {
+    if (theme === "system") {
+      setTheme(resolvedTheme === "dark" ? "light" : "dark");
+    } else {
+      setTheme(theme === "dark" ? "light" : "dark");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -106,11 +122,28 @@ function LandingPage() {
               >
                 How it Works
               </a>
+              <a
+                href="#demo"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Try Demo
+              </a>
             </nav>
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/login">Sign In</Link>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="h-9 w-9"
+              >
+                {resolvedTheme === "dark" ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+                <span className="sr-only">Toggle theme</span>
               </Button>
+
               <Button size="sm" asChild>
                 <Link to="/login">
                   Get Started
@@ -232,6 +265,11 @@ function LandingPage() {
               icon={Bell}
               title="Discord Notifications"
               description="Get instant alerts for backup success or failure. OTP authentication via Discord for extra security."
+            />
+            <FeatureCard
+              icon={Smartphone}
+              title="Two-Factor Auth (2FA)"
+              description="Secure your account with TOTP-based 2FA. Works with Google Authenticator, Authy, and backup codes."
             />
             <FeatureCard
               icon={Shield}
@@ -395,6 +433,116 @@ function LandingPage() {
         </div>
       </section>
 
+      {/* Demo Section */}
+      <section id="demo" className="py-24 bg-muted/30">
+        <div className="container mx-auto px-4">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <Badge variant="outline" className="mb-4">
+              <Play className="h-3.5 w-3.5 mr-1.5" />
+              Try It Now
+            </Badge>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Explore with our demo account
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              No signup required. Try DumpStation instantly with our read-only
+              demo account.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto">
+            <Card className="overflow-hidden">
+              <div className="grid md:grid-cols-2">
+                <div className="p-8 space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Play className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">Instant Access</h3>
+                        <p className="text-sm text-muted-foreground">
+                          One-click login, no registration needed. Explore all
+                          features in a sandboxed environment.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Shield className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">Read-Only Mode</h3>
+                        <p className="text-sm text-muted-foreground">
+                          View databases, backups, storage configs, and logs.
+                          Write operations are disabled.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <KeyRound className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">Bypasses Auth</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Demo login skips OTP and 2FA for convenience. Regular
+                          accounts support full security.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button size="lg" className="w-full" asChild>
+                    <Link to="/login">
+                      <Play className="mr-2 h-5 w-5" />
+                      Try Demo Account
+                    </Link>
+                  </Button>
+                </div>
+
+                <div className="bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 p-8 border-l">
+                  <h4 className="font-semibold mb-6">Security Features</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50">
+                      <Smartphone className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">
+                          TOTP Two-Factor Auth
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Google Authenticator & Authy compatible
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50">
+                      <KeyRound className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Backup Codes</p>
+                        <p className="text-xs text-muted-foreground">
+                          12 one-time recovery codes
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50">
+                      <Bell className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Discord OTP Login</p>
+                        <p className="text-xs text-muted-foreground">
+                          Passwordless via Discord DM
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-24 bg-linear-to-b from-primary/5 to-primary/10">
         <div className="container mx-auto px-4">
@@ -419,7 +567,7 @@ function LandingPage() {
                 className="w-full sm:w-auto text-base"
                 asChild
               >
-                <a href="#features">Learn More</a>
+                <a href="#demo">Try Demo First</a>
               </Button>
             </div>
           </div>

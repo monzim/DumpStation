@@ -8,10 +8,14 @@ const API_BASE_URL =
 const TWO_FA_TOKEN_KEY = "2fa_token";
 const IS_DEMO_KEY = "is_demo";
 
+// Session expiration callback type
+type SessionExpiredCallback = () => void;
+
 export class ApiClient {
   private token: string | null = null;
   private twoFAToken: string | null = null;
   private isDemo: boolean = false;
+  private onSessionExpired: SessionExpiredCallback | null = null;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -19,6 +23,13 @@ export class ApiClient {
       this.twoFAToken = sessionStorage.getItem(TWO_FA_TOKEN_KEY);
       this.isDemo = localStorage.getItem(IS_DEMO_KEY) === "true";
     }
+  }
+
+  /**
+   * Register a callback to be called when the session expires (401 Unauthorized)
+   */
+  setSessionExpiredCallback(callback: SessionExpiredCallback) {
+    this.onSessionExpired = callback;
   }
 
   setToken(token: string) {
@@ -72,6 +83,18 @@ export class ApiClient {
 
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
+      // Handle 401 Unauthorized - session expired
+      if (response.status === 401) {
+        // Clear tokens
+        this.clearToken();
+        this.clear2FAToken();
+
+        // Trigger session expired callback if registered
+        if (this.onSessionExpired) {
+          this.onSessionExpired();
+        }
+      }
+
       const error: ApiError = await response.json().catch(() => ({
         message: `HTTP ${response.status}: ${response.statusText}`,
       }));
