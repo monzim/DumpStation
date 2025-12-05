@@ -31,7 +31,7 @@ type OTPToken struct {
 	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
 	User      User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-	OTPCode   string    `gorm:"type:varchar(6);not null" json:"otp_code"`
+	OTPCode   string    `gorm:"type:varchar(6);not null" json:"-"` // Hidden from API responses for security
 	ExpiresAt time.Time `gorm:"index;not null" json:"expires_at"`
 	Used      bool      `gorm:"default:false" json:"used"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
@@ -86,6 +86,44 @@ type StorageConfigInput struct {
 	SecretKey string          `json:"secret_key" validate:"required" example:"your-secret-key"`
 }
 
+// StorageConfigResponse is a secure DTO for API responses with masked sensitive storage details
+// @Description Storage configuration with masked sensitive fields for API responses
+type StorageConfigResponse struct {
+	ID        uuid.UUID       `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name      string          `json:"name" example:"My R2 Bucket"`
+	Provider  StorageProvider `json:"provider" example:"r2"`
+	Bucket    string          `json:"bucket" example:"my-***"` // Masked bucket name
+	Region    string          `json:"region,omitempty" example:"auto"`
+	Endpoint  string          `json:"endpoint,omitempty" example:"https://***.r2.cloudflarestorage.com"` // Masked endpoint
+	AccessKey string          `json:"access_key" example:"AKI***"`                                       // Masked access key (shows key type prefix)
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+// ToResponse converts a StorageConfig to a StorageConfigResponse with masked sensitive data
+func (s *StorageConfig) ToResponse() *StorageConfigResponse {
+	return &StorageConfigResponse{
+		ID:        s.ID,
+		Name:      s.Name,
+		Provider:  s.Provider,
+		Bucket:    utils.MaskBucketName(s.Bucket),
+		Region:    s.Region,
+		Endpoint:  utils.MaskEndpoint(s.Endpoint),
+		AccessKey: utils.MaskAccessKey(s.AccessKey),
+		CreatedAt: s.CreatedAt,
+		UpdatedAt: s.UpdatedAt,
+	}
+}
+
+// StorageConfigsToResponse converts a slice of StorageConfig to StorageConfigResponse
+func StorageConfigsToResponse(configs []*StorageConfig) []StorageConfigResponse {
+	responses := make([]StorageConfigResponse, len(configs))
+	for i, config := range configs {
+		responses[i] = *config.ToResponse()
+	}
+	return responses
+}
+
 // NotificationConfig represents Discord notification configuration
 type NotificationConfig struct {
 	ID                uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
@@ -107,6 +145,36 @@ func (n *NotificationConfig) BeforeCreate(tx *gorm.DB) error {
 type NotificationConfigInput struct {
 	Name              string `json:"name" validate:"required" example:"DevOps Alerts"`
 	DiscordWebhookURL string `json:"discord_webhook_url" validate:"required,url" example:"https://discord.com/api/webhooks/..."`
+}
+
+// NotificationConfigResponse is a secure DTO for API responses with masked webhook URL
+// @Description Notification configuration with masked webhook URL for API responses
+type NotificationConfigResponse struct {
+	ID                uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name              string    `json:"name" example:"DevOps Alerts"`
+	DiscordWebhookURL string    `json:"discord_webhook_url" example:"https://discord.com/api/webhooks/***/***"` // Masked webhook URL
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// ToResponse converts a NotificationConfig to a NotificationConfigResponse with masked sensitive data
+func (n *NotificationConfig) ToResponse() *NotificationConfigResponse {
+	return &NotificationConfigResponse{
+		ID:                n.ID,
+		Name:              n.Name,
+		DiscordWebhookURL: utils.MaskWebhookURL(n.DiscordWebhookURL),
+		CreatedAt:         n.CreatedAt,
+		UpdatedAt:         n.UpdatedAt,
+	}
+}
+
+// NotificationConfigsToResponse converts a slice of NotificationConfig to NotificationConfigResponse
+func NotificationConfigsToResponse(configs []*NotificationConfig) []NotificationConfigResponse {
+	responses := make([]NotificationConfigResponse, len(configs))
+	for i, config := range configs {
+		responses[i] = *config.ToResponse()
+	}
+	return responses
 }
 
 // RotationPolicyType represents the type of backup rotation
@@ -202,6 +270,58 @@ type DatabaseConfigInput struct {
 	RotationPolicy  RotationPolicy `json:"rotation_policy" validate:"required"`
 }
 
+// DatabaseConfigResponse is a secure DTO for API responses that masks sensitive connection details
+// @Description Database configuration with masked sensitive fields for API responses
+type DatabaseConfigResponse struct {
+	ID                 uuid.UUID      `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name               string         `json:"name" example:"Production DB"`
+	Host               string         `json:"host" example:"***.example.com"` // Masked hostname
+	Port               string         `json:"port" example:"****"`            // Masked port
+	DBName             string         `json:"dbname" example:"pro***"`        // Masked database name
+	Username           string         `json:"user" example:"bac***"`          // Masked username
+	Schedule           string         `json:"schedule" example:"0 2 * * *"`
+	StorageID          uuid.UUID      `json:"storage_id"`
+	NotificationID     *uuid.UUID     `json:"notification_id,omitempty"`
+	PostgresVersion    string         `json:"postgres_version" example:"14"`
+	VersionLastChecked *time.Time     `json:"version_last_checked,omitempty"`
+	Enabled            bool           `json:"enabled" example:"true"`
+	Paused             bool           `json:"paused" example:"false"`
+	RotationPolicy     RotationPolicy `json:"rotation_policy"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+}
+
+// ToResponse converts a DatabaseConfig to a DatabaseConfigResponse with masked sensitive data
+func (d *DatabaseConfig) ToResponse() *DatabaseConfigResponse {
+	return &DatabaseConfigResponse{
+		ID:                 d.ID,
+		Name:               d.Name,
+		Host:               utils.MaskHostname(d.Host),
+		Port:               utils.MaskPort(d.Port),
+		DBName:             utils.MaskDatabaseName(d.DBName),
+		Username:           utils.MaskUsername(d.Username),
+		Schedule:           d.Schedule,
+		StorageID:          d.StorageID,
+		NotificationID:     d.NotificationID,
+		PostgresVersion:    d.PostgresVersion,
+		VersionLastChecked: d.VersionLastChecked,
+		Enabled:            d.Enabled,
+		Paused:             d.Paused,
+		RotationPolicy:     d.GetRotationPolicy(),
+		CreatedAt:          d.CreatedAt,
+		UpdatedAt:          d.UpdatedAt,
+	}
+}
+
+// ToResponseList converts a slice of DatabaseConfig to DatabaseConfigResponse
+func DatabaseConfigsToResponse(configs []*DatabaseConfig) []DatabaseConfigResponse {
+	responses := make([]DatabaseConfigResponse, len(configs))
+	for i, config := range configs {
+		responses[i] = *config.ToResponse()
+	}
+	return responses
+}
+
 // BackupStatus represents the status of a backup
 type BackupStatus string
 
@@ -253,10 +373,10 @@ type RestoreJob struct {
 	ID             uuid.UUID    `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	BackupID       uuid.UUID    `gorm:"type:uuid;not null;index" json:"backup_id"`
 	Backup         Backup       `gorm:"foreignKey:BackupID;constraint:OnDelete:CASCADE" json:"-"`
-	TargetHost     *string      `gorm:"type:varchar(255)" json:"target_host,omitempty"`
-	TargetPort     *int         `json:"target_port,omitempty"`
-	TargetDBName   *string      `gorm:"type:varchar(255)" json:"target_dbname,omitempty"`
-	TargetUser     *string      `gorm:"type:varchar(255)" json:"target_user,omitempty"`
+	TargetHost     *string      `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
+	TargetPort     *int         `json:"-"`                          // Hidden from API responses
+	TargetDBName   *string      `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
+	TargetUser     *string      `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
 	TargetPassword *string      `gorm:"type:text" json:"-"`
 	Status         BackupStatus `gorm:"type:varchar(20);not null;default:'pending';check:status IN ('pending','running','success','failed');index" json:"status"`
 	ErrorMessage   *string      `gorm:"type:text" json:"error_message,omitempty"`
@@ -271,6 +391,50 @@ func (r *RestoreJob) BeforeCreate(tx *gorm.DB) error {
 		r.ID = uuid.New()
 	}
 	return nil
+}
+
+// RestoreJobResponse is a secure DTO for API responses with masked target details
+// @Description Restore job with masked sensitive target connection details
+type RestoreJobResponse struct {
+	ID           uuid.UUID    `json:"id"`
+	BackupID     uuid.UUID    `json:"backup_id"`
+	TargetHost   string       `json:"target_host,omitempty" example:"***.example.com"` // Masked hostname
+	TargetPort   string       `json:"target_port,omitempty" example:"****"`            // Masked port
+	TargetDBName string       `json:"target_dbname,omitempty" example:"res***"`        // Masked database name
+	TargetUser   string       `json:"target_user,omitempty" example:"adm***"`          // Masked username
+	Status       BackupStatus `json:"status"`
+	ErrorMessage *string      `json:"error_message,omitempty"`
+	StartedAt    time.Time    `json:"started_at"`
+	CompletedAt  *time.Time   `json:"completed_at,omitempty"`
+	CreatedAt    time.Time    `json:"created_at"`
+}
+
+// ToResponse converts a RestoreJob to a RestoreJobResponse with masked sensitive data
+func (r *RestoreJob) ToResponse() *RestoreJobResponse {
+	response := &RestoreJobResponse{
+		ID:           r.ID,
+		BackupID:     r.BackupID,
+		Status:       r.Status,
+		ErrorMessage: r.ErrorMessage,
+		StartedAt:    r.StartedAt,
+		CompletedAt:  r.CompletedAt,
+		CreatedAt:    r.CreatedAt,
+	}
+
+	if r.TargetHost != nil {
+		response.TargetHost = utils.MaskHostname(*r.TargetHost)
+	}
+	if r.TargetPort != nil {
+		response.TargetPort = utils.MaskPort(*r.TargetPort)
+	}
+	if r.TargetDBName != nil {
+		response.TargetDBName = utils.MaskDatabaseName(*r.TargetDBName)
+	}
+	if r.TargetUser != nil {
+		response.TargetUser = utils.MaskUsername(*r.TargetUser)
+	}
+
+	return response
 }
 
 // SystemStats represents system-wide statistics
@@ -309,29 +473,29 @@ type APIError struct {
 type ActivityLogAction string
 
 const (
-	ActionLogin              ActivityLogAction = "login"
-	ActionLogout             ActivityLogAction = "logout"
-	ActionStorageCreated     ActivityLogAction = "storage_created"
-	ActionStorageUpdated     ActivityLogAction = "storage_updated"
-	ActionStorageDeleted     ActivityLogAction = "storage_deleted"
+	ActionLogin               ActivityLogAction = "login"
+	ActionLogout              ActivityLogAction = "logout"
+	ActionStorageCreated      ActivityLogAction = "storage_created"
+	ActionStorageUpdated      ActivityLogAction = "storage_updated"
+	ActionStorageDeleted      ActivityLogAction = "storage_deleted"
 	ActionNotificationCreated ActivityLogAction = "notification_created"
 	ActionNotificationUpdated ActivityLogAction = "notification_updated"
 	ActionNotificationDeleted ActivityLogAction = "notification_deleted"
-	ActionDatabaseCreated    ActivityLogAction = "database_created"
-	ActionDatabaseUpdated    ActivityLogAction = "database_updated"
-	ActionDatabaseDeleted    ActivityLogAction = "database_deleted"
-	ActionDatabasePaused     ActivityLogAction = "database_paused"
-	ActionDatabaseUnpaused   ActivityLogAction = "database_unpaused"
-	ActionBackupTriggered    ActivityLogAction = "backup_triggered"
-	ActionBackupStarted      ActivityLogAction = "backup_started"
-	ActionBackupCompleted    ActivityLogAction = "backup_completed"
-	ActionBackupFailed       ActivityLogAction = "backup_failed"
-	ActionRestoreTriggered   ActivityLogAction = "restore_triggered"
-	ActionRestoreStarted     ActivityLogAction = "restore_started"
-	ActionRestoreCompleted   ActivityLogAction = "restore_completed"
-	ActionRestoreFailed      ActivityLogAction = "restore_failed"
-	ActionSystemStartup      ActivityLogAction = "system_startup"
-	ActionSystemShutdown     ActivityLogAction = "system_shutdown"
+	ActionDatabaseCreated     ActivityLogAction = "database_created"
+	ActionDatabaseUpdated     ActivityLogAction = "database_updated"
+	ActionDatabaseDeleted     ActivityLogAction = "database_deleted"
+	ActionDatabasePaused      ActivityLogAction = "database_paused"
+	ActionDatabaseUnpaused    ActivityLogAction = "database_unpaused"
+	ActionBackupTriggered     ActivityLogAction = "backup_triggered"
+	ActionBackupStarted       ActivityLogAction = "backup_started"
+	ActionBackupCompleted     ActivityLogAction = "backup_completed"
+	ActionBackupFailed        ActivityLogAction = "backup_failed"
+	ActionRestoreTriggered    ActivityLogAction = "restore_triggered"
+	ActionRestoreStarted      ActivityLogAction = "restore_started"
+	ActionRestoreCompleted    ActivityLogAction = "restore_completed"
+	ActionRestoreFailed       ActivityLogAction = "restore_failed"
+	ActionSystemStartup       ActivityLogAction = "system_startup"
+	ActionSystemShutdown      ActivityLogAction = "system_shutdown"
 )
 
 // ActivityLogLevel represents the severity level of the log

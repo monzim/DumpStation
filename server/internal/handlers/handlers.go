@@ -233,11 +233,11 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 // ListStorageConfigs godoc
 // @Summary List all storage configurations
-// @Description Get a list of all configured storage backends (S3/R2)
+// @Description Get a list of all configured storage backends (S3/R2). Sensitive details are masked for security.
 // @Tags Storage
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} models.StorageConfig "List of storage configurations"
+// @Success 200 {array} models.StorageConfigResponse "List of storage configurations with masked sensitive data"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /storage [get]
 func (h *Handler) ListStorageConfigs(w http.ResponseWriter, r *http.Request) {
@@ -246,18 +246,20 @@ func (h *Handler) ListStorageConfigs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list storage configs")
 		return
 	}
-	writeJSON(w, http.StatusOK, configs)
+	// Convert to response DTOs with masked sensitive data
+	responses := models.StorageConfigsToResponse(configs)
+	writeJSON(w, http.StatusOK, responses)
 }
 
 // CreateStorageConfig godoc
 // @Summary Create a new storage configuration
-// @Description Add a new storage backend configuration (S3 or Cloudflare R2)
+// @Description Add a new storage backend configuration (S3 or Cloudflare R2). Response masks sensitive details.
 // @Tags Storage
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param body body models.StorageConfigInput true "Storage configuration"
-// @Success 201 {object} models.StorageConfig "Created storage configuration"
+// @Success 201 {object} models.StorageConfigResponse "Created storage configuration with masked sensitive data"
 // @Failure 400 {object} validator.ValidationErrorResponse "Bad request"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /storage [post]
@@ -293,17 +295,18 @@ func (h *Handler) CreateStorageConfig(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Storage configuration '%s' (%s) created", config.Name, config.Provider),
 		"", getIPAddress(r))
 
-	writeJSON(w, http.StatusCreated, config)
+	// Return response DTO with masked sensitive data
+	writeJSON(w, http.StatusCreated, config.ToResponse())
 }
 
 // GetStorageConfig godoc
 // @Summary Get a storage configuration by ID
-// @Description Retrieve details of a specific storage configuration
+// @Description Retrieve details of a specific storage configuration. Sensitive details are masked for security.
 // @Tags Storage
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Storage Config ID (UUID)"
-// @Success 200 {object} models.StorageConfig "Storage configuration"
+// @Success 200 {object} models.StorageConfigResponse "Storage configuration with masked sensitive data"
 // @Failure 400 {object} map[string]string "Invalid ID"
 // @Failure 404 {object} map[string]string "Storage config not found"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -325,19 +328,20 @@ func (h *Handler) GetStorageConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, config)
+	// Return response DTO with masked sensitive data
+	writeJSON(w, http.StatusOK, config.ToResponse())
 }
 
 // UpdateStorageConfig godoc
 // @Summary Update a storage configuration
-// @Description Update an existing storage configuration
+// @Description Update an existing storage configuration. Response masks sensitive details.
 // @Tags Storage
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Storage Config ID (UUID)"
 // @Param body body models.StorageConfigInput true "Updated storage configuration"
-// @Success 200 {object} models.StorageConfig "Updated storage configuration"
+// @Success 200 {object} models.StorageConfigResponse "Updated storage configuration with masked sensitive data"
 // @Failure 400 {object} validator.ValidationErrorResponse "Bad request"
 // @Failure 404 {object} map[string]string "Storage config not found"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -384,7 +388,8 @@ func (h *Handler) UpdateStorageConfig(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Storage configuration '%s' updated", config.Name),
 		"", getIPAddress(r))
 
-	writeJSON(w, http.StatusOK, config)
+	// Return response DTO with masked sensitive data
+	writeJSON(w, http.StatusOK, config.ToResponse())
 }
 
 // DeleteStorageConfig godoc
@@ -432,11 +437,11 @@ func (h *Handler) DeleteStorageConfig(w http.ResponseWriter, r *http.Request) {
 
 // ListNotificationConfigs godoc
 // @Summary List all notification configurations
-// @Description Get a list of all configured Discord webhooks for notifications
+// @Description Get a list of all configured Discord webhooks for notifications. Webhook URLs are masked for security.
 // @Tags Notifications
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} models.NotificationConfig "List of notification configurations"
+// @Success 200 {array} models.NotificationConfigResponse "List of notification configurations with masked webhook URLs"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /notifications [get]
 func (h *Handler) ListNotificationConfigs(w http.ResponseWriter, r *http.Request) {
@@ -445,18 +450,20 @@ func (h *Handler) ListNotificationConfigs(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "failed to list notification configs")
 		return
 	}
-	writeJSON(w, http.StatusOK, configs)
+	// Convert to response DTOs with masked webhook URLs
+	responses := models.NotificationConfigsToResponse(configs)
+	writeJSON(w, http.StatusOK, responses)
 }
 
 // CreateNotificationConfig godoc
 // @Summary Create a new notification configuration
-// @Description Add a new Discord webhook for backup notifications
+// @Description Add a new Discord webhook for backup notifications. Response masks the webhook URL for security.
 // @Tags Notifications
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param body body models.NotificationConfigInput true "Notification configuration"
-// @Success 201 {object} models.NotificationConfig "Created notification configuration"
+// @Success 201 {object} models.NotificationConfigResponse "Created notification configuration with masked webhook URL"
 // @Failure 400 {object} validator.ValidationErrorResponse "Bad request"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /notifications [post]
@@ -485,17 +492,18 @@ func (h *Handler) CreateNotificationConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, config)
+	// Return response DTO with masked webhook URL
+	writeJSON(w, http.StatusCreated, config.ToResponse())
 }
 
 // GetNotificationConfig godoc
 // @Summary Get a notification configuration by ID
-// @Description Retrieve details of a specific notification configuration
+// @Description Retrieve details of a specific notification configuration. Webhook URL is masked for security.
 // @Tags Notifications
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Notification Config ID (UUID)"
-// @Success 200 {object} models.NotificationConfig "Notification configuration"
+// @Success 200 {object} models.NotificationConfigResponse "Notification configuration with masked webhook URL"
 // @Failure 400 {object} map[string]string "Invalid ID"
 // @Failure 404 {object} map[string]string "Notification config not found"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -517,19 +525,20 @@ func (h *Handler) GetNotificationConfig(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, config)
+	// Return response DTO with masked webhook URL
+	writeJSON(w, http.StatusOK, config.ToResponse())
 }
 
 // UpdateNotificationConfig godoc
 // @Summary Update a notification configuration
-// @Description Update an existing notification configuration
+// @Description Update an existing notification configuration. Response masks the webhook URL for security.
 // @Tags Notifications
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Notification Config ID (UUID)"
 // @Param body body models.NotificationConfigInput true "Updated notification configuration"
-// @Success 200 {object} models.NotificationConfig "Updated notification configuration"
+// @Success 200 {object} models.NotificationConfigResponse "Updated notification configuration with masked webhook URL"
 // @Failure 400 {object} validator.ValidationErrorResponse "Bad request"
 // @Failure 404 {object} map[string]string "Notification config not found"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -569,7 +578,8 @@ func (h *Handler) UpdateNotificationConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	writeJSON(w, http.StatusOK, config)
+	// Return response DTO with masked webhook URL
+	writeJSON(w, http.StatusOK, config.ToResponse())
 }
 
 // DeleteNotificationConfig godoc
@@ -603,11 +613,11 @@ func (h *Handler) DeleteNotificationConfig(w http.ResponseWriter, r *http.Reques
 
 // ListDatabaseConfigs godoc
 // @Summary List all database configurations
-// @Description Get a list of all configured PostgreSQL databases for backup
+// @Description Get a list of all configured PostgreSQL databases for backup. Connection details are masked for security.
 // @Tags Databases
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} models.DatabaseConfig "List of database configurations"
+// @Success 200 {array} models.DatabaseConfigResponse "List of database configurations with masked sensitive data"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /databases [get]
 func (h *Handler) ListDatabaseConfigs(w http.ResponseWriter, r *http.Request) {
@@ -616,7 +626,9 @@ func (h *Handler) ListDatabaseConfigs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list database configs")
 		return
 	}
-	writeJSON(w, http.StatusOK, configs)
+	// Convert to response DTOs with masked sensitive data
+	responses := models.DatabaseConfigsToResponse(configs)
+	writeJSON(w, http.StatusOK, responses)
 }
 
 // CreateDatabaseConfig godoc
@@ -669,17 +681,18 @@ func (h *Handler) CreateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Database configuration '%s' created with schedule: %s", config.Name, config.Schedule),
 		"", getIPAddress(r))
 
-	writeJSON(w, http.StatusCreated, config)
+	// Return response DTO with masked sensitive data
+	writeJSON(w, http.StatusCreated, config.ToResponse())
 }
 
 // GetDatabaseConfig godoc
 // @Summary Get a database configuration by ID
-// @Description Retrieve details of a specific database configuration including storage and notification settings
+// @Description Retrieve details of a specific database configuration. Connection details are masked for security.
 // @Tags Databases
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Database Config ID (UUID)"
-// @Success 200 {object} models.DatabaseConfig "Database configuration"
+// @Success 200 {object} models.DatabaseConfigResponse "Database configuration with masked sensitive data"
 // @Failure 400 {object} map[string]string "Invalid ID"
 // @Failure 404 {object} map[string]string "Database config not found"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -701,7 +714,8 @@ func (h *Handler) GetDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, config)
+	// Return response DTO with masked sensitive data
+	writeJSON(w, http.StatusOK, config.ToResponse())
 }
 
 // UpdateDatabaseConfig godoc
@@ -766,7 +780,8 @@ func (h *Handler) UpdateDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Database configuration '%s' updated", config.Name),
 		"", getIPAddress(r))
 
-	writeJSON(w, http.StatusOK, config)
+	// Return response DTO with masked sensitive data
+	writeJSON(w, http.StatusOK, config.ToResponse())
 }
 
 // DeleteDatabaseConfig godoc
@@ -863,7 +878,8 @@ func (h *Handler) PauseDatabaseConfig(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Database configuration '%s' paused", config.Name),
 		"", getIPAddress(r))
 
-	writeJSON(w, http.StatusOK, config)
+	// Return response DTO with masked sensitive data
+	writeJSON(w, http.StatusOK, config.ToResponse())
 }
 
 // UnpauseDatabaseConfig godoc
@@ -921,7 +937,8 @@ func (h *Handler) UnpauseDatabaseConfig(w http.ResponseWriter, r *http.Request) 
 		fmt.Sprintf("Database configuration '%s' resumed", config.Name),
 		"", getIPAddress(r))
 
-	writeJSON(w, http.StatusOK, config)
+	// Return response DTO with masked sensitive data
+	writeJSON(w, http.StatusOK, config.ToResponse())
 }
 
 // TriggerManualBackup godoc
