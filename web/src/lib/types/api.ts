@@ -226,6 +226,24 @@ export interface User {
   updated_at: string;
 }
 
+// User Profile Types
+export interface UserProfile {
+  id: string;
+  discord_user_id: string;
+  discord_username: string;
+  email: string;
+  profile_picture_url?: string;
+  is_demo: boolean;
+  is_admin: boolean;
+  two_factor_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AvatarUploadRequest {
+  image: string; // Base64-encoded image data URL
+}
+
 export interface ActivityLog {
   id: string;
   user_id?: string;

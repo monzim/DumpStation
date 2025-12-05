@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -61,12 +62,6 @@ const navItems: NavItem[] = [
     value: "storage",
     icon: HardDrive,
     route: "/storage",
-  },
-  {
-    label: "Settings",
-    value: "settings",
-    icon: Settings,
-    route: "/settings",
   },
 ];
 
@@ -135,17 +130,8 @@ export function DashboardNav({
           })}
         </nav>
 
-        {/* Desktop Logout Button */}
-        {onLogout && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleLogout}
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full gap-2"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
-        )}
+        {/* User Menu */}
+        <UserMenu onLogout={onLogout} />
       </div>
 
       {/* Mobile Navigation - Bottom sheet with modern design */}
@@ -217,6 +203,22 @@ export function DashboardNav({
               <>
                 <Separator className="my-4" />
                 <div className="space-y-1">
+                  {/* Settings - Mobile */}
+                  <button
+                    onClick={() => {
+                      navigate({ to: "/settings" });
+                      setOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                      currentTab === "settings"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                  >
+                    <Settings className="h-5 w-5 shrink-0" />
+                    <span>Settings</span>
+                  </button>
                   {onRefresh && (
                     <button
                       onClick={handleRefresh}
@@ -242,7 +244,7 @@ export function DashboardNav({
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-destructive hover:bg-destructive/10"
                     >
                       <LogOut className="h-5 w-5 shrink-0" />
-                      <span>Logout</span>
+                      <span>Sign out</span>
                     </button>
                   )}
                 </div>

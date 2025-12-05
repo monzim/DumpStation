@@ -1304,6 +1304,44 @@ func (r *Repository) GetUser2FAStatus(userID uuid.UUID) (enabled bool, backupCod
 }
 
 // ========================================
+// User Profile Operations
+// ========================================
+
+// UpdateUserProfilePicture updates the user's profile picture URL
+func (r *Repository) UpdateUserProfilePicture(userID uuid.UUID, profilePictureURL string) error {
+	result := r.db.Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("profile_picture_url", profilePictureURL)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to update profile picture: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// DeleteUserProfilePicture removes the user's profile picture URL
+func (r *Repository) DeleteUserProfilePicture(userID uuid.UUID) error {
+	result := r.db.Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("profile_picture_url", "")
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete profile picture: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// ========================================
 // Demo Account Operations
 // ========================================
 

@@ -16,6 +16,7 @@ type User struct {
 	DiscordUserID        string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"discord_user_id"`
 	DiscordUsername      string         `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
 	Email                string         `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
+	ProfilePictureURL    string         `gorm:"type:text" json:"profile_picture_url,omitempty"`         // URL to user's profile picture
 	IsDemo               bool           `gorm:"default:false" json:"is_demo"`                           // Whether this is a demo account (read-only access)
 	IsAdmin              bool           `gorm:"default:false" json:"is_admin"`                          // Whether this user has admin privileges (can view all data)
 	TwoFactorSecret      string         `gorm:"type:text" json:"-"`                                     // Encrypted TOTP secret
@@ -24,6 +25,37 @@ type User struct {
 	TwoFactorVerifiedAt  *time.Time     `gorm:"type:timestamp" json:"two_factor_verified_at,omitempty"` // When 2FA was verified during setup
 	CreatedAt            time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt            time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// UserProfileResponse is the response DTO for user profile endpoints
+// @Description User profile information for API responses
+type UserProfileResponse struct {
+	ID                uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	DiscordUserID     string    `json:"discord_user_id" example:"monzim"`
+	DiscordUsername   string    `json:"discord_username" example:"monzim"`
+	Email             string    `json:"email" example:"user@example.com"`
+	ProfilePictureURL string    `json:"profile_picture_url,omitempty" example:"https://storage.example.com/avatars/user.jpg"`
+	IsDemo            bool      `json:"is_demo" example:"false"`
+	IsAdmin           bool      `json:"is_admin" example:"false"`
+	TwoFactorEnabled  bool      `json:"two_factor_enabled" example:"true"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// ToProfileResponse converts a User to a UserProfileResponse
+func (u *User) ToProfileResponse() *UserProfileResponse {
+	return &UserProfileResponse{
+		ID:                u.ID,
+		DiscordUserID:     u.DiscordUserID,
+		DiscordUsername:   u.DiscordUsername,
+		Email:             u.Email,
+		ProfilePictureURL: u.ProfilePictureURL,
+		IsDemo:            u.IsDemo,
+		IsAdmin:           u.IsAdmin,
+		TwoFactorEnabled:  u.TwoFactorEnabled,
+		CreatedAt:         u.CreatedAt,
+		UpdatedAt:         u.UpdatedAt,
+	}
 }
 
 // BeforeCreate hook for User

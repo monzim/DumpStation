@@ -74,6 +74,9 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	protected.HandleFunc("/logs", h.ListActivityLogs).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/logs/{id}", h.GetActivityLog).Methods("GET", "OPTIONS")
 
+	// User profile routes - GET allowed for demo
+	protected.HandleFunc("/users/me", h.GetUserProfile).Methods("GET", "OPTIONS")
+
 	// Demo-restricted routes (write operations blocked for demo accounts)
 	demoRestricted := api.PathPrefix("").Subrouter()
 	demoRestricted.Use(middleware.AuthMiddleware(jwtMgr))
@@ -99,6 +102,11 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 
 	// Backup write operations - blocked for demo
 	demoRestricted.HandleFunc("/backups/{id}/restore", h.RestoreBackup).Methods("POST", "OPTIONS")
+
+	// User profile write operations - blocked for demo
+	demoRestricted.HandleFunc("/users/me/avatar", h.UploadAvatar).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/users/me/avatar", h.DeleteAvatar).Methods("DELETE", "OPTIONS")
+	demoRestricted.HandleFunc("/users/me/avatar/upload", h.UploadAvatarMultipart).Methods("POST", "OPTIONS")
 
 	// Demo-blocked routes (completely blocked for demo accounts - 2FA management)
 	demoBlocked := api.PathPrefix("").Subrouter()
