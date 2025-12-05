@@ -5,12 +5,16 @@ import type { ApiError } from "@/lib/types/api";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";
 
+const TWO_FA_TOKEN_KEY = "2fa_token";
+
 export class ApiClient {
   private token: string | null = null;
+  private twoFAToken: string | null = null;
 
   constructor() {
     if (typeof window !== "undefined") {
       this.token = localStorage.getItem("auth_token");
+      this.twoFAToken = sessionStorage.getItem(TWO_FA_TOKEN_KEY);
     }
   }
 
@@ -32,6 +36,24 @@ export class ApiClient {
     return this.token;
   }
 
+  set2FAToken(token: string) {
+    this.twoFAToken = token;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(TWO_FA_TOKEN_KEY, token);
+    }
+  }
+
+  clear2FAToken() {
+    this.twoFAToken = null;
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(TWO_FA_TOKEN_KEY);
+    }
+  }
+
+  get2FAToken(): string | null {
+    return this.twoFAToken;
+  }
+
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const error: ApiError = await response.json().catch(() => ({
@@ -49,71 +71,61 @@ export class ApiClient {
     return response.json();
   }
 
-  async get<T>(endpoint: string): Promise<T> {
+  private buildHeaders(use2FAToken = false): HeadersInit {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
     };
 
-    if (this.token) {
+    if (use2FAToken && this.twoFAToken) {
+      headers["X-2FA-Token"] = this.twoFAToken;
+    } else if (this.token) {
       headers["Authorization"] = `Bearer ${this.token}`;
     }
 
+    return headers;
+  }
+
+  async get<T>(endpoint: string, use2FAToken = false): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "GET",
-      headers,
+      headers: this.buildHeaders(use2FAToken),
     });
 
     return this.handleResponse<T>(response);
   }
 
-  async post<T>(endpoint: string, data?: unknown): Promise<T> {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
+  async post<T>(
+    endpoint: string,
+    data?: unknown,
+    use2FAToken = false
+  ): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "POST",
-      headers,
+      headers: this.buildHeaders(use2FAToken),
       body: data ? JSON.stringify(data) : undefined,
     });
 
     return this.handleResponse<T>(response);
   }
 
-  async put<T>(endpoint: string, data: unknown): Promise<T> {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
+  async put<T>(
+    endpoint: string,
+    data: unknown,
+    use2FAToken = false
+  ): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "PUT",
-      headers,
+      headers: this.buildHeaders(use2FAToken),
       body: JSON.stringify(data),
     });
 
     return this.handleResponse<T>(response);
   }
 
-  async delete<T>(endpoint: string): Promise<T> {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
-
+  async delete<T>(endpoint: string, use2FAToken = false): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "DELETE",
-      headers,
+      headers: this.buildHeaders(use2FAToken),
     });
 
     return this.handleResponse<T>(response);

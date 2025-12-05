@@ -2,7 +2,7 @@ import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useLogin, useVerify } from "@/lib/api/auth";
+import { useLogin, useVerify, useVerify2FA } from "@/lib/api/auth";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -12,6 +12,7 @@ import {
   Lock,
   MessageCircle,
   Shield,
+  Smartphone,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -66,13 +67,17 @@ export const Route = createFileRoute("/login")({
 
 const DEFAULT_USERNAME = "system";
 
+type LoginStep = "login" | "verify" | "2fa";
+
 function LoginPage() {
-  const [step, setStep] = useState<"login" | "verify">("login");
+  const [step, setStep] = useState<LoginStep>("login");
   const [otp, setOtp] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
   const navigate = useNavigate();
   const { setIsAuthenticated } = useAuth();
   const loginMutation = useLogin();
   const verifyMutation = useVerify();
+  const verify2FAMutation = useVerify2FA();
 
   const handleLogin = async () => {
     try {
@@ -93,7 +98,38 @@ function LoginPage() {
     e.preventDefault();
 
     try {
-      await verifyMutation.mutateAsync({ username: DEFAULT_USERNAME, otp });
+      const response = await verifyMutation.mutateAsync({
+        username: DEFAULT_USERNAME,
+        otp,
+      });
+
+      // Check if 2FA is required
+      if (response.requires_2fa) {
+        setOtp(""); // Clear OTP field
+        setStep("2fa");
+        toast.info("Two-factor authentication required", {
+          description: "Please enter your authenticator code.",
+        });
+      } else {
+        toast.success("Login successful", {
+          description: "Welcome to the PostgreSQL Backup Service.",
+        });
+        setIsAuthenticated(true);
+        navigate({ to: "/dashboard" });
+      }
+    } catch (error: unknown) {
+      const apiError = error as { message?: string };
+      toast.error("Verification failed", {
+        description: apiError.message || "Invalid or expired OTP",
+      });
+    }
+  };
+
+  const handleVerify2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      await verify2FAMutation.mutateAsync({ code: twoFactorCode });
       toast.success("Login successful", {
         description: "Welcome to the PostgreSQL Backup Service.",
       });
@@ -101,9 +137,20 @@ function LoginPage() {
       navigate({ to: "/dashboard" });
     } catch (error: unknown) {
       const apiError = error as { message?: string };
-      toast.error("Verification failed", {
-        description: apiError.message || "Invalid or expired OTP",
+      toast.error("2FA verification failed", {
+        description: apiError.message || "Invalid code. Please try again.",
       });
+      setTwoFactorCode("");
+    }
+  };
+
+  const handleBack = () => {
+    if (step === "2fa") {
+      setStep("verify");
+      setTwoFactorCode("");
+    } else {
+      setStep("login");
+      setOtp("");
     }
   };
 
@@ -196,17 +243,25 @@ function LoginPage() {
               <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-4">
                 {step === "login" ? (
                   <Lock className="h-8 w-8 text-primary" />
-                ) : (
+                ) : step === "verify" ? (
                   <KeyRound className="h-8 w-8 text-primary" />
+                ) : (
+                  <Smartphone className="h-8 w-8 text-primary" />
                 )}
               </div>
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                {step === "login" ? "Welcome back" : "Enter verification code"}
+                {step === "login"
+                  ? "Welcome back"
+                  : step === "verify"
+                    ? "Enter verification code"
+                    : "Two-factor authentication"}
               </h2>
               <p className="text-muted-foreground">
                 {step === "login"
                   ? "Sign in to access your backup dashboard"
-                  : "We've sent a code to your Discord"}
+                  : step === "verify"
+                    ? "We've sent a code to your Discord"
+                    : "Enter the code from your authenticator app"}
               </p>
             </div>
 
@@ -248,7 +303,7 @@ function LoginPage() {
                   channel for verification.
                 </p>
               </div>
-            ) : (
+            ) : step === "verify" ? (
               /* Verify Step */
               <form onSubmit={handleVerify} className="space-y-6">
                 <div className="space-y-3">
@@ -288,17 +343,14 @@ function LoginPage() {
                         Verifying...
                       </>
                     ) : (
-                      "Verify & Sign In"
+                      "Verify & Continue"
                     )}
                   </Button>
 
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => {
-                      setStep("login");
-                      setOtp("");
-                    }}
+                    onClick={handleBack}
                     disabled={verifyMutation.isPending}
                     className="w-full"
                   >
@@ -334,6 +386,82 @@ function LoginPage() {
                     "Resend code"
                   )}
                 </Button>
+              </form>
+            ) : (
+              /* 2FA Step */
+              <form onSubmit={handleVerify2FA} className="space-y-6">
+                <div className="space-y-3">
+                  <Label htmlFor="2fa-code" className="text-sm font-medium">
+                    Authenticator Code
+                  </Label>
+                  <Input
+                    id="2fa-code"
+                    type="text"
+                    placeholder="00000000 or XXXX-XXXX-XXXX"
+                    value={twoFactorCode}
+                    onChange={(e) => {
+                      // Allow digits for TOTP or alphanumeric with dashes for backup codes
+                      const value = e.target.value.toUpperCase();
+                      // Remove any character that's not alphanumeric or dash
+                      const cleaned = value.replace(/[^A-Z0-9-]/g, "");
+                      setTwoFactorCode(cleaned.slice(0, 14));
+                    }}
+                    disabled={verify2FAMutation.isPending}
+                    maxLength={14}
+                    required
+                    autoFocus
+                    className="h-14 text-center text-xl font-mono tracking-widest placeholder:tracking-normal placeholder:text-base"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">
+                    Enter your 8-digit TOTP code or backup code (XXXX-XXXX-XXXX)
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
+                  <div className="flex gap-3">
+                    <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">
+                        Using a backup code?
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Enter one of your backup codes (e.g., 7DOK-EE4H-P54Q) if
+                        you've lost access to your authenticator.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base"
+                    size="lg"
+                    disabled={
+                      verify2FAMutation.isPending || twoFactorCode.length < 8
+                    }
+                  >
+                    {verify2FAMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Verifying...
+                      </>
+                    ) : (
+                      "Verify & Sign In"
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleBack}
+                    disabled={verify2FAMutation.isPending}
+                    className="w-full"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to OTP verification
+                  </Button>
+                </div>
               </form>
             )}
           </div>

@@ -5,17 +5,22 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/monzim/db_proxy/v1/internal/utils"
 	"gorm.io/gorm"
 )
 
 // User represents a system user
 type User struct {
-	ID              uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	DiscordUserID   string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"discord_user_id"`
-	DiscordUsername string    `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
-	CreatedAt       time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt       time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                   uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	DiscordUserID        string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"discord_user_id"`
+	DiscordUsername      string         `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
+	TwoFactorSecret      string         `gorm:"type:text" json:"-"`                                     // Encrypted TOTP secret
+	TwoFactorEnabled     bool           `gorm:"default:false" json:"two_factor_enabled"`                // Whether 2FA is enabled
+	TwoFactorBackupCodes pq.StringArray `gorm:"type:text[]" json:"-"`                                   // Hashed backup recovery codes
+	TwoFactorVerifiedAt  *time.Time     `gorm:"type:timestamp" json:"two_factor_verified_at,omitempty"` // When 2FA was verified during setup
+	CreatedAt            time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt            time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // BeforeCreate hook for User
@@ -31,7 +36,7 @@ type OTPToken struct {
 	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
 	User      User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-	OTPCode   string    `gorm:"type:varchar(6);not null" json:"-"` // Hidden from API responses for security
+	OTPCode   string    `gorm:"type:varchar(8);not null" json:"-"` // Hidden from API responses for security
 	ExpiresAt time.Time `gorm:"index;not null" json:"expires_at"`
 	Used      bool      `gorm:"default:false" json:"used"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
@@ -496,6 +501,13 @@ const (
 	ActionRestoreFailed       ActivityLogAction = "restore_failed"
 	ActionSystemStartup       ActivityLogAction = "system_startup"
 	ActionSystemShutdown      ActivityLogAction = "system_shutdown"
+	// 2FA related actions
+	Action2FASetupStarted   ActivityLogAction = "2fa_setup_started"
+	Action2FAEnabled        ActivityLogAction = "2fa_enabled"
+	Action2FAVerified       ActivityLogAction = "2fa_verified"
+	Action2FADisabled       ActivityLogAction = "2fa_disabled"
+	Action2FABackupCodeUsed ActivityLogAction = "2fa_backup_code_used"
+	Action2FAFailed         ActivityLogAction = "2fa_verification_failed"
 )
 
 // ActivityLogLevel represents the severity level of the log
@@ -543,4 +555,58 @@ type ActivityLogListParams struct {
 	EndDate    *time.Time         `json:"end_date,omitempty"`
 	Limit      int                `json:"limit,omitempty"`
 	Offset     int                `json:"offset,omitempty"`
+}
+
+// ========================================
+// Two-Factor Authentication (2FA) Models
+// ========================================
+
+// TwoFactorSetupRequest for initiating 2FA setup
+type TwoFactorSetupRequest struct {
+	// No fields needed - uses authenticated user from JWT
+}
+
+// TwoFactorSetupResponse contains data for setting up 2FA
+type TwoFactorSetupResponse struct {
+	Secret        string `json:"secret" example:"JBSWY3DPEHPK3PXP"` // Base32-encoded secret for manual entry
+	QRCodeDataURL string `json:"qr_code_data_url"`                  // Data URL for QR code image
+	Issuer        string `json:"issuer" example:"DumpStation"`      // Issuer name shown in authenticator
+	AccountName   string `json:"account_name" example:"admin"`      // Account name shown in authenticator
+}
+
+// TwoFactorVerifySetupRequest for verifying 2FA setup with initial code
+type TwoFactorVerifySetupRequest struct {
+	Code string `json:"code" validate:"required,len=8" example:"12345678"` // 8-digit TOTP code from authenticator
+}
+
+// TwoFactorVerifyRequest for verifying 2FA during login
+type TwoFactorVerifyRequest struct {
+	Code string `json:"code" validate:"required,min=6,max=14" example:"123456"` // TOTP code or backup code
+}
+
+// TwoFactorDisableRequest for disabling 2FA
+type TwoFactorDisableRequest struct {
+	Code string `json:"code" validate:"required,len=8" example:"12345678"` // Current 8-digit TOTP code to confirm
+}
+
+// TwoFactorStatusResponse contains 2FA status for a user
+type TwoFactorStatusResponse struct {
+	Enabled          bool       `json:"enabled" example:"true"`
+	VerifiedAt       *time.Time `json:"verified_at,omitempty" example:"2025-12-05T10:30:00Z"`
+	BackupCodesCount int        `json:"backup_codes_count" example:"10"`
+}
+
+// TwoFactorBackupCodesResponse contains newly generated backup codes
+type TwoFactorBackupCodesResponse struct {
+	Codes   []string `json:"codes" example:"ABCD-EFGH-IJKL,MNOP-QRST-UVWX"`
+	Message string   `json:"message" example:"Store these backup codes in a safe place. They can only be shown once."`
+}
+
+// AuthResponseWith2FA extends AuthResponse for 2FA flow
+type AuthResponseWith2FA struct {
+	Token              string    `json:"token,omitempty" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	ExpiresAt          time.Time `json:"expires_at,omitempty" example:"2025-11-17T22:00:00Z"`
+	Requires2FA        bool      `json:"requires_2fa" example:"true"`
+	TwoFactorToken     string    `json:"two_factor_token,omitempty" example:"temp_token_for_2fa_verification"`
+	TwoFactorExpiresAt time.Time `json:"two_factor_expires_at,omitempty" example:"2025-11-17T22:05:00Z"`
 }

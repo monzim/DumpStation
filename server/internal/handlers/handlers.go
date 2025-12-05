@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/monzim/db_proxy/v1/internal/auth"
 	"github.com/monzim/db_proxy/v1/internal/backup"
+	"github.com/monzim/db_proxy/v1/internal/middleware"
 	"github.com/monzim/db_proxy/v1/internal/models"
 	"github.com/monzim/db_proxy/v1/internal/notification"
 	"github.com/monzim/db_proxy/v1/internal/repository"
@@ -135,12 +136,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Verify godoc
 // @Summary Verify OTP and get JWT token
-// @Description Verifies the OTP code received via Discord and returns a JWT token for API authentication
+// @Description Verifies the OTP code received via Discord and returns a JWT token for API authentication. If 2FA is enabled, returns a temporary token that must be verified with a TOTP code.
 // @Tags Authentication
 // @Accept json
 // @Produce json
 // @Param body body models.VerifyRequest true "OTP verification request"
-// @Success 200 {object} models.AuthResponse "JWT token and expiration"
+// @Success 200 {object} models.AuthResponseWith2FA "JWT token or 2FA required response"
 // @Failure 400 {object} map[string]string "Bad request"
 // @Failure 401 {object} map[string]string "Invalid or expired OTP"
 // @Failure 500 {object} map[string]string "Internal server error"
@@ -192,7 +193,35 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 	logInfo("✅ OTP verified successfully for user: %s", req.Username)
 
-	// Generate JWT
+	// Check if 2FA is enabled for this user
+	if user.TwoFactorEnabled {
+		logInfo("2FA is enabled for user: %s, generating 2FA token...", req.Username)
+
+		// Generate a temporary 2FA token
+		twoFAToken, expiresAt, err := h.jwtMgr.Generate2FAToken(user.ID, user.DiscordUserID)
+		if err != nil {
+			logError(fmt.Sprintf("Failed to generate 2FA token for user: %s", req.Username), err)
+			writeError(w, http.StatusInternalServerError, "failed to generate token")
+			return
+		}
+
+		logInfo("✅ 2FA token generated for user: %s (expires: %v)", req.Username, expiresAt)
+
+		// Log that 2FA is required
+		h.logActivity(&user.ID, models.ActionLogin, models.LogLevelInfo,
+			"user", &user.ID, user.DiscordUsername,
+			fmt.Sprintf("User %s authenticated, awaiting 2FA verification", user.DiscordUsername),
+			"", getIPAddress(r))
+
+		writeJSON(w, http.StatusOK, models.AuthResponseWith2FA{
+			Requires2FA:        true,
+			TwoFactorToken:     twoFAToken,
+			TwoFactorExpiresAt: expiresAt,
+		})
+		return
+	}
+
+	// No 2FA - generate full access token
 	token, expiresAt, err := h.jwtMgr.GenerateToken(user.ID, user.DiscordUserID)
 	if err != nil {
 		logError(fmt.Sprintf("Failed to generate JWT for user: %s", req.Username), err)
@@ -208,9 +237,10 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("User %s logged in successfully", user.DiscordUsername),
 		"", getIPAddress(r))
 
-	writeJSON(w, http.StatusOK, models.AuthResponse{
-		Token:     token,
-		ExpiresAt: expiresAt,
+	writeJSON(w, http.StatusOK, models.AuthResponseWith2FA{
+		Token:       token,
+		ExpiresAt:   expiresAt,
+		Requires2FA: false,
 	})
 }
 
@@ -1305,19 +1335,8 @@ func parseUUID(s string) (uuid.UUID, error) {
 
 // getUserIDFromContext extracts user ID from request context
 func getUserIDFromContext(r *http.Request) *uuid.UUID {
-	// The middleware stores auth.Claims with key middleware.UserContextKey ("user")
-	// Try with the typed key first
-	type contextKey string
-	const userContextKey contextKey = "user"
-
-	if claims := r.Context().Value(userContextKey); claims != nil {
-		if authClaims, ok := claims.(*auth.Claims); ok {
-			return &authClaims.UserID
-		}
-	}
-
-	// Fallback to string key
-	if claims := r.Context().Value("user"); claims != nil {
+	// The middleware stores auth.Claims with key middleware.UserContextKey
+	if claims := r.Context().Value(middleware.UserContextKey); claims != nil {
 		if authClaims, ok := claims.(*auth.Claims); ok {
 			return &authClaims.UserID
 		}

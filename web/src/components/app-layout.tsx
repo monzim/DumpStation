@@ -23,6 +23,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (path.startsWith("/activity")) return "logs";
     if (path.startsWith("/notifications")) return "notifications";
     if (path.startsWith("/storage")) return "storage";
+    if (path.startsWith("/settings")) return "settings";
     return "overview";
   };
 

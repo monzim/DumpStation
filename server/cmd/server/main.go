@@ -104,8 +104,13 @@ func main() {
 	otpExpiry := time.Duration(cfg.Discord.OTPExpiration) * time.Minute
 	h := handlers.New(repo, jwtMgr, backupSvc, sched, notifier, otpExpiry)
 
-	// Setup routes
-	router := handlers.SetupRoutes(h, jwtMgr, cfg)
+	// Initialize TOTP manager for 2FA
+	totpConfig := auth.DefaultTOTPConfig()
+	totpConfig.Issuer = "DumpStation" // Customize issuer name
+	totpMgr := auth.NewTOTPManager(totpConfig)
+
+	// Setup routes with 2FA support
+	router := handlers.SetupRoutesWithTOTP(h, jwtMgr, cfg, totpMgr)
 
 	// Start HTTP server
 	addr := cfg.Server.Host + ":" + cfg.Server.Port

@@ -15,8 +15,47 @@ export interface AuthResponse {
   expires_at: string;
 }
 
+// Enhanced Auth Response with 2FA support
+export interface AuthResponseWith2FA {
+  token?: string;
+  expires_at?: string;
+  requires_2fa?: boolean;
+  two_factor_token?: string;
+  message?: string;
+}
+
+// Two-Factor Authentication Types
+export interface TwoFactorSetupResponse {
+  secret: string;
+  qr_code_data_url: string; // Data URL for QR code image (data:image/png;base64,...)
+  issuer: string;
+  account_name: string;
+}
+
+export interface TwoFactorVerifyRequest {
+  code: string;
+}
+
+export interface TwoFactorVerifySetupRequest {
+  code: string;
+}
+
+export interface TwoFactorDisableRequest {
+  code: string;
+}
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean;
+  verified_at?: string;
+}
+
+export interface TwoFactorBackupCodesResponse {
+  codes: string[];
+  message: string;
+}
+
 // Notification Types
-export type StorageProvider = 's3' | 'r2';
+export type StorageProvider = "s3" | "r2";
 
 export interface NotificationConfig {
   id: string;
@@ -62,8 +101,8 @@ export interface StorageConfigInput {
 }
 
 // Database Types
-export type RotationPolicyType = 'count' | 'days';
-export type BackupStatus = 'pending' | 'running' | 'success' | 'failed';
+export type RotationPolicyType = "count" | "days";
+export type BackupStatus = "pending" | "running" | "success" | "failed";
 
 export interface RotationPolicy {
   type: RotationPolicyType;
@@ -138,31 +177,38 @@ export interface RestoreJob {
 
 // Activity Log Types
 export type ActivityLogAction =
-  | 'login'
-  | 'logout'
-  | 'storage_created'
-  | 'storage_updated'
-  | 'storage_deleted'
-  | 'notification_created'
-  | 'notification_updated'
-  | 'notification_deleted'
-  | 'database_created'
-  | 'database_updated'
-  | 'database_deleted'
-  | 'database_paused'
-  | 'database_unpaused'
-  | 'backup_triggered'
-  | 'backup_started'
-  | 'backup_completed'
-  | 'backup_failed'
-  | 'restore_triggered'
-  | 'restore_started'
-  | 'restore_completed'
-  | 'restore_failed'
-  | 'system_startup'
-  | 'system_shutdown';
+  | "login"
+  | "logout"
+  | "2fa_setup_initiated"
+  | "2fa_setup_completed"
+  | "2fa_verification_success"
+  | "2fa_verification_failed"
+  | "2fa_disabled"
+  | "2fa_backup_code_used"
+  | "2fa_backup_codes_regenerated"
+  | "storage_created"
+  | "storage_updated"
+  | "storage_deleted"
+  | "notification_created"
+  | "notification_updated"
+  | "notification_deleted"
+  | "database_created"
+  | "database_updated"
+  | "database_deleted"
+  | "database_paused"
+  | "database_unpaused"
+  | "backup_triggered"
+  | "backup_started"
+  | "backup_completed"
+  | "backup_failed"
+  | "restore_triggered"
+  | "restore_started"
+  | "restore_completed"
+  | "restore_failed"
+  | "system_startup"
+  | "system_shutdown";
 
-export type ActivityLogLevel = 'info' | 'warning' | 'error' | 'success';
+export type ActivityLogLevel = "info" | "warning" | "error" | "success";
 
 export interface User {
   id: string;

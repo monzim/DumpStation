@@ -17,6 +17,7 @@ import {
   Monitor,
   Moon,
   RefreshCw,
+  Settings,
   Sun,
   X,
 } from "lucide-react";
@@ -65,6 +66,12 @@ const navItems: NavItem[] = [
     value: "storage",
     icon: HardDrive,
     route: "/storage",
+  },
+  {
+    label: "Settings",
+    value: "settings",
+    icon: Settings,
+    route: "/settings",
   },
 ];
 

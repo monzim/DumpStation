@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/monzim/db_proxy/v1/internal/models"
 	"github.com/monzim/db_proxy/v1/internal/utils"
 	"gorm.io/gorm"
@@ -639,4 +640,124 @@ func (r *Repository) DeleteOldActivityLogs(olderThan time.Time) (int64, error) {
 	}
 
 	return result.RowsAffected, nil
+}
+
+// ========================================
+// Two-Factor Authentication Operations
+// ========================================
+
+// GetUserByID retrieves a user by their ID
+func (r *Repository) GetUserByID(id uuid.UUID) (*models.User, error) {
+	var user models.User
+	result := r.db.First(&user, "id = ?", id)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get user by ID: %w", result.Error)
+	}
+
+	return &user, nil
+}
+
+// SetUser2FASecret stores the encrypted 2FA secret for a user (during setup, before verification)
+func (r *Repository) SetUser2FASecret(userID uuid.UUID, secret string) error {
+	result := r.db.Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("two_factor_secret", secret)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to set 2FA secret: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// EnableUser2FA enables 2FA for a user after successful verification
+func (r *Repository) EnableUser2FA(userID uuid.UUID, backupCodes []string) error {
+	now := time.Now()
+
+	// Use pq.Array() to properly handle PostgreSQL text[] array type
+	result := r.db.Exec(`
+		UPDATE users 
+		SET two_factor_enabled = true, 
+		    two_factor_verified_at = $1, 
+		    two_factor_backup_codes = $2,
+		    updated_at = $3
+		WHERE id = $4`,
+		now, pq.Array(backupCodes), now, userID)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to enable 2FA: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// DisableUser2FA disables 2FA for a user
+func (r *Repository) DisableUser2FA(userID uuid.UUID) error {
+	result := r.db.Model(&models.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"two_factor_enabled":      false,
+			"two_factor_secret":       nil,
+			"two_factor_backup_codes": nil,
+			"two_factor_verified_at":  nil,
+		})
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to disable 2FA: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// UpdateUser2FABackupCodes updates the backup codes for a user (after one is used or regenerated)
+func (r *Repository) UpdateUser2FABackupCodes(userID uuid.UUID, backupCodes []string) error {
+	// Use pq.Array() to properly handle PostgreSQL text[] array type
+	result := r.db.Exec(`
+		UPDATE users 
+		SET two_factor_backup_codes = $1,
+		    updated_at = $2
+		WHERE id = $3`,
+		pq.Array(backupCodes), time.Now(), userID)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to update 2FA backup codes: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// GetUser2FAStatus retrieves the 2FA status for a user
+func (r *Repository) GetUser2FAStatus(userID uuid.UUID) (enabled bool, backupCodesCount int, verifiedAt *time.Time, err error) {
+	var user models.User
+	result := r.db.Select("two_factor_enabled", "two_factor_backup_codes", "two_factor_verified_at").
+		First(&user, "id = ?", userID)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return false, 0, nil, gorm.ErrRecordNotFound
+	}
+	if result.Error != nil {
+		return false, 0, nil, fmt.Errorf("failed to get 2FA status: %w", result.Error)
+	}
+
+	return user.TwoFactorEnabled, len(user.TwoFactorBackupCodes), user.TwoFactorVerifiedAt, nil
 }

@@ -11,6 +11,11 @@ import (
 
 // SetupRoutes configures all HTTP routes
 func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config) *mux.Router {
+	return SetupRoutesWithTOTP(h, jwtMgr, cfg, nil)
+}
+
+// SetupRoutesWithTOTP configures all HTTP routes including 2FA endpoints
+func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config, totpMgr *auth.TOTPManager) *mux.Router {
 	r := mux.NewRouter()
 
 	// Apply global middleware
@@ -28,9 +33,25 @@ func SetupRoutes(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config) *mux.R
 	api.HandleFunc("/auth/login", h.Login).Methods("POST", "OPTIONS")
 	api.HandleFunc("/auth/verify", h.Verify).Methods("POST", "OPTIONS")
 
+	// 2FA verification route (uses X-2FA-Token header, not regular auth)
+	if totpMgr != nil {
+		tfaHandler := NewTwoFactorHandler(h, totpMgr)
+		api.HandleFunc("/auth/2fa/verify", tfaHandler.Verify2FA).Methods("POST", "OPTIONS")
+	}
+
 	// Protected routes (authentication required)
 	protected := api.PathPrefix("").Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtMgr))
+
+	// 2FA management routes (protected - require full authentication)
+	if totpMgr != nil {
+		tfaHandler := NewTwoFactorHandler(h, totpMgr)
+		protected.HandleFunc("/auth/2fa/setup", tfaHandler.Setup2FA).Methods("POST", "OPTIONS")
+		protected.HandleFunc("/auth/2fa/verify-setup", tfaHandler.VerifySetup2FA).Methods("POST", "OPTIONS")
+		protected.HandleFunc("/auth/2fa/disable", tfaHandler.Disable2FA).Methods("POST", "OPTIONS")
+		protected.HandleFunc("/auth/2fa/status", tfaHandler.Get2FAStatus).Methods("GET", "OPTIONS")
+		protected.HandleFunc("/auth/2fa/backup-codes", tfaHandler.RegenerateBackupCodes).Methods("POST", "OPTIONS")
+	}
 
 	// Storage routes
 	protected.HandleFunc("/storage", h.ListStorageConfigs).Methods("GET", "OPTIONS")
