@@ -35,7 +35,7 @@ type DatabaseConfig struct {
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
 	Secret     string
-	Expiration int // in hours
+	Expiration int // in minutes
 }
 
 // DiscordConfig holds Discord configuration
@@ -72,7 +72,7 @@ func Load() (*Config, error) {
 		},
 		JWT: JWTConfig{
 			Secret:     getEnv("JWT_SECRET", ""),
-			Expiration: getEnvAsInt("JWT_EXPIRATION_HOURS", 24),
+			Expiration: getEnvAsInt("JWT_EXPIRATION_MINUTES", 10),
 		},
 		Discord: DiscordConfig{
 			WebhookURL:    getEnv("DISCORD_WEBHOOK_URL", ""),

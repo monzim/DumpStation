@@ -103,7 +103,7 @@ services:
 
       # JWT (change in production!)
       JWT_SECRET: development-secret-change-in-production
-      JWT_EXPIRATION_HOURS: 24
+      JWT_EXPIRATION_MINUTES: 10
 
       # Discord (configure these)
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}

@@ -421,7 +421,7 @@ The Docker image includes pg_dump/pg_restore for PostgreSQL versions 12-17, auto
 | `DB_PASSWORD`            | Database password       | —                |
 | `DB_NAME`                | Database name           | `backup_service` |
 | `JWT_SECRET`             | JWT signing secret      | —                |
-| `JWT_EXPIRATION_HOURS`   | Token expiry            | `24`             |
+| `JWT_EXPIRATION_MINUTES` | Token expiry (minutes)  | `10`             |
 | `DISCORD_WEBHOOK_URL`    | Discord webhook for OTP | —                |
 | `OTP_EXPIRATION_MINUTES` | OTP validity            | `5`              |
 

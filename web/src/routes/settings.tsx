@@ -1,4 +1,5 @@
 import { AppLayout } from "@/components/app-layout";
+import { useTheme } from "@/components/theme-provider";
 import {
   Card,
   CardContent,
@@ -8,8 +9,17 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { TwoFactorSettings } from "@/components/two-factor-settings";
+import { cn } from "@/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
-import { Settings, Shield, User } from "lucide-react";
+import {
+  Monitor,
+  Moon,
+  Palette,
+  Settings,
+  Shield,
+  Sun,
+  User,
+} from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -56,6 +66,8 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
+  const { theme, setTheme } = useTheme();
+
   return (
     <AppLayout>
       <div className="animate-in fade-in duration-300 space-y-8">
@@ -75,6 +87,121 @@ function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* Appearance Section */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-2">
+            <Palette className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Appearance</h2>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Theme</CardTitle>
+              <CardDescription>
+                Choose your preferred color scheme for the interface.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => setTheme("light")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
+                    theme === "light"
+                      ? "border-primary bg-primary/5"
+                      : "border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/20"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "h-10 w-10 rounded-full flex items-center justify-center",
+                      theme === "light"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted-foreground/10 text-muted-foreground"
+                    )}
+                  >
+                    <Sun className="h-5 w-5" />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      theme === "light"
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    Light
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setTheme("dark")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
+                    theme === "dark"
+                      ? "border-primary bg-primary/5"
+                      : "border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/20"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "h-10 w-10 rounded-full flex items-center justify-center",
+                      theme === "dark"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted-foreground/10 text-muted-foreground"
+                    )}
+                  >
+                    <Moon className="h-5 w-5" />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      theme === "dark"
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    Dark
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setTheme("system")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
+                    theme === "system"
+                      ? "border-primary bg-primary/5"
+                      : "border-transparent bg-muted/50 hover:bg-muted hover:border-muted-foreground/20"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "h-10 w-10 rounded-full flex items-center justify-center",
+                      theme === "system"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted-foreground/10 text-muted-foreground"
+                    )}
+                  >
+                    <Monitor className="h-5 w-5" />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      theme === "system"
+                        ? "text-primary"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    System
+                  </span>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Separator />
 
         {/* Security Section */}
         <div className="space-y-6">

@@ -33,10 +33,10 @@ type JWTManager struct {
 }
 
 // NewJWTManager creates a new JWT manager
-func NewJWTManager(secret string, expirationHours int) *JWTManager {
+func NewJWTManager(secret string, expirationMinutes int) *JWTManager {
 	return &JWTManager{
 		secret:          secret,
-		expiration:      time.Duration(expirationHours) * time.Hour,
+		expiration:      time.Duration(expirationMinutes) * time.Minute,
 		twoFAExpiration: 5 * time.Minute, // 5 minutes to complete 2FA
 	}
 }

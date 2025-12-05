@@ -1,8 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -14,11 +12,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Monitor,
-  Moon,
   RefreshCw,
   Settings,
-  Sun,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -92,7 +87,6 @@ export function DashboardNav({
 }: DashboardNavProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const { theme, setTheme } = useTheme();
 
   const handleNavClick = (item: NavItem) => {
     navigate({ to: item.route });
@@ -117,7 +111,7 @@ export function DashboardNav({
   return (
     <>
       {/* Desktop Navigation - Clean pill-style tabs */}
-      <div className="hidden md:flex items-center gap-2">
+      <div className="hidden md:flex items-center gap-3">
         <nav className="flex items-center gap-1 bg-muted/40 p-1 rounded-full">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -140,7 +134,18 @@ export function DashboardNav({
             );
           })}
         </nav>
-        <ThemeToggle />
+
+        {/* Desktop Logout Button */}
+        {onLogout && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleLogout}
+            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* Mobile Navigation - Bottom sheet with modern design */}
@@ -246,48 +251,7 @@ export function DashboardNav({
           </div>
 
           {/* Mobile footer with version/info */}
-          <div className="border-t p-4 space-y-4">
-            {/* Theme selector */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">
-                Theme
-              </span>
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
-                <button
-                  onClick={() => setTheme("light")}
-                  className={cn(
-                    "p-1.5 rounded-md transition-colors",
-                    theme === "light"
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Sun className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setTheme("dark")}
-                  className={cn(
-                    "p-1.5 rounded-md transition-colors",
-                    theme === "dark"
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Moon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setTheme("system")}
-                  className={cn(
-                    "p-1.5 rounded-md transition-colors",
-                    theme === "system"
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Monitor className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+          <div className="border-t p-4">
             <div className="text-xs text-muted-foreground text-center">
               <p className="font-medium">DumpStation v1.0</p>
               <p className="mt-1">PostgreSQL Backup Service</p>

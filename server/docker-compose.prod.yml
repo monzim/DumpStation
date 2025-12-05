@@ -56,7 +56,7 @@ services:
 
       # JWT Configuration
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
-      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-10}
 
       # Discord Notifications
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
