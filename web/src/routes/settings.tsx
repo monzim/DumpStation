@@ -17,6 +17,7 @@ import {
   getUserInitials,
   useDeleteAvatar,
   useUploadAvatar,
+  useUserAvatar,
   useUserProfile,
 } from "@/lib/api/user";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,7 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { data: user, isLoading: isLoadingUser } = useUserProfile();
+  const { data: avatarUrl } = useUserAvatar(user?.has_profile_picture);
   const uploadAvatarMutation = useUploadAvatar();
   const deleteAvatarMutation = useDeleteAvatar();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,7 +139,7 @@ function SettingsPage() {
   };
 
   const handleDeleteAvatar = async () => {
-    if (!user?.profile_picture_url) return;
+    if (!user?.has_profile_picture) return;
 
     try {
       await deleteAvatarMutation.mutateAsync();
@@ -335,7 +337,7 @@ function SettingsPage() {
                   <div className="relative group">
                     <Avatar className="h-24 w-24 ring-2 ring-border ring-offset-2 ring-offset-background">
                       <AvatarImage
-                        src={user?.profile_picture_url}
+                        src={avatarUrl || undefined}
                         alt={user?.discord_username || "Profile"}
                       />
                       <AvatarFallback className="text-2xl font-semibold bg-primary/10 text-primary">
@@ -381,13 +383,13 @@ function SettingsPage() {
                       ) : (
                         <>
                           <Camera className="mr-2 h-4 w-4" />
-                          {user?.profile_picture_url
+                          {user?.has_profile_picture
                             ? "Change Photo"
                             : "Upload Photo"}
                         </>
                       )}
                     </Button>
-                    {user?.profile_picture_url && (
+                    {user?.has_profile_picture && (
                       <Button
                         variant="outline"
                         onClick={handleDeleteAvatar}

@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getUserInitials, useUserProfile } from "@/lib/api/user";
+import { getUserInitials, useUserAvatar, useUserProfile } from "@/lib/api/user";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut, Settings } from "lucide-react";
@@ -22,6 +22,7 @@ interface UserMenuProps {
 export function UserMenu({ onLogout, className }: UserMenuProps) {
   const navigate = useNavigate();
   const { data: user, isLoading } = useUserProfile();
+  const { data: avatarUrl } = useUserAvatar(user?.has_profile_picture);
 
   const handleSettingsClick = () => {
     navigate({ to: "/settings" });
@@ -56,7 +57,7 @@ export function UserMenu({ onLogout, className }: UserMenuProps) {
         >
           <Avatar className="h-9 w-9 cursor-pointer">
             <AvatarImage
-              src={user?.profile_picture_url}
+              src={avatarUrl || undefined}
               alt={user?.discord_username || "User"}
             />
             <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
@@ -71,7 +72,7 @@ export function UserMenu({ onLogout, className }: UserMenuProps) {
           <div className="flex items-center gap-3 py-1">
             <Avatar className="h-10 w-10">
               <AvatarImage
-                src={user?.profile_picture_url}
+                src={avatarUrl || undefined}
                 alt={user?.discord_username || "User"}
               />
               <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">

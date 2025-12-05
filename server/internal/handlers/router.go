@@ -76,6 +76,7 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 
 	// User profile routes - GET allowed for demo
 	protected.HandleFunc("/users/me", h.GetUserProfile).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/users/me/avatar", h.GetUserAvatar).Methods("GET", "OPTIONS")
 
 	// Demo-restricted routes (write operations blocked for demo accounts)
 	demoRestricted := api.PathPrefix("").Subrouter()

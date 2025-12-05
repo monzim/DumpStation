@@ -9,13 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/google/uuid"
-	"github.com/monzim/db_proxy/v1/internal/models"
 )
 
 // MaxAvatarSize is the maximum allowed size for avatar uploads (2MB)
@@ -31,7 +24,7 @@ var AllowedImageTypes = map[string]string{
 
 // AvatarUploadRequest represents the request body for avatar upload
 type AvatarUploadRequest struct {
-	Image string `json:"image"` // Base64-encoded image data
+	Image string `json:"image"` // Base64-encoded image data (data URL format)
 }
 
 // GetUserProfile godoc
@@ -67,15 +60,59 @@ func (h *Handler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, user.ToProfileResponse())
 }
 
+// GetUserAvatar godoc
+// @Summary Get user avatar image
+// @Description Retrieve the profile picture of the currently authenticated user as binary image data
+// @Tags User
+// @Produce image/jpeg,image/png,image/gif,image/webp
+// @Security BearerAuth
+// @Success 200 {file} binary "Avatar image"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "No avatar found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /users/me/avatar [get]
+func (h *Handler) GetUserAvatar(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	user, err := h.repo.GetUserByID(*userID)
+	if err != nil {
+		logError("Failed to get user", err)
+		writeError(w, http.StatusInternalServerError, "failed to get user")
+		return
+	}
+
+	if user == nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	if len(user.ProfilePictureData) == 0 {
+		writeError(w, http.StatusNotFound, "no avatar found")
+		return
+	}
+
+	// Set content type and cache headers
+	w.Header().Set("Content-Type", user.ProfilePictureMimeType)
+	w.Header().Set("Cache-Control", "private, max-age=3600") // Cache for 1 hour
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(user.ProfilePictureData)))
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(user.ProfilePictureData)
+}
+
 // UploadAvatar godoc
 // @Summary Upload user avatar
-// @Description Upload a profile picture for the currently authenticated user. Accepts base64-encoded image data.
+// @Description Upload a profile picture for the currently authenticated user. Accepts base64-encoded image data. The image is stored directly in the database.
 // @Tags User
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param body body AvatarUploadRequest true "Base64-encoded image data"
-// @Success 200 {object} models.UserProfileResponse "Updated user profile with new avatar URL"
+// @Param body body AvatarUploadRequest true "Base64-encoded image data (data URL format)"
+// @Success 200 {object} models.UserProfileResponse "Updated user profile"
 // @Failure 400 {object} map[string]string "Bad request - invalid image format or size"
 // @Failure 401 {object} map[string]string "Unauthorized"
 // @Failure 403 {object} map[string]string "Forbidden - demo users cannot upload avatars"
@@ -118,8 +155,7 @@ func (h *Handler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 	mimeInfo := strings.TrimPrefix(parts[0], "data:")
 	mimeInfo = strings.TrimSuffix(mimeInfo, ";base64")
 
-	ext, ok := AllowedImageTypes[mimeInfo]
-	if !ok {
+	if _, ok := AllowedImageTypes[mimeInfo]; !ok {
 		writeError(w, http.StatusBadRequest, "unsupported image type - allowed: jpeg, png, gif, webp")
 		return
 	}
@@ -138,88 +174,9 @@ func (h *Handler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user's first storage config for uploading avatar
-	isAdmin := getIsAdminFromContext(r)
-	storageConfigs, err := h.repo.ListStorageConfigsByUser(*userID, isAdmin)
-	if err != nil || len(storageConfigs) == 0 {
-		logError("No storage config found for user", err)
-		writeError(w, http.StatusBadRequest, "no storage configuration found - please add a storage config first")
-		return
-	}
-
-	// Use the first storage config
-	storageConfig := storageConfigs[0]
-
-	// Create S3 client
-	awsConfig := &aws.Config{
-		Credentials: credentials.NewStaticCredentials(storageConfig.AccessKey, storageConfig.SecretKey, ""),
-	}
-
-	if storageConfig.Region != "" {
-		awsConfig.Region = aws.String(storageConfig.Region)
-	}
-
-	if storageConfig.Endpoint != "" {
-		awsConfig.Endpoint = aws.String(storageConfig.Endpoint)
-		awsConfig.S3ForcePathStyle = aws.Bool(true)
-	}
-
-	sess, err := session.NewSession(awsConfig)
-	if err != nil {
-		logError("Failed to create AWS session", err)
-		writeError(w, http.StatusInternalServerError, "failed to upload avatar")
-		return
-	}
-
-	s3Client := s3.New(sess)
-
-	// Generate unique filename
-	filename := fmt.Sprintf("avatars/%s/%s%s", userID.String(), uuid.New().String(), ext)
-
-	// Upload to S3
-	_, err = s3Client.PutObject(&s3.PutObjectInput{
-		Bucket:      aws.String(storageConfig.Bucket),
-		Key:         aws.String(filename),
-		Body:        strings.NewReader(string(imageData)),
-		ContentType: aws.String(mimeInfo),
-		ACL:         aws.String("public-read"), // Make avatar publicly accessible
-	})
-
-	if err != nil {
-		logError("Failed to upload avatar to S3", err)
-		writeError(w, http.StatusInternalServerError, "failed to upload avatar")
-		return
-	}
-
-	// Construct the public URL
-	var avatarURL string
-	if storageConfig.Endpoint != "" {
-		// R2 or custom endpoint
-		avatarURL = fmt.Sprintf("%s/%s/%s", strings.TrimSuffix(storageConfig.Endpoint, "/"), storageConfig.Bucket, filename)
-	} else {
-		// Standard S3
-		avatarURL = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", storageConfig.Bucket, storageConfig.Region, filename)
-	}
-
-	// Delete old avatar if exists
-	user, _ := h.repo.GetUserByID(*userID)
-	if user != nil && user.ProfilePictureURL != "" {
-		go func() {
-			oldKey := extractKeyFromURL(user.ProfilePictureURL, storageConfig)
-			if oldKey != "" {
-				if _, err := s3Client.DeleteObject(&s3.DeleteObjectInput{
-					Bucket: aws.String(storageConfig.Bucket),
-					Key:    aws.String(oldKey),
-				}); err != nil {
-					log.Printf("[AVATAR] ⚠️  Failed to delete old avatar: %v", err)
-				}
-			}
-		}()
-	}
-
-	// Update user profile with new avatar URL
-	if err := h.repo.UpdateUserProfilePicture(*userID, avatarURL); err != nil {
-		logError("Failed to update user profile picture URL", err)
+	// Store image data in database
+	if err := h.repo.UpdateUserProfilePicture(*userID, imageData, mimeInfo); err != nil {
+		logError("Failed to update user profile picture", err)
 		writeError(w, http.StatusInternalServerError, "failed to update profile")
 		return
 	}
@@ -232,7 +189,7 @@ func (h *Handler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[AVATAR] ✅ Avatar uploaded for user %s: %s", userID, avatarURL)
+	log.Printf("[AVATAR] ✅ Avatar uploaded for user %s (size: %d bytes, type: %s)", userID, len(imageData), mimeInfo)
 
 	writeJSON(w, http.StatusOK, updatedUser.ToProfileResponse())
 }
@@ -261,56 +218,7 @@ func (h *Handler) DeleteAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get current user to find avatar URL
-	user, err := h.repo.GetUserByID(*userID)
-	if err != nil {
-		logError("Failed to get user", err)
-		writeError(w, http.StatusInternalServerError, "failed to get user")
-		return
-	}
-
-	if user == nil {
-		writeError(w, http.StatusNotFound, "user not found")
-		return
-	}
-
-	// Delete from S3 if avatar exists
-	if user.ProfilePictureURL != "" {
-		isAdmin := getIsAdminFromContext(r)
-		storageConfigs, err := h.repo.ListStorageConfigsByUser(*userID, isAdmin)
-		if err == nil && len(storageConfigs) > 0 {
-			storageConfig := storageConfigs[0]
-
-			awsConfig := &aws.Config{
-				Credentials: credentials.NewStaticCredentials(storageConfig.AccessKey, storageConfig.SecretKey, ""),
-			}
-
-			if storageConfig.Region != "" {
-				awsConfig.Region = aws.String(storageConfig.Region)
-			}
-
-			if storageConfig.Endpoint != "" {
-				awsConfig.Endpoint = aws.String(storageConfig.Endpoint)
-				awsConfig.S3ForcePathStyle = aws.Bool(true)
-			}
-
-			sess, err := session.NewSession(awsConfig)
-			if err == nil {
-				s3Client := s3.New(sess)
-				key := extractKeyFromURL(user.ProfilePictureURL, storageConfig)
-				if key != "" {
-					if _, err := s3Client.DeleteObject(&s3.DeleteObjectInput{
-						Bucket: aws.String(storageConfig.Bucket),
-						Key:    aws.String(key),
-					}); err != nil {
-						log.Printf("[AVATAR] ⚠️  Failed to delete avatar from S3: %v", err)
-					}
-				}
-			}
-		}
-	}
-
-	// Clear the profile picture URL in database
+	// Clear the profile picture in database
 	if err := h.repo.DeleteUserProfilePicture(*userID); err != nil {
 		logError("Failed to delete user profile picture", err)
 		writeError(w, http.StatusInternalServerError, "failed to delete avatar")
@@ -331,15 +239,14 @@ func (h *Handler) DeleteAvatar(w http.ResponseWriter, r *http.Request) {
 }
 
 // UploadAvatarMultipart handles multipart form upload for avatars
-// This is an alternative endpoint that accepts file uploads directly
 // @Summary Upload user avatar (multipart form)
-// @Description Upload a profile picture using multipart form data
+// @Description Upload a profile picture using multipart form data. The image is stored directly in the database.
 // @Tags User
 // @Accept multipart/form-data
 // @Produce json
 // @Security BearerAuth
 // @Param avatar formData file true "Avatar image file"
-// @Success 200 {object} models.UserProfileResponse "Updated user profile with new avatar URL"
+// @Success 200 {object} models.UserProfileResponse "Updated user profile"
 // @Failure 400 {object} map[string]string "Bad request"
 // @Failure 401 {object} map[string]string "Unauthorized"
 // @Failure 403 {object} map[string]string "Forbidden"
@@ -389,8 +296,7 @@ func (h *Handler) UploadAvatarMultipart(w http.ResponseWriter, r *http.Request) 
 	// Reset file pointer
 	file.Seek(0, 0)
 
-	ext, ok := AllowedImageTypes[contentType]
-	if !ok {
+	if _, ok := AllowedImageTypes[contentType]; !ok {
 		writeError(w, http.StatusBadRequest, "unsupported image type - allowed: jpeg, png, gif, webp")
 		return
 	}
@@ -402,115 +308,24 @@ func (h *Handler) UploadAvatarMultipart(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get user's storage config
-	isAdmin := getIsAdminFromContext(r)
-	storageConfigs, err := h.repo.ListStorageConfigsByUser(*userID, isAdmin)
-	if err != nil || len(storageConfigs) == 0 {
-		writeError(w, http.StatusBadRequest, "no storage configuration found - please add a storage config first")
-		return
-	}
-
-	storageConfig := storageConfigs[0]
-
-	// Create S3 client
-	awsConfig := &aws.Config{
-		Credentials: credentials.NewStaticCredentials(storageConfig.AccessKey, storageConfig.SecretKey, ""),
-	}
-
-	if storageConfig.Region != "" {
-		awsConfig.Region = aws.String(storageConfig.Region)
-	}
-
-	if storageConfig.Endpoint != "" {
-		awsConfig.Endpoint = aws.String(storageConfig.Endpoint)
-		awsConfig.S3ForcePathStyle = aws.Bool(true)
-	}
-
-	sess, err := session.NewSession(awsConfig)
-	if err != nil {
-		logError("Failed to create AWS session", err)
-		writeError(w, http.StatusInternalServerError, "failed to upload avatar")
-		return
-	}
-
-	s3Client := s3.New(sess)
-
-	// Generate unique filename
-	filename := fmt.Sprintf("avatars/%s/%s%s", userID.String(), uuid.New().String(), ext)
-
-	// Upload to S3
-	_, err = s3Client.PutObject(&s3.PutObjectInput{
-		Bucket:      aws.String(storageConfig.Bucket),
-		Key:         aws.String(filename),
-		Body:        strings.NewReader(string(imageData)),
-		ContentType: aws.String(contentType),
-		ACL:         aws.String("public-read"),
-	})
-
-	if err != nil {
-		logError("Failed to upload avatar to S3", err)
-		writeError(w, http.StatusInternalServerError, "failed to upload avatar")
-		return
-	}
-
-	// Construct the public URL
-	var avatarURL string
-	if storageConfig.Endpoint != "" {
-		avatarURL = fmt.Sprintf("%s/%s/%s", strings.TrimSuffix(storageConfig.Endpoint, "/"), storageConfig.Bucket, filename)
-	} else {
-		avatarURL = fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", storageConfig.Bucket, storageConfig.Region, filename)
-	}
-
-	// Delete old avatar
-	user, _ := h.repo.GetUserByID(*userID)
-	if user != nil && user.ProfilePictureURL != "" {
-		go func() {
-			oldKey := extractKeyFromURL(user.ProfilePictureURL, storageConfig)
-			if oldKey != "" {
-				s3Client.DeleteObject(&s3.DeleteObjectInput{
-					Bucket: aws.String(storageConfig.Bucket),
-					Key:    aws.String(oldKey),
-				})
-			}
-		}()
-	}
-
-	// Update database
-	if err := h.repo.UpdateUserProfilePicture(*userID, avatarURL); err != nil {
-		logError("Failed to update user profile picture URL", err)
+	// Store image data in database
+	if err := h.repo.UpdateUserProfilePicture(*userID, imageData, contentType); err != nil {
+		logError("Failed to update user profile picture", err)
 		writeError(w, http.StatusInternalServerError, "failed to update profile")
 		return
 	}
 
 	// Get updated profile
-	updatedUser, _ := h.repo.GetUserByID(*userID)
+	updatedUser, err := h.repo.GetUserByID(*userID)
+	if err != nil {
+		logError("Failed to get updated user profile", err)
+		writeError(w, http.StatusInternalServerError, "avatar uploaded but failed to fetch updated profile")
+		return
+	}
 
-	log.Printf("[AVATAR] ✅ Avatar uploaded for user %s: %s", userID, avatarURL)
+	log.Printf("[AVATAR] ✅ Avatar uploaded for user %s (size: %d bytes, type: %s)", userID, len(imageData), contentType)
 
 	writeJSON(w, http.StatusOK, updatedUser.ToProfileResponse())
-}
-
-// extractKeyFromURL extracts the S3 key from a full URL
-func extractKeyFromURL(url string, config *models.StorageConfig) string {
-	if url == "" {
-		return ""
-	}
-
-	// Try to extract key from the URL
-	if config.Endpoint != "" {
-		prefix := fmt.Sprintf("%s/%s/", strings.TrimSuffix(config.Endpoint, "/"), config.Bucket)
-		if strings.HasPrefix(url, prefix) {
-			return strings.TrimPrefix(url, prefix)
-		}
-	}
-
-	// Standard S3 URL format
-	prefix := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/", config.Bucket, config.Region)
-	if strings.HasPrefix(url, prefix) {
-		return strings.TrimPrefix(url, prefix)
-	}
-
-	return ""
 }
 
 // Unused import placeholder to avoid compile errors when not all are needed

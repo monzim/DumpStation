@@ -1307,11 +1307,14 @@ func (r *Repository) GetUser2FAStatus(userID uuid.UUID) (enabled bool, backupCod
 // User Profile Operations
 // ========================================
 
-// UpdateUserProfilePicture updates the user's profile picture URL
-func (r *Repository) UpdateUserProfilePicture(userID uuid.UUID, profilePictureURL string) error {
+// UpdateUserProfilePicture updates the user's profile picture stored as binary data
+func (r *Repository) UpdateUserProfilePicture(userID uuid.UUID, imageData []byte, mimeType string) error {
 	result := r.db.Model(&models.User{}).
 		Where("id = ?", userID).
-		Update("profile_picture_url", profilePictureURL)
+		Updates(map[string]interface{}{
+			"profile_picture_data":      imageData,
+			"profile_picture_mime_type": mimeType,
+		})
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to update profile picture: %w", result.Error)
@@ -1324,11 +1327,14 @@ func (r *Repository) UpdateUserProfilePicture(userID uuid.UUID, profilePictureUR
 	return nil
 }
 
-// DeleteUserProfilePicture removes the user's profile picture URL
+// DeleteUserProfilePicture removes the user's profile picture
 func (r *Repository) DeleteUserProfilePicture(userID uuid.UUID) error {
 	result := r.db.Model(&models.User{}).
 		Where("id = ?", userID).
-		Update("profile_picture_url", "")
+		Updates(map[string]interface{}{
+			"profile_picture_data":      nil,
+			"profile_picture_mime_type": "",
+		})
 
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete profile picture: %w", result.Error)

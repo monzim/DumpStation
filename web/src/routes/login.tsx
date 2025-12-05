@@ -262,7 +262,7 @@ function LoginPage() {
 
           {/* Footer */}
           <p className="text-sm text-primary-foreground/60">
-            © {new Date().getFullYear()} DumpStation. All rights reserved.
+            © {new Date().getFullYear()} monzim.com. All rights reserved.
           </p>
         </div>
       </div>

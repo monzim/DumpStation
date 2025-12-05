@@ -172,3 +172,18 @@ export class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+/**
+ * Get the current auth token from the API client
+ * Useful for constructing authenticated URLs for image requests
+ */
+export const getAuthToken = (): string | null => {
+  return apiClient.getToken();
+};
+
+/**
+ * Get the API base URL
+ */
+export const getApiBaseUrl = (): string => {
+  return import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";
+};

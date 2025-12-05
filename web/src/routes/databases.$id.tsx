@@ -383,7 +383,8 @@ function RouteComponent() {
   const successCount =
     backups?.filter((b) => b.status === "success").length || 0;
   const failedCount = backups?.filter((b) => b.status === "failed").length || 0;
-  const totalSize = backups?.reduce((acc, b) => acc + b.size_bytes, 0) || 0;
+  const totalSize =
+    backups?.reduce((acc, b) => acc + (b.size_bytes ?? 0), 0) || 0;
   const successRate = backups?.length
     ? Math.round((successCount / backups.length) * 100)
     : 0;

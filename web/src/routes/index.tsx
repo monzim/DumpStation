@@ -609,7 +609,7 @@ function LandingPage() {
               </a>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} DumpStation. All rights reserved.
+              © {new Date().getFullYear()} monzim.com. All rights reserved.
             </p>
           </div>
         </div>

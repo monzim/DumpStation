@@ -1,6 +1,56 @@
 import type { AvatarUploadRequest, UserProfile } from "@/lib/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "./client";
+import { apiClient, getApiBaseUrl, getAuthToken } from "./client";
+
+/**
+ * Fetch the user's avatar as a data URL
+ * This handles the auth header properly by using fetch with Authorization
+ */
+const fetchAvatarAsDataUrl = async (): Promise<string | null> => {
+  const token = getAuthToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/users/me/avatar`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null; // No avatar
+      }
+      throw new Error(`Failed to fetch avatar: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Failed to fetch avatar:", error);
+    return null;
+  }
+};
+
+/**
+ * Hook to get the user's avatar as a data URL
+ * This properly handles authentication by fetching with Authorization header
+ */
+export const useUserAvatar = (hasProfilePicture?: boolean) => {
+  return useQuery({
+    queryKey: ["user-avatar", hasProfilePicture],
+    queryFn: fetchAvatarAsDataUrl,
+    enabled: !!hasProfilePicture,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: 1,
+  });
+};
 
 /**
  * Hook to get the current user's profile
@@ -27,8 +77,9 @@ export const useUploadAvatar = () => {
       return apiClient.post<UserProfile>("/users/me/avatar", data);
     },
     onSuccess: () => {
-      // Invalidate user profile query to reflect the new avatar
+      // Invalidate both user profile and avatar queries
       queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["user-avatar"] });
     },
   });
 };
@@ -44,8 +95,9 @@ export const useDeleteAvatar = () => {
       return apiClient.delete<UserProfile>("/users/me/avatar");
     },
     onSuccess: () => {
-      // Invalidate user profile query to reflect the removed avatar
+      // Invalidate both user profile and avatar queries
       queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["user-avatar"] });
     },
   });
 };

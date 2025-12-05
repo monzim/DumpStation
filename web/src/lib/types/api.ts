@@ -154,11 +154,11 @@ export interface Backup {
   name: string;
   database_id: string;
   status: BackupStatus;
-  size_bytes: number;
-  storage_path: string;
+  size_bytes?: number;
+  storage_path?: string;
   timestamp: string;
-  completed_at: string;
-  error_message: string;
+  completed_at?: string;
+  error_message?: string;
 }
 
 export interface RestoreRequest {
@@ -232,7 +232,7 @@ export interface UserProfile {
   discord_user_id: string;
   discord_username: string;
   email: string;
-  profile_picture_url?: string;
+  has_profile_picture: boolean;
   is_demo: boolean;
   is_admin: boolean;
   two_factor_enabled: boolean;
