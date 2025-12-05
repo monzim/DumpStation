@@ -174,10 +174,15 @@ func main() {
 // ensureSystemUser ensures the single system user exists in the database
 // This is called at startup to seed the default user if not present
 func ensureSystemUser(repo *repository.Repository) error {
-	const (
-		systemUsername = "monzim"
-		systemEmail    = "dev@monzim.com"
-	)
+	// Get system user credentials from environment with defaults
+	systemUsername := os.Getenv("SYSTEM_USERNAME")
+	if systemUsername == "" {
+		systemUsername = "root"
+	}
+	systemEmail := os.Getenv("SYSTEM_EMAIL")
+	if systemEmail == "" {
+		systemEmail = "root@dumpstation.monzim.com"
+	}
 
 	// Check if system user already exists
 	user, err := repo.GetSystemUser()
