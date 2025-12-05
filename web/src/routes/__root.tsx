@@ -147,19 +147,23 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           <AuthProvider>{children}</AuthProvider>
           <Toaster />
         </ThemeProvider>
-        <TanStackDevtools
-          config={{
-            position: "bottom-right",
-          }}
-          plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        {import.meta.env.DEV && (
+          <TanStackDevtools
+            config={{
+              position: "bottom-right",
+            }}
+            plugins={[
+              {
+                name: "Tanstack Router",
+                render: <TanStackRouterDevtoolsPanel />,
+              },
+            ]}
+          />
+        )}
         <Scripts />
-        <ReactQueryDevtools buttonPosition="bottom-left" />
+        {import.meta.env.DEV && (
+          <ReactQueryDevtools buttonPosition="bottom-left" />
+        )}
       </body>
     </html>
   );
