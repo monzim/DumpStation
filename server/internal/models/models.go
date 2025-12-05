@@ -10,11 +10,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// User represents a system user
+// User represents a system user (single-user system - only one user allowed)
 type User struct {
 	ID                   uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	DiscordUserID        string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"discord_user_id"`
 	DiscordUsername      string         `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
+	Email                string         `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
 	TwoFactorSecret      string         `gorm:"type:text" json:"-"`                                     // Encrypted TOTP secret
 	TwoFactorEnabled     bool           `gorm:"default:false" json:"two_factor_enabled"`                // Whether 2FA is enabled
 	TwoFactorBackupCodes pq.StringArray `gorm:"type:text[]" json:"-"`                                   // Hashed backup recovery codes
@@ -451,14 +452,14 @@ type SystemStats struct {
 	TotalStorageUsedBytes int64   `json:"total_storage_used_bytes" example:"1073741824"`
 }
 
-// LoginRequest for authentication
+// LoginRequest for authentication (single-user system)
 type LoginRequest struct {
-	Username string `json:"username,omitempty" example:"admin"`
+	Username string `json:"username,omitempty" example:"monzim"` // Username or email of the single system user
 }
 
-// VerifyRequest for OTP verification
+// VerifyRequest for OTP verification (single-user system)
 type VerifyRequest struct {
-	Username string `json:"username,omitempty" example:"admin"`
+	Username string `json:"username,omitempty" example:"monzim"` // Username or email of the single system user
 	OTP      string `json:"otp" validate:"required,len=6" example:"123456"`
 }
 

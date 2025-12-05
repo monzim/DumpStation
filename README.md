@@ -494,11 +494,3 @@ Made with ❤️ by [Monzim](https://github.com/monzim)
 ⭐ Star this repo if you find it useful!
 
 </div>
-
-this site backend will store very sensitive user information like database credentials hostname password, database name, username etc. As well s3 credentials like access key, secret key, bucket name etc. So it is very important to keep this information secure and not expose it in the api or frontend code. Becasue we are storing sensitve informations in our datbase as plain text. And some api's are also exposing these sensitive information. So we need to take some steps to secure this information. Here are some best practices to ensure the security of sensitive information:
-
-1. All get apis should not expose sensitive information. If any api response contains sensitive information, it should be removed from the response before sending it to the client. (like database credentials, s3 credentials etc, full hostname with username and password etc (only a particall hostname can be exposed (like **_.example.com_** instead of **_username:password@example.com_**)))
-
-2. To see the sensitive information, create a separate secure api which will require authentication and proper authorization to access. Each time this api is called, it should log the access with user details and timestamp for auditing purposes. And eachtime to view data data
-
-I want to add 2fa verification for this api to add an extra layer of security. access should be logged with user details and timestamp for auditing purposes. User will setup 2fa if not setup already. (use authentication apps like google authenticator, authy etc for 2fa verification). SO properly implement that

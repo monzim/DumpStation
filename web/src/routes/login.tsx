@@ -9,10 +9,10 @@ import {
   Database,
   KeyRound,
   Loader2,
-  Lock,
   MessageCircle,
   Shield,
   Smartphone,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -65,12 +65,11 @@ export const Route = createFileRoute("/login")({
   }),
 });
 
-const DEFAULT_USERNAME = "system";
-
 type LoginStep = "login" | "verify" | "2fa";
 
 function LoginPage() {
   const [step, setStep] = useState<LoginStep>("login");
+  const [username, setUsername] = useState("");
   const [otp, setOtp] = useState("");
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const navigate = useNavigate();
@@ -79,9 +78,18 @@ function LoginPage() {
   const verifyMutation = useVerify();
   const verify2FAMutation = useVerify2FA();
 
-  const handleLogin = async () => {
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+
+    if (!username.trim()) {
+      toast.error("Username required", {
+        description: "Please enter your username or email",
+      });
+      return;
+    }
+
     try {
-      await loginMutation.mutateAsync({ username: DEFAULT_USERNAME });
+      await loginMutation.mutateAsync({ username: username.trim() });
       toast.success("OTP sent successfully", {
         description: "Check your Discord for the verification code.",
       });
@@ -89,7 +97,7 @@ function LoginPage() {
     } catch (error: unknown) {
       const apiError = error as { message?: string };
       toast.error("Login failed", {
-        description: apiError.message || "Failed to send OTP",
+        description: apiError.message || "Invalid credentials",
       });
     }
   };
@@ -99,7 +107,7 @@ function LoginPage() {
 
     try {
       const response = await verifyMutation.mutateAsync({
-        username: DEFAULT_USERNAME,
+        username: username.trim(),
         otp,
       });
 
@@ -148,9 +156,23 @@ function LoginPage() {
     if (step === "2fa") {
       setStep("verify");
       setTwoFactorCode("");
-    } else {
+    } else if (step === "verify") {
       setStep("login");
       setOtp("");
+    }
+  };
+
+  const handleResendOTP = async () => {
+    try {
+      await loginMutation.mutateAsync({ username: username.trim() });
+      toast.success("OTP resent", {
+        description: "Check your Discord for the new verification code.",
+      });
+    } catch (error: unknown) {
+      const apiError = error as { message?: string };
+      toast.error("Failed to resend OTP", {
+        description: apiError.message || "Please try again",
+      });
     }
   };
 
@@ -242,7 +264,7 @@ function LoginPage() {
             <div className="text-center space-y-2">
               <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-4">
                 {step === "login" ? (
-                  <Lock className="h-8 w-8 text-primary" />
+                  <User className="h-8 w-8 text-primary" />
                 ) : step === "verify" ? (
                   <KeyRound className="h-8 w-8 text-primary" />
                 ) : (
@@ -258,7 +280,7 @@ function LoginPage() {
               </h2>
               <p className="text-muted-foreground">
                 {step === "login"
-                  ? "Sign in to access your backup dashboard"
+                  ? "Enter your username or email to sign in"
                   : step === "verify"
                     ? "We've sent a code to your Discord"
                     : "Enter the code from your authenticator app"}
@@ -267,10 +289,28 @@ function LoginPage() {
 
             {/* Login Step */}
             {step === "login" ? (
-              <div className="space-y-6">
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-3">
+                  <Label htmlFor="username" className="text-sm font-medium">
+                    Username or Email
+                  </Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username or email"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    disabled={loginMutation.isPending}
+                    required
+                    autoFocus
+                    autoComplete="username"
+                    className="h-12"
+                  />
+                </div>
+
                 <Button
-                  onClick={handleLogin}
-                  disabled={loginMutation.isPending}
+                  type="submit"
+                  disabled={loginMutation.isPending || !username.trim()}
                   className="w-full h-12 text-base"
                   size="lg"
                 >
@@ -302,7 +342,7 @@ function LoginPage() {
                   A one-time password will be sent to your configured Discord
                   channel for verification.
                 </p>
-              </div>
+              </form>
             ) : step === "verify" ? (
               /* Verify Step */
               <form onSubmit={handleVerify} className="space-y-6">
@@ -373,7 +413,7 @@ function LoginPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleLogin}
+                  onClick={handleResendOTP}
                   disabled={loginMutation.isPending}
                   className="w-full"
                 >

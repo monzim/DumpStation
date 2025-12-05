@@ -184,16 +184,25 @@ http://localhost:8080/api/v1
 
 ### Authentication Flow
 
+**Single-User System**: This application operates in single-user mode. A default system user is created on first startup:
+
+- **Username**: `example`
+- **Email**: `exmaple@ex.com`
+
+No additional users can be created via the API.
+
 1. **Request OTP** (check your Discord webhook for the code):
 
 ```bash
-# Simple - no body required (uses default 'admin' user)
-curl -X POST http://localhost:8080/api/v1/auth/login
-
-# Or with optional username
+# Login with username
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin"}'
+  -d '{"username": "example"}'
+
+# Or login with email
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "exmaple@ex.com"}'
 ```
 
 2. **Verify OTP and Get JWT**:
@@ -201,7 +210,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/verify \
   -H "Content-Type: application/json" \
-  -d '{"otp": "123456"}'
+  -d '{"username": "example", "otp": "123456"}'
 ```
 
 3. **Use JWT for authenticated requests**:

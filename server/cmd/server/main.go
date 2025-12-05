@@ -66,6 +66,11 @@ func main() {
 	// Initialize GORM repository
 	repo := repository.NewGORM(db.DB)
 
+	// Ensure system user exists (single-user system)
+	if err := ensureSystemUser(repo); err != nil {
+		log.Fatalf("Failed to ensure system user exists: %v", err)
+	}
+
 	// Initialize JWT manager
 	jwtMgr := auth.NewJWTManager(cfg.JWT.Secret, cfg.JWT.Expiration)
 
@@ -158,4 +163,33 @@ func main() {
 	}
 
 	log.Println("Server exited gracefully")
+}
+
+// ensureSystemUser ensures the single system user exists in the database
+// This is called at startup to seed the default user if not present
+func ensureSystemUser(repo *repository.Repository) error {
+	const (
+		systemUsername = "monzim"
+		systemEmail    = "dev@monzim.com"
+	)
+
+	// Check if system user already exists
+	user, err := repo.GetSystemUser()
+	if err != nil {
+		return err
+	}
+
+	if user != nil {
+		log.Printf("[AUTH] ✅ System user exists: %s (%s)", user.DiscordUsername, user.Email)
+		return nil
+	}
+
+	// Create the system user using raw SQL since CreateUser is disabled
+	log.Printf("[AUTH] 🔧 Creating system user: %s (%s)", systemUsername, systemEmail)
+	if err := repo.SeedSystemUser(systemUsername, systemEmail); err != nil {
+		return err
+	}
+
+	log.Printf("[AUTH] ✅ System user created successfully")
+	return nil
 }

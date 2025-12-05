@@ -48,13 +48,14 @@ func New(repo *repository.Repository, jwtMgr *auth.JWTManager, backupSvc *backup
 
 // Login godoc
 // @Summary Request OTP for authentication
-// @Description Sends a one-time password to the configured Discord webhook for authentication. For single-user mode, username defaults to "admin".
+// @Description Sends a one-time password to the configured Discord webhook for authentication. Single-user system - user must provide valid username or email.
 // @Tags Authentication
 // @Accept json
 // @Produce json
-// @Param body body models.LoginRequest false "Login request (optional in single-user mode)"
+// @Param body body models.LoginRequest true "Login request with username or email"
 // @Success 200 {object} map[string]string "OTP sent successfully"
 // @Failure 400 {object} map[string]string "Bad request"
+// @Failure 401 {object} map[string]string "Invalid credentials"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /auth/login [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -62,38 +63,36 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	var req models.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// Allow empty body for single-user mode
-		req.Username = "admin"
-		logInfo("Empty request body, defaulting to username: admin")
+		logError("Invalid request body in login", err)
+		writeError(w, http.StatusBadRequest, "invalid request body: username or email is required")
+		return
 	}
 
-	// Default to admin for single-user
+	// Validate that username is provided
 	if req.Username == "" {
-		req.Username = "admin"
+		logError("Login attempt without username", nil)
+		writeError(w, http.StatusBadRequest, "username or email is required")
+		return
 	}
 
-	logInfo("Processing login for username: %s", req.Username)
+	logInfo("Processing login for username/email: %s", req.Username)
 
-	// Get or create user
-	user, err := h.repo.GetUserByDiscordID(req.Username)
+	// Get the single system user by username or email
+	user, err := h.repo.GetUserByUsernameOrEmail(req.Username)
 	if err != nil {
 		logError(fmt.Sprintf("Failed to get user: %s", req.Username), err)
 		writeError(w, http.StatusInternalServerError, "failed to get user")
 		return
 	}
 
+	// Single-user system: user must already exist (no auto-creation)
 	if user == nil {
-		logInfo("User not found, creating new user: %s", req.Username)
-		user, err = h.repo.CreateUser(req.Username, req.Username)
-		if err != nil {
-			logError(fmt.Sprintf("Failed to create user: %s", req.Username), err)
-			writeError(w, http.StatusInternalServerError, "failed to create user")
-			return
-		}
-		logInfo("✅ New user created: %s (ID: %s)", req.Username, user.ID)
-	} else {
-		logInfo("✅ Existing user found: %s (ID: %s)", req.Username, user.ID)
+		log.Printf("[AUTH] ❌ Invalid login attempt - user not found: %s", req.Username)
+		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		return
 	}
+
+	logInfo("✅ User authenticated: %s (ID: %s)", user.DiscordUsername, user.ID)
 
 	// Generate OTP
 	otp, err := auth.GenerateOTP()
@@ -103,12 +102,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logInfo("✅ OTP generated for user: %s", req.Username)
+	logInfo("✅ OTP generated for user: %s", user.DiscordUsername)
 
 	// Store OTP
 	expiresAt := time.Now().Add(h.otpExpiry)
 	if err := h.repo.CreateOTP(user.ID, otp, expiresAt); err != nil {
-		logError(fmt.Sprintf("Failed to store OTP for user: %s", req.Username), err)
+		logError(fmt.Sprintf("Failed to store OTP for user: %s", user.DiscordUsername), err)
 		writeError(w, http.StatusInternalServerError, "failed to store OTP")
 		return
 	}
@@ -128,7 +127,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[WARNING] ⚠️  Discord notifier not configured, OTP not sent: %s", otp)
 	}
 
-	logInfo("✅ Login successful for user: %s", req.Username)
+	logInfo("✅ Login successful for user: %s", user.DiscordUsername)
 	writeJSON(w, http.StatusOK, map[string]string{
 		"message": "OTP sent to Discord webhook",
 	})
@@ -156,15 +155,17 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default to admin for single-user
+	// Validate that username is provided
 	if req.Username == "" {
-		req.Username = "admin"
+		logError("Verify attempt without username", nil)
+		writeError(w, http.StatusBadRequest, "username or email is required")
+		return
 	}
 
-	logInfo("Verifying OTP for username: %s", req.Username)
+	logInfo("Verifying OTP for username/email: %s", req.Username)
 
-	// Get user
-	user, err := h.repo.GetUserByDiscordID(req.Username)
+	// Get user by username or email
+	user, err := h.repo.GetUserByUsernameOrEmail(req.Username)
 	if err != nil {
 		logError(fmt.Sprintf("Failed to get user during verify: %s", req.Username), err)
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
@@ -176,36 +177,36 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logInfo("User found: %s (ID: %s), verifying OTP...", req.Username, user.ID)
+	logInfo("User found: %s (ID: %s), verifying OTP...", user.DiscordUsername, user.ID)
 
 	// Verify OTP
 	valid, err := h.repo.VerifyOTP(user.ID, req.OTP)
 	if err != nil {
-		logError(fmt.Sprintf("OTP verification error for user: %s", req.Username), err)
+		logError(fmt.Sprintf("OTP verification error for user: %s", user.DiscordUsername), err)
 		writeError(w, http.StatusUnauthorized, "invalid or expired OTP")
 		return
 	}
 	if !valid {
-		log.Printf("[AUTH] ❌ Invalid or expired OTP for user: %s", req.Username)
+		log.Printf("[AUTH] ❌ Invalid or expired OTP for user: %s", user.DiscordUsername)
 		writeError(w, http.StatusUnauthorized, "invalid or expired OTP")
 		return
 	}
 
-	logInfo("✅ OTP verified successfully for user: %s", req.Username)
+	logInfo("✅ OTP verified successfully for user: %s", user.DiscordUsername)
 
 	// Check if 2FA is enabled for this user
 	if user.TwoFactorEnabled {
-		logInfo("2FA is enabled for user: %s, generating 2FA token...", req.Username)
+		logInfo("2FA is enabled for user: %s, generating 2FA token...", user.DiscordUsername)
 
 		// Generate a temporary 2FA token
 		twoFAToken, expiresAt, err := h.jwtMgr.Generate2FAToken(user.ID, user.DiscordUserID)
 		if err != nil {
-			logError(fmt.Sprintf("Failed to generate 2FA token for user: %s", req.Username), err)
+			logError(fmt.Sprintf("Failed to generate 2FA token for user: %s", user.DiscordUsername), err)
 			writeError(w, http.StatusInternalServerError, "failed to generate token")
 			return
 		}
 
-		logInfo("✅ 2FA token generated for user: %s (expires: %v)", req.Username, expiresAt)
+		logInfo("✅ 2FA token generated for user: %s (expires: %v)", user.DiscordUsername, expiresAt)
 
 		// Log that 2FA is required
 		h.logActivity(&user.ID, models.ActionLogin, models.LogLevelInfo,

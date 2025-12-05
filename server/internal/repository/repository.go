@@ -21,24 +21,59 @@ func NewGORM(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// User operations
+// User operations (single-user system)
 
-func (r *Repository) CreateUser(discordUserID, discordUsername string) (*models.User, error) {
-	user := &models.User{
-		DiscordUserID:   discordUserID,
-		DiscordUsername: discordUsername,
+// GetSystemUser retrieves the single system user (there can only be one user)
+func (r *Repository) GetSystemUser() (*models.User, error) {
+	var user models.User
+	result := r.db.First(&user)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
 	}
-
-	// Upsert: Update if exists, insert if not
-	result := r.db.Where("discord_user_id = ?", discordUserID).
-		Assign(models.User{DiscordUsername: discordUsername}).
-		FirstOrCreate(user)
-
 	if result.Error != nil {
-		return nil, fmt.Errorf("failed to create user: %w", result.Error)
+		return nil, fmt.Errorf("failed to get system user: %w", result.Error)
 	}
 
-	return user, nil
+	return &user, nil
+}
+
+// SeedSystemUser creates the single system user during application startup
+// This bypasses the disabled CreateUser method for initial seeding only
+func (r *Repository) SeedSystemUser(username, email string) error {
+	user := &models.User{
+		ID:              uuid.New(),
+		DiscordUserID:   username,
+		DiscordUsername: username,
+		Email:           email,
+	}
+
+	result := r.db.Create(user)
+	if result.Error != nil {
+		return fmt.Errorf("failed to seed system user: %w", result.Error)
+	}
+
+	return nil
+}
+
+// GetUserByUsernameOrEmail retrieves a user by username (discord_user_id) or email
+func (r *Repository) GetUserByUsernameOrEmail(usernameOrEmail string) (*models.User, error) {
+	var user models.User
+	result := r.db.Where("discord_user_id = ? OR email = ?", usernameOrEmail, usernameOrEmail).First(&user)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get user: %w", result.Error)
+	}
+
+	return &user, nil
+}
+
+// CreateUser is disabled for single-user system - kept for compatibility but returns error
+func (r *Repository) CreateUser(discordUserID, discordUsername string) (*models.User, error) {
+	return nil, fmt.Errorf("user creation is disabled: single-user system only supports the pre-configured user")
 }
 
 func (r *Repository) GetUserByDiscordID(discordUserID string) (*models.User, error) {
