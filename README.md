@@ -1,496 +1,482 @@
-<!-- show the public og image web/public/images/og.webp in center-->
-
-# DumpStation
-
 <div align="center">
-  <img src="web/public/images/og.webp" alt="DumpStation OG Image" />
-</div>
-
-</br>
-
-<div align="center">
-
-![DumpStation](https://img.shields.io/badge/DumpStation-PostgreSQL%20Backup%20Service-blue?style=for-the-badge&logo=postgresql)
-
-**A comprehensive, self-hosted PostgreSQL backup management system with a modern web interface**
-
-[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go)](https://golang.org)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript)](https://typescriptlang.org)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12--17-336791?style=flat-square&logo=postgresql)](https://postgresql.org)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)](https://docker.com)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-
-[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Screenshots](#-screenshots) • [API](#-api-documentation)
-
+  <img src="web/public/images/og.webp" alt="DumpStation Logo" />
+  
+  # 🗄️ DumpStation
+  
+  **Self-Hosted PostgreSQL Backup Management System**
+  
+  Automate your database backups with cloud storage integration, Discord notifications, and a modern web interface.
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://go.dev/)
+  [![React Version](https://img.shields.io/badge/React-19.2-61DAFB?logo=react)](https://react.dev/)
+  [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)](https://www.docker.com/)
+  [![Live Demo](https://img.shields.io/badge/Live-Demo-success?logo=google-chrome)](https://dumpstation.monzim.com)
+  
+  [Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing) • [License](#-license)
+  
 </div>
 
 ---
 
-## 📋 Overview
+## 📖 Overview
 
-DumpStation is a powerful, self-hosted solution for automating PostgreSQL database backups. It provides a RESTful API backend built with Go and a modern web dashboard built with React, making it easy to manage, schedule, and monitor backups across multiple databases.
+**DumpStation** is a production-ready, self-hosted solution for managing PostgreSQL database backups. It combines automated scheduling, cloud storage integration, and real-time notifications in a single, easy-to-deploy application.
 
-Perfect for DevOps teams, solo developers, and organizations that need reliable, automated database backups with Discord notifications and cloud storage integration.
+Perfect for DevOps teams, solo developers, and organizations that need reliable, automated database backups without vendor lock-in.
+
+### 🎯 Why DumpStation?
+
+- **🔒 Self-Hosted**: Full control over your data and backups
+- **☁️ Cloud Native**: Native support for AWS S3, Cloudflare R2, and MinIO
+- **🤖 Automated**: Set it and forget it with cron-based scheduling
+- **🔔 Real-time Alerts**: Discord notifications for backup status
+- **🎨 Modern UI**: Beautiful, responsive dashboard built with React
+- **🐳 Docker Ready**: Deploy in minutes with Docker Compose
+- **🔐 Secure**: JWT authentication, 2FA support, multi-tenant isolation
+- **📊 Multi-Version**: Supports PostgreSQL 12, 13, 14, 15, 16, and 17
+
+---
 
 ## ✨ Features
 
-### 🗄️ Database Management
+### 🗃️ Database Management
 
-- **Multi-Database Support** — Manage backups for unlimited PostgreSQL databases
-- **Multi-Version Compatibility** — Supports PostgreSQL 12, 13, 14, 15, 16, and 17
-- **Connection Testing** — Validate database connections before scheduling backups
-- **Flexible Configuration** — Custom settings per database
+- **Multi-Database Support**: Manage unlimited PostgreSQL databases from a single interface
+- **Version Compatibility**: Automatic version detection and tool selection (PostgreSQL 12-17)
+- **Connection Testing**: Verify database connections before scheduling
+- **Pause/Resume**: Temporarily disable backups without losing configuration
+- **User Isolation**: Multi-tenant architecture with strict data separation
 
-### ⏰ Backup Scheduling
+### ⏰ Flexible Scheduling
 
-- **Cron-Based Scheduling** — Flexible scheduling using standard cron expressions
-- **Manual Backups** — Trigger on-demand backups anytime
-- **Pause/Resume** — Temporarily pause scheduled backups without deletion
+- **Cron-Based Scheduling**: Use familiar cron expressions for backup timing
+- **Manual Triggers**: Run backups on-demand whenever needed
+- **Automatic Rotation**: Keep last N backups or retain for M days
+- **Smart Cleanup**: Automatic deletion of old backups based on your policy
 
-### 📦 Storage & Rotation
+### ☁️ Cloud Storage Integration
 
-- **Cloud Storage** — AWS S3 and Cloudflare R2 support
-- **Shared Storage** — Use the same storage bucket across multiple databases
-- **Automatic Rotation** — Count-based (keep last N) or time-based (keep N days)
-- **Storage Metrics** — Track storage usage per database and overall
+- **Multiple Providers**: AWS S3, Cloudflare R2, MinIO support
+- **Flexible Configuration**: Different storage for different databases
+- **Reusable Configs**: Share storage settings across multiple databases
+- **S3-Compatible**: Works with any S3-compatible storage service
 
-### 🔔 Notifications
+### 🔄 Backup & Restore
 
-- **Discord Integration** — Real-time backup status notifications via webhooks
-- **Customizable Alerts** — Configure notifications per database
-- **OTP Authentication** — Secure login via Discord webhook OTP
+- **One-Click Backup**: Trigger backups manually with a single click
+- **Human-Readable Names**: Auto-generated memorable backup names (`swift-falcon-20251208`)
+- **Full Restore**: Restore to same database or different target
+- **Cross-Server Restore**: Restore backups to any PostgreSQL server
+- **Version-Aware**: Uses correct pg_dump/pg_restore for each database version
+
+### 🔔 Discord Integration
+
+- **Passwordless Login**: Authenticate using Discord OTP
+- **Real-time Notifications**: Get instant alerts for backup success/failure
+- **Customizable Alerts**: Configure notifications per database
+- **System Events**: Receive alerts for important system events
+
+### 🔐 Security & Authentication
+
+- **JWT Authentication**: Secure token-based API access
+- **Discord OTP**: Passwordless login via Discord webhooks
+- **TOTP 2FA**: Optional two-factor authentication
+- **Backup Codes**: Recovery codes for 2FA emergencies
+- **Role-Based Access**: Admin, demo, and regular user roles
+- **Activity Logging**: Comprehensive audit trail of all operations
 
 ### 📊 Monitoring & Analytics
 
-- **Real-Time Dashboard** — Visual overview of backup health
-- **Success/Failure Rates** — Track backup reliability metrics
-- **Activity Logs** — Complete audit trail of all operations
-- **Storage Analytics** — Monitor storage consumption trends
+- **Real-time Dashboard**: View system statistics at a glance
+- **Backup History**: Track all backups with detailed status
+- **Activity Logs**: Searchable logs of all system operations
+- **Storage Metrics**: Monitor total storage usage
+- **Success Rates**: Track backup success/failure statistics
 
-### 🔐 Security
+### 🎨 Modern User Interface
 
-- **JWT Authentication** — Secure API access with JSON Web Tokens
-- **Discord OTP** — Passwordless authentication via Discord
-- **Non-Root Container** — Security-hardened Docker image
-- **Credential Encryption** — Secure storage of sensitive data
+- **Responsive Design**: Works perfectly on desktop, tablet, and mobile
+- **Dark/Light Mode**: Choose your preferred theme
+- **Interactive Components**: Built with Radix UI and shadcn/ui
+- **Real-time Updates**: Live dashboard updates via React Query
+- **Intuitive Navigation**: Clean, modern interface that's easy to use
 
-### 🎨 Modern Web Interface
-
-- **Responsive Design** — Works on desktop, tablet, and mobile
-- **Dark/Light Mode** — Theme support for comfortable viewing
-- **Real-Time Updates** — Live dashboard with auto-refresh
-- **Intuitive UX** — Clean, modern interface built with shadcn/ui
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         DumpStation                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐       │
-│  │   Web App   │────▶│  REST API   │────▶│  PostgreSQL │       │
-│  │   (React)   │     │    (Go)     │     │  (Service)  │       │
-│  └─────────────┘     └──────┬──────┘     └─────────────┘       │
-│         │                   │                                   │
-│         │            ┌──────┴──────┐                           │
-│         │            │             │                            │
-│         ▼            ▼             ▼                            │
-│  ┌───────────┐  ┌─────────┐  ┌──────────┐  ┌─────────────┐    │
-│  │ Cloudflare│  │ Discord │  │   S3/R2  │  │  Target DBs │    │
-│  │  Workers  │  │ Webhooks│  │  Storage │  │  (PG 12-17) │    │
-│  └───────────┘  └─────────┘  └──────────┘  └─────────────┘    │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Project Structure
-
-```
-db_proxy/
-├── server/                 # Go Backend API
-│   ├── cmd/server/         # Application entry point
-│   ├── internal/           # Core business logic
-│   │   ├── auth/           # JWT & OTP authentication
-│   │   ├── backup/         # Backup execution engine
-│   │   ├── config/         # Configuration management
-│   │   ├── database/       # Database connections
-│   │   ├── handlers/       # HTTP request handlers
-│   │   ├── middleware/     # Auth, CORS, logging
-│   │   ├── models/         # Data models
-│   │   ├── notification/   # Discord notifications
-│   │   ├── repository/     # Data access layer
-│   │   ├── scheduler/      # Cron job scheduling
-│   │   └── storage/        # S3/R2 operations
-│   ├── migrations/         # SQL migrations
-│   ├── docs/               # Swagger/OpenAPI docs
-│   └── Dockerfile          # Multi-stage Docker build
-│
-└── web/                    # React Frontend
-    ├── src/
-    │   ├── components/     # UI components
-    │   ├── lib/            # API clients & utilities
-    │   └── routes/         # TanStack Router pages
-    └── wrangler.jsonc      # Cloudflare Workers config
-```
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Docker & Docker Compose** (recommended) OR
-- **Go 1.24+** and **Node.js 20+**
-- **PostgreSQL** (for the service database)
-- **pg_dump & psql** CLI tools
-- **Discord Webhook URL** (for notifications & auth)
+- **Docker** and **Docker Compose** installed
+- **Discord Webhook URL** for authentication and notifications ([Create one](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks))
+- **PostgreSQL Database** to backup (can be local or remote)
+- **Cloud Storage** (AWS S3, Cloudflare R2, or MinIO)
 
-### Option 1: Docker Compose (Recommended)
+### Installation
+
+1. **Clone the repository**
 
 ```bash
-# Clone the repository
-git clone https://github.com/monzim/db_proxy.git
-cd db_proxy/server
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your Discord webhook URL and other settings
-
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f backup-service
+git clone https://github.com/monzim/dumpstation.git
+cd dumpstation
 ```
 
-**Services Started:**
+2. **Configure environment variables**
 
-- 🌐 **API Server**: http://localhost:8080
-- 📖 **Swagger UI**: http://localhost:8080/swagger/index.html
-- 🗄️ **MinIO Console**: http://localhost:9001 (for local S3 testing)
+```bash
+# Copy example environment file
+cp server/.env.example server/.env
 
-### Option 2: Manual Setup
+# Edit the configuration
+nano server/.env
+```
 
-#### Backend (Go)
+**Essential configuration:**
+
+```env
+# Database (for DumpStation itself)
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_secure_password
+DB_NAME=backup_service
+
+# JWT Secret (generate a secure random string)
+JWT_SECRET=your-super-secret-jwt-key-change-this
+
+# Discord Webhook (required for authentication)
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_URL
+
+# System Admin User
+SYSTEM_USERNAME=admin
+SYSTEM_EMAIL=admin@yourdomain.com
+```
+
+3. **Start the services**
 
 ```bash
 cd server
-
-# Install dependencies
-go mod download
-
-# Setup database
-createdb backup_service
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your configuration
-
-# Run the server
-make dev
-# OR
-go run cmd/server/main.go
+docker-compose up -d
 ```
 
-#### Frontend (React)
+This will start:
+
+- **DumpStation API** on `http://localhost:8080`
+- **PostgreSQL Database** (DumpStation's internal database)
+- **MinIO** (local S3-compatible storage for testing) on `http://localhost:9000`
+
+4. **Access the web interface**
+
+The React frontend can be run locally or deployed to Cloudflare Workers.
+
+**Option A: Local Development**
 
 ```bash
 cd web
-
-# Install dependencies
 pnpm install
-
-# Start development server
 pnpm dev
 ```
 
-Frontend will be available at http://localhost:3000
+Visit `http://localhost:7511`
 
-## 📖 Documentation
+**Option B: Use the live demo**
 
-### Authentication Flow
+Visit [https://dumpstation.monzim.com](https://dumpstation.monzim.com)
 
-1. **Request OTP**
+5. **Login**
 
-   ```bash
-   curl -X POST http://localhost:8080/api/v1/auth/login
-   ```
+- Click "Login with Discord"
+- Check your Discord channel for the OTP code
+- Enter the code to authenticate
 
-   Check your Discord webhook for the 6-digit OTP code.
+6. **Add your first database backup**
 
-2. **Verify OTP & Get Token**
+- Navigate to **Databases** → **Add Database**
+- Enter your PostgreSQL connection details
+- Configure storage (S3/R2/MinIO)
+- Set backup schedule (cron expression)
+- Set rotation policy
+- Save and test the connection
 
-   ```bash
-   curl -X POST http://localhost:8080/api/v1/auth/verify \
-     -H "Content-Type: application/json" \
-     -d '{"otp": "123456"}'
-   ```
+Your first backup will run according to the schedule, or you can trigger it manually!
 
-3. **Use JWT Token**
-   ```bash
-   curl -H "Authorization: Bearer YOUR_TOKEN" \
-     http://localhost:8080/api/v1/databases
-   ```
+---
 
-### Setting Up Your First Backup
+## 📚 Documentation
 
-#### 1. Add Storage Configuration
+### 📖 Full Documentation
 
-```bash
-curl -X POST http://localhost:8080/api/v1/storage \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Production Backups",
-    "provider": "r2",
-    "bucket": "my-backups",
-    "region": "auto",
-    "endpoint": "https://account-id.r2.cloudflarestorage.com",
-    "access_key": "your-access-key",
-    "secret_key": "your-secret-key"
-  }'
-```
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Detailed deployment instructions for production
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to the project
+- **[API Documentation](http://localhost:8080/swagger/)** - Interactive Swagger/OpenAPI docs
+- **[Backend README](server/README.md)** - Server architecture and development
+- **[Frontend README](web/README.md)** - Web interface development
+- **[Roadmap](ROADMAP.md)** - Planned features and milestones
 
-#### 2. Add Notification Channel (Optional)
+### 🔧 Configuration Reference
 
-```bash
-curl -X POST http://localhost:8080/api/v1/notifications \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "DevOps Alerts",
-    "discord_webhook_url": "https://discord.com/api/webhooks/..."
-  }'
-```
+| Variable                 | Description                            | Required | Default                  |
+| ------------------------ | -------------------------------------- | -------- | ------------------------ |
+| `SERVER_PORT`            | API server port                        | No       | `8080`                   |
+| `DB_HOST`                | PostgreSQL host (DumpStation DB)       | Yes      | `localhost`              |
+| `DB_PORT`                | PostgreSQL port                        | Yes      | `5432`                   |
+| `DB_USER`                | Database username                      | Yes      | `postgres`               |
+| `DB_PASSWORD`            | Database password                      | Yes      | -                        |
+| `DB_NAME`                | Database name                          | Yes      | `backup_service`         |
+| `JWT_SECRET`             | Secret for JWT signing                 | Yes      | -                        |
+| `JWT_EXPIRATION_MINUTES` | JWT token lifetime                     | No       | `10`                     |
+| `DISCORD_WEBHOOK_URL`    | Discord webhook for auth/notifications | Yes      | -                        |
+| `OTP_EXPIRATION_MINUTES` | OTP code expiration                    | No       | `5`                      |
+| `SYSTEM_USERNAME`        | Initial admin username                 | No       | `root`                   |
+| `SYSTEM_EMAIL`           | Initial admin email                    | No       | `root@dumpstation.local` |
 
-#### 3. Configure Database for Backup
+### 🐳 Docker Deployment
 
-```bash
-curl -X POST http://localhost:8080/api/v1/databases \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Production Database",
-    "host": "db.example.com",
-    "port": 5432,
-    "dbname": "production",
-    "user": "backup_user",
-    "password": "secure_password",
-    "schedule": "0 2 * * *",
-    "storage_id": "storage-uuid-here",
-    "notification_id": "notification-uuid-here",
-    "rotation_policy": {
-      "type": "days",
-      "value": 30
-    }
-  }'
-```
-
-#### 4. Trigger Manual Backup (Optional)
-
-```bash
-curl -X POST http://localhost:8080/api/v1/databases/{id}/backup \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Cron Schedule Examples
-
-| Schedule         | Expression     |
-| ---------------- | -------------- |
-| Daily at 2 AM    | `0 2 * * *`    |
-| Every 6 hours    | `0 */6 * * *`  |
-| Weekly on Sunday | `0 0 * * 0`    |
-| Monthly on 1st   | `0 3 1 * *`    |
-| Every 30 minutes | `*/30 * * * *` |
-
-### Backup Rotation Policies
-
-**Count-based** — Keep last N backups:
-
-```json
-{ "rotation_policy": { "type": "count", "value": 7 } }
-```
-
-**Time-based** — Keep backups for N days:
-
-```json
-{ "rotation_policy": { "type": "days", "value": 30 } }
-```
-
-## 📸 Screenshots
-
-<details>
-<summary>Click to view screenshots</summary>
-
-### Dashboard Overview
-
-_Modern dashboard showing backup statistics, success rates, and recent activity_
-
-### Database Management
-
-_Configure and manage multiple PostgreSQL databases_
-
-### Backup History
-
-_View detailed backup history with status, size, and timestamps_
-
-### Storage Configuration
-
-_Easy setup for AWS S3 or Cloudflare R2 storage_
-
-</details>
-
-## 📚 API Documentation
-
-### Interactive Swagger UI
-
-Full API documentation is available at: **http://localhost:8080/swagger/index.html**
-
-### API Endpoints Overview
-
-| Method            | Endpoint                         | Description                  |
-| ----------------- | -------------------------------- | ---------------------------- |
-| **Auth**          |
-| POST              | `/api/v1/auth/login`             | Request OTP                  |
-| POST              | `/api/v1/auth/verify`            | Verify OTP & get JWT         |
-| **Storage**       |
-| GET               | `/api/v1/storage`                | List storage configurations  |
-| POST              | `/api/v1/storage`                | Create storage configuration |
-| GET               | `/api/v1/storage/{id}`           | Get storage details          |
-| PUT               | `/api/v1/storage/{id}`           | Update storage               |
-| DELETE            | `/api/v1/storage/{id}`           | Delete storage               |
-| **Databases**     |
-| GET               | `/api/v1/databases`              | List databases               |
-| POST              | `/api/v1/databases`              | Add database                 |
-| GET               | `/api/v1/databases/{id}`         | Get database details         |
-| PUT               | `/api/v1/databases/{id}`         | Update database              |
-| DELETE            | `/api/v1/databases/{id}`         | Remove database              |
-| POST              | `/api/v1/databases/{id}/backup`  | Trigger backup               |
-| GET               | `/api/v1/databases/{id}/backups` | Get backup history           |
-| **Backups**       |
-| GET               | `/api/v1/backups/{id}`           | Get backup details           |
-| POST              | `/api/v1/backups/{id}/restore`   | Restore from backup          |
-| **Notifications** |
-| GET               | `/api/v1/notifications`          | List notifications           |
-| POST              | `/api/v1/notifications`          | Create notification          |
-| PUT               | `/api/v1/notifications/{id}`     | Update notification          |
-| DELETE            | `/api/v1/notifications/{id}`     | Delete notification          |
-| **Stats**         |
-| GET               | `/api/v1/stats`                  | Get system statistics        |
-
-## 🐳 Docker Support
-
-### Building the Image
+**Production Deployment:**
 
 ```bash
 cd server
-
-# Development build
-make docker-build
-
-# Production build with optimizations
-make docker-build-prod
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
-### Multi-Version PostgreSQL Support
+**Using External PostgreSQL:**
 
-The Docker image includes pg_dump/pg_restore for PostgreSQL versions 12-17, automatically selecting the correct version based on the target database.
+Update `docker-compose.prod.yml` to point to your external database:
 
-### Docker Compose Services
-
-| Service        | Port      | Description                 |
-| -------------- | --------- | --------------------------- |
-| backup-service | 8080      | Main API server             |
-| postgres       | 5432      | Service database            |
-| postgres-12    | 5433      | Test PostgreSQL 12          |
-| postgres-14    | 5434      | Test PostgreSQL 14          |
-| postgres-16    | 5435      | Test PostgreSQL 16          |
-| minio          | 9000/9001 | Local S3-compatible storage |
-
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable                 | Description             | Default          |
-| ------------------------ | ----------------------- | ---------------- |
-| `SERVER_HOST`            | API server host         | `0.0.0.0`        |
-| `SERVER_PORT`            | API server port         | `8080`           |
-| `DB_HOST`                | PostgreSQL host         | `localhost`      |
-| `DB_PORT`                | PostgreSQL port         | `5432`           |
-| `DB_USER`                | Database user           | `postgres`       |
-| `DB_PASSWORD`            | Database password       | —                |
-| `DB_NAME`                | Database name           | `backup_service` |
-| `JWT_SECRET`             | JWT signing secret      | —                |
-| `JWT_EXPIRATION_MINUTES` | Token expiry (minutes)  | `10`             |
-| `DISCORD_WEBHOOK_URL`    | Discord webhook for OTP | —                |
-| `OTP_EXPIRATION_MINUTES` | OTP validity            | `5`              |
-
-## 🔐 Security Best Practices
-
-1. **Use strong JWT secret** in production
-2. **Rotate storage access keys** regularly
-3. **Use HTTPS** in production deployments
-4. **Create dedicated backup users** with minimal permissions
-5. **Keep Discord webhooks private**
-6. **Restrict network access** to the API
-
-## 🛠️ Development
-
-### Make Commands
-
-```bash
-make help          # Show available commands
-make dev           # Run in development mode
-make build         # Build binary
-make test          # Run tests
-make swagger       # Generate Swagger docs
-make docker-up     # Start Docker services
-make docker-down   # Stop Docker services
-make lint          # Run linter
-make format        # Format code
+```yaml
+environment:
+  DB_HOST: your-postgres-host.example.com
+  DB_PORT: 5432
+  DB_USER: dumpstation
+  DB_PASSWORD: ${DB_PASSWORD}
+  DB_NAME: dumpstation_prod
 ```
 
-### Running Tests
+**Behind Reverse Proxy:**
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for nginx and Caddy configuration examples.
+
+---
+
+## 🏗️ Architecture
+
+### Technology Stack
+
+**Backend:**
+
+- **Language**: Go 1.24+
+- **Framework**: net/http with gorilla/mux
+- **ORM**: GORM with PostgreSQL
+- **Authentication**: JWT + Discord OTP + TOTP 2FA
+- **Scheduling**: robfig/cron
+- **Storage**: AWS SDK (S3/R2 compatible)
+- **API Docs**: Swagger/OpenAPI
+
+**Frontend:**
+
+- **Framework**: React 19.2
+- **Build Tool**: Vite 7
+- **Router**: TanStack Router
+- **State**: TanStack Query (React Query)
+- **UI**: Radix UI + shadcn/ui + Tailwind CSS
+- **Deployment**: Cloudflare Workers
+
+**Infrastructure:**
+
+- **Database**: PostgreSQL 15+ (for DumpStation)
+- **Target DBs**: PostgreSQL 12-17 (databases to backup)
+- **Storage**: AWS S3, Cloudflare R2, MinIO
+- **Container**: Docker with multi-stage builds
+
+### System Architecture
+
+```
+┌─────────────────┐
+│  React Frontend │ (TanStack Router + React Query)
+│   (Port 7511)   │
+└────────┬────────┘
+         │ HTTP/REST
+         ▼
+┌─────────────────┐
+│   Go Backend    │ (JWT Auth + Middleware)
+│   (Port 8080)   │
+└────┬───┬────┬───┘
+     │   │    │
+     │   │    └─────────────────┐
+     │   │                      │
+     │   ▼                      ▼
+     │  ┌──────────────┐   ┌─────────────┐
+     │  │  PostgreSQL  │   │   Discord   │
+     │  │  (Internal)  │   │   Webhook   │
+     │  └──────────────┘   └─────────────┘
+     │
+     ▼
+┌──────────────────────┐
+│   Backup Service     │
+│  - Scheduler (cron)  │
+│  - pg_dump Runner    │
+│  - Version Manager   │
+└─────┬────────────────┘
+      │
+      ├──────────────┬─────────────┐
+      ▼              ▼             ▼
+  ┌────────┐    ┌────────┐    ┌────────┐
+  │   S3   │    │   R2   │    │ MinIO  │
+  └────────┘    └────────┘    └────────┘
+```
+
+---
+
+## 🎯 Use Cases
+
+### For Solo Developers
+
+- Automated backups for personal projects
+- Multiple project databases from one dashboard
+- Discord notifications on backup status
+- Easy restore for development/testing
+
+### For Small Teams
+
+- Centralized backup management
+- Multi-user access with isolation
+- Shared storage configurations
+- Activity logging and audit trails
+
+### For Organizations
+
+- Multi-tenant architecture
+- Role-based access control
+- Comprehensive monitoring and statistics
+- Production-ready with Docker deployment
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions from the community! Whether it's bug fixes, new features, documentation improvements, or feedback, all contributions are appreciated.
+
+### Quick Links
+
+- **[Contributing Guide](CONTRIBUTING.md)** - How to get started
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** - Our community standards
+- **[Issue Tracker](https://github.com/monzim/dumpstation/issues)** - Report bugs or request features
+- **[Discussions](https://github.com/monzim/dumpstation/discussions)** - Ask questions and share ideas
+
+### Development Setup
 
 ```bash
 # Backend
 cd server
-go test ./...
+make deps
+make dev
 
 # Frontend
 cd web
-pnpm test
+pnpm install
+pnpm dev
 ```
 
-## 🤝 Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+---
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## 📸 Screenshots
 
-## 📄 License
+<div align="center">
+  
+### Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+*Overview with real-time statistics and recent backups*
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Database Management
 
-## 🙏 Acknowledgements
+![Database Management](docs/screenshots/databases.png)
+_Manage multiple databases with flexible scheduling_
 
-- [gorilla/mux](https://github.com/gorilla/mux) — HTTP router
-- [GORM](https://gorm.io) — ORM for Go
-- [robfig/cron](https://github.com/robfig/cron) — Cron scheduling
-- [TanStack Router](https://tanstack.com/router) — React routing
-- [shadcn/ui](https://ui.shadcn.com) — UI components
-- [Tailwind CSS](https://tailwindcss.com) — Styling
+### Backup History
+
+![Backup History](docs/screenshots/backups.png)
+_Track all backups with detailed status and one-click restore_
+
+### Storage Configuration
+
+![Storage Configuration](docs/screenshots/storage.png)
+_Configure S3, R2, or MinIO storage providers_
+
+</div>
+
+---
+
+## 🗺️ Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for planned features and version milestones.
+
+**Upcoming Features:**
+
+- 📧 Email notification support
+- 🔐 Backup encryption at rest
+- ✅ Automated backup verification
+- 📈 Grafana metrics integration
+- 🌍 Multi-region storage replication
+- 📦 Incremental backups with WAL archiving
+
+---
+
+## 📝 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+```
+MIT License
+
+Copyright (c) 2025 Monzim (https://monzim.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+```
+
+---
+
+## 🙏 Acknowledgments
+
+- Built with ❤️ by [Monzim](https://monzim.com)
+- UI components from [shadcn/ui](https://ui.shadcn.com/)
+- Icons from [Lucide](https://lucide.dev/)
+- Inspired by the need for simple, reliable database backups
+
+---
+
+## 📬 Contact & Support
+
+- **Website**: [monzim.com](https://monzim.com)
+- **Live Demo**: [dumpstation.monzim.com](https://dumpstation.monzim.com)
+- **Email**: [me@monzim.com](mailto:me@monzim.com)
+- **Issues**: [GitHub Issues](https://github.com/monzim/dumpstation/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/monzim/dumpstation/discussions)
+
+---
+
+## ⭐ Star History
+
+If you find this project useful, please consider giving it a star! It helps others discover the project.
+
+[![Star History Chart](https://api.star-history.com/svg?repos=monzim/dumpstation&type=Date)](https://star-history.com/#monzim/dumpstation&Date)
 
 ---
 
 <div align="center">
-
-Made with ❤️ by [Monzim](https://github.com/monzim)
-
-⭐ Star this repo if you find it useful!
-
+  
+  **Made with ❤️ for the open-source community**
+  
+  [⬆ Back to Top](#️-dumpstation)
+  
 </div>
