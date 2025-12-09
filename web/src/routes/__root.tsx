@@ -17,6 +17,9 @@ const SITE_URL = "https://dumpstation.monzim.com";
 const SITE_NAME = "DumpStation";
 const DEFAULT_OG_IMAGE = `${SITE_URL}/images/og.webp`;
 
+// Cloudflare Web Analytics token
+const CF_BEACON_TOKEN = "e832e1329bb742ae9c1d0c07a7612b66";
+
 // Script to prevent FOUC (Flash of Unstyled Content)
 const themeScript = `
   (function() {
@@ -141,6 +144,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <HeadContent />
+        {/* Cloudflare Web Analytics */}
+        {!import.meta.env.DEV && CF_BEACON_TOKEN && (
+          <script
+            defer
+            src="https://static.cloudflareinsights.com/beacon.min.js"
+            data-cf-beacon={`{"token": "${CF_BEACON_TOKEN}"}`}
+          />
+        )}
       </head>
       <body>
         <ThemeProvider defaultTheme="system" storageKey="dumpstation-theme">
