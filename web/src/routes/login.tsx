@@ -75,8 +75,19 @@ export const Route = createFileRoute("/login")({
 
 type LoginStep = "login" | "verify" | "2fa";
 
-// Get Turnstile site key from environment variable
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+// Runtime configuration helper
+const getConfig = (key: string, defaultValue: string): string => {
+  if (typeof window !== "undefined" && (window as any).APP_CONFIG) {
+    return (window as any).APP_CONFIG[key] || defaultValue;
+  }
+  return defaultValue;
+};
+
+// Get Turnstile site key from runtime config or environment variable
+const TURNSTILE_SITE_KEY = getConfig(
+  "TURNSTILE_SITE_KEY",
+  import.meta.env.VITE_TURNSTILE_SITE_KEY || ""
+);
 const TURNSTILE_ENABLED = TURNSTILE_SITE_KEY !== "";
 
 function LoginPage() {

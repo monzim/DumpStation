@@ -1,9 +1,18 @@
 import type { ApiError } from "@/lib/types/api";
 
-// Use Vite's import.meta.env for environment variables
-// VITE_API_BASE_URL is set at build time via .env files or Cloudflare vars
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";
+// Runtime configuration helper
+// Checks window.APP_CONFIG first (can be set after build), then falls back to build-time env vars
+const getConfig = (key: string, defaultValue: string): string => {
+  if (typeof window !== "undefined" && (window as any).APP_CONFIG) {
+    return (window as any).APP_CONFIG[key] || defaultValue;
+  }
+  return defaultValue;
+};
+
+const API_BASE_URL = getConfig(
+  "API_BASE_URL",
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1"
+);
 
 const TWO_FA_TOKEN_KEY = "2fa_token";
 const IS_DEMO_KEY = "is_demo";
@@ -185,5 +194,8 @@ export const getAuthToken = (): string | null => {
  * Get the API base URL
  */
 export const getApiBaseUrl = (): string => {
-  return import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1";
+  return getConfig(
+    "API_BASE_URL",
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1"
+  );
 };

@@ -143,6 +143,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* Runtime configuration - can be modified after build */}
+        <script src="/config.js" />
         <HeadContent />
         {/* Cloudflare Web Analytics */}
         {!import.meta.env.DEV && CF_BEACON_TOKEN && (
