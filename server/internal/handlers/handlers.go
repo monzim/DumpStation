@@ -21,26 +21,33 @@ import (
 
 // Handler holds all dependencies for HTTP handlers
 type Handler struct {
-	repo      *repository.Repository
-	jwtMgr    *auth.JWTManager
-	backupSvc *backup.Service
-	scheduler *scheduler.Scheduler
-	notifier  *notification.DiscordNotifier
-	otpExpiry time.Duration
-	validator *validator.Validator
+	repo             *repository.Repository
+	jwtMgr           *auth.JWTManager
+	backupSvc        *backup.Service
+	scheduler        *scheduler.Scheduler
+	notifier         *notification.DiscordNotifier
+	otpExpiry        time.Duration
+	validator        *validator.Validator
+	turnstileEnabled bool
+	turnstileSecret  string
+	turnstileTimeout int
 }
 
 // New creates a new handler instance
 func New(repo *repository.Repository, jwtMgr *auth.JWTManager, backupSvc *backup.Service,
-	scheduler *scheduler.Scheduler, notifier *notification.DiscordNotifier, otpExpiry time.Duration) *Handler {
+	scheduler *scheduler.Scheduler, notifier *notification.DiscordNotifier, otpExpiry time.Duration,
+	turnstileEnabled bool, turnstileSecret string, turnstileTimeout int) *Handler {
 	return &Handler{
-		repo:      repo,
-		jwtMgr:    jwtMgr,
-		backupSvc: backupSvc,
-		scheduler: scheduler,
-		notifier:  notifier,
-		otpExpiry: otpExpiry,
-		validator: validator.New(),
+		repo:             repo,
+		jwtMgr:           jwtMgr,
+		backupSvc:        backupSvc,
+		scheduler:        scheduler,
+		notifier:         notifier,
+		otpExpiry:        otpExpiry,
+		validator:        validator.New(),
+		turnstileEnabled: turnstileEnabled,
+		turnstileSecret:  turnstileSecret,
+		turnstileTimeout: turnstileTimeout,
 	}
 }
 
@@ -73,6 +80,24 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		logError("Login attempt without username", nil)
 		writeError(w, http.StatusBadRequest, "username or email is required")
 		return
+	}
+
+	// Verify Turnstile token if enabled
+	if h.turnstileEnabled {
+		if req.TurnstileToken == "" {
+			logError("Login attempt without Turnstile token", nil)
+			writeError(w, http.StatusBadRequest, "security verification required")
+			return
+		}
+
+		logInfo("Verifying Turnstile token for username/email: %s", req.Username)
+		clientIP := auth.GetIPAddress(r)
+		if err := auth.VerifyTurnstileToken(h.turnstileSecret, req.TurnstileToken, clientIP, h.turnstileTimeout); err != nil {
+			logError("Turnstile verification failed", err)
+			writeError(w, http.StatusBadRequest, "security verification failed")
+			return
+		}
+		logInfo("✅ Turnstile verification successful")
 	}
 
 	logInfo("Processing login for username/email: %s", req.Username)

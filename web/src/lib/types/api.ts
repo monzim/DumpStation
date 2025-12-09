@@ -3,6 +3,7 @@
 // Authentication Types
 export interface LoginRequest {
   username?: string;
+  turnstile_token?: string;
 }
 
 export interface VerifyRequest {

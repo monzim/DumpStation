@@ -113,7 +113,8 @@ func main() {
 
 	// Initialize handlers
 	otpExpiry := time.Duration(cfg.Discord.OTPExpiration) * time.Minute
-	h := handlers.New(repo, jwtMgr, backupSvc, sched, notifier, otpExpiry)
+	h := handlers.New(repo, jwtMgr, backupSvc, sched, notifier, otpExpiry,
+		cfg.Turnstile.Enabled, cfg.Turnstile.SecretKey, cfg.Turnstile.Timeout)
 
 	// Initialize TOTP manager for 2FA
 	totpConfig := auth.DefaultTOTPConfig()

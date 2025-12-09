@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -74,11 +75,16 @@ export const Route = createFileRoute("/login")({
 
 type LoginStep = "login" | "verify" | "2fa";
 
+// Get Turnstile site key from environment variable
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+const TURNSTILE_ENABLED = TURNSTILE_SITE_KEY !== "";
+
 function LoginPage() {
   const [step, setStep] = useState<LoginStep>("login");
   const [username, setUsername] = useState("");
   const [otp, setOtp] = useState("");
   const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
   const navigate = useNavigate();
   const { setIsAuthenticated, setIsDemo } = useAuth();
   const loginMutation = useLogin();
@@ -96,8 +102,19 @@ function LoginPage() {
       return;
     }
 
+    // Check Turnstile verification if enabled
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      toast.error("Security verification required", {
+        description: "Please complete the security challenge",
+      });
+      return;
+    }
+
     try {
-      await loginMutation.mutateAsync({ username: username.trim() });
+      await loginMutation.mutateAsync({
+        username: username.trim(),
+        turnstile_token: turnstileToken || undefined,
+      });
       toast.success("OTP sent successfully", {
         description: "Check your Discord for the verification code.",
       });
@@ -107,6 +124,8 @@ function LoginPage() {
       toast.error("Login failed", {
         description: apiError.message || "Invalid credentials",
       });
+      // Reset Turnstile on error
+      setTurnstileToken("");
     }
   };
 
@@ -172,7 +191,10 @@ function LoginPage() {
 
   const handleResendOTP = async () => {
     try {
-      await loginMutation.mutateAsync({ username: username.trim() });
+      await loginMutation.mutateAsync({
+        username: username.trim(),
+        turnstile_token: turnstileToken || undefined,
+      });
       toast.success("OTP resent", {
         description: "Check your Discord for the new verification code.",
       });
@@ -336,12 +358,39 @@ function LoginPage() {
                   />
                 </div>
 
+                {/* Cloudflare Turnstile Widget */}
+                {TURNSTILE_ENABLED && (
+                  <div className="flex justify-center">
+                    <Turnstile
+                      siteKey={TURNSTILE_SITE_KEY}
+                      onSuccess={(token) => setTurnstileToken(token)}
+                      onError={() => {
+                        setTurnstileToken("");
+                        toast.error("Security verification failed", {
+                          description: "Please try again",
+                        });
+                      }}
+                      onExpire={() => {
+                        setTurnstileToken("");
+                        toast.warning("Security verification expired", {
+                          description: "Please verify again",
+                        });
+                      }}
+                      options={{
+                        theme: "auto",
+                        size: "normal",
+                      }}
+                    />
+                  </div>
+                )}
+
                 <Button
                   type="submit"
                   disabled={
                     loginMutation.isPending ||
                     demoLoginMutation.isPending ||
-                    !username.trim()
+                    !username.trim() ||
+                    (TURNSTILE_ENABLED && !turnstileToken)
                   }
                   className="w-full h-12 text-base"
                   size="lg"

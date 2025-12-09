@@ -17,5 +17,6 @@
    */
   "vars": {
     "VITE_API_BASE_URL": "https://api.dumpstation.monzim.com/api/v1",
+    "VITE_TURNSTILE_SITE_KEY": "0x4AAAAAACFka7Mmd9-jXhVx",
   },
 }

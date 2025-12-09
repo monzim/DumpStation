@@ -495,7 +495,8 @@ type SystemStats struct {
 
 // LoginRequest for authentication (single-user system)
 type LoginRequest struct {
-	Username string `json:"username,omitempty" example:"monzim"` // Username or email of the single system user
+	Username       string `json:"username,omitempty" example:"monzim"`       // Username or email of the single system user
+	TurnstileToken string `json:"turnstile_token,omitempty" example:"token"` // Cloudflare Turnstile verification token
 }
 
 // VerifyRequest for OTP verification (single-user system)

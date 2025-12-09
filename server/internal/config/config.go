@@ -9,11 +9,12 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
-	Discord  DiscordConfig
-	CORS     CORSConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	JWT       JWTConfig
+	Discord   DiscordConfig
+	CORS      CORSConfig
+	Turnstile TurnstileConfig
 }
 
 // ServerConfig holds server-related configuration
@@ -55,6 +56,14 @@ type CORSConfig struct {
 	Debug            bool     // Enable debug mode for CORS
 }
 
+// TurnstileConfig holds Cloudflare Turnstile configuration
+type TurnstileConfig struct {
+	SiteKey   string // Public key for frontend
+	SecretKey string // Secret key for backend verification
+	Enabled   bool   // Feature flag to enable/disable Turnstile
+	Timeout   int    // Verification timeout in seconds
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -86,6 +95,12 @@ func Load() (*Config, error) {
 			AllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
 			MaxAge:           getEnvAsInt("CORS_MAX_AGE", 86400),
 			Debug:            getEnvAsBool("CORS_DEBUG", false),
+		},
+		Turnstile: TurnstileConfig{
+			SiteKey:   getEnv("TURNSTILE_SITE_KEY", ""),
+			SecretKey: getEnv("TURNSTILE_SECRET_KEY", ""),
+			Enabled:   getEnvAsBool("TURNSTILE_ENABLED", false),
+			Timeout:   getEnvAsInt("TURNSTILE_TIMEOUT", 10),
 		},
 	}
 
