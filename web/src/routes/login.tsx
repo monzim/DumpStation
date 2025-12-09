@@ -76,17 +76,25 @@ export const Route = createFileRoute("/login")({
 type LoginStep = "login" | "verify" | "2fa";
 
 // Runtime configuration helper
-const getConfig = (key: string, defaultValue: string): string => {
-  if (typeof window !== "undefined" && (window as any).APP_CONFIG) {
-    return (window as any).APP_CONFIG[key] || defaultValue;
+// Priority: window.APP_CONFIG (runtime) → import.meta.env (build-time) → fallback
+const getConfig = (
+  key: string,
+  envValue: string | undefined,
+  fallback: string
+): string => {
+  // Check runtime config first (Docker)
+  if (typeof window !== "undefined" && (window as any).APP_CONFIG?.[key]) {
+    return (window as any).APP_CONFIG[key];
   }
-  return defaultValue;
+  // Fall back to build-time env (Cloudflare) or default
+  return envValue || fallback;
 };
 
 // Get Turnstile site key from runtime config or environment variable
 const TURNSTILE_SITE_KEY = getConfig(
   "TURNSTILE_SITE_KEY",
-  import.meta.env.VITE_TURNSTILE_SITE_KEY || ""
+  import.meta.env.VITE_TURNSTILE_SITE_KEY,
+  ""
 );
 const TURNSTILE_ENABLED = TURNSTILE_SITE_KEY !== "";
 

@@ -1,18 +1,24 @@
 import type { ApiError } from "@/lib/types/api";
 
 // Runtime configuration helper
-// Checks window.APP_CONFIG first (can be set after build), then falls back to build-time env vars
-const getConfig = (key: string, defaultValue: string): string => {
-  if (typeof window !== "undefined" && (window as any).APP_CONFIG) {
-    return (window as any).APP_CONFIG[key] || defaultValue;
+// Priority: window.APP_CONFIG (runtime) → import.meta.env (build-time) → fallback
+const getConfig = (
+  key: string,
+  envValue: string | undefined,
+  fallback: string
+): string => {
+  // Check runtime config first (Docker)
+  if (typeof window !== "undefined" && (window as any).APP_CONFIG?.[key]) {
+    return (window as any).APP_CONFIG[key];
   }
-  return defaultValue;
+  // Fall back to build-time env (Cloudflare) or default
+  return envValue || fallback;
 };
 
 const API_BASE_URL = getConfig(
   "API_BASE_URL",
-  import.meta.env.VITE_API_BASE_URL ||
-    "https://api.dumpstation.monzim.com/api/v1"
+  import.meta.env.VITE_API_BASE_URL,
+  "https://api.dumpstation.monzim.com/api/v1"
 );
 
 const TWO_FA_TOKEN_KEY = "2fa_token";
@@ -105,9 +111,11 @@ export class ApiClient {
         }
       }
 
-      const error: ApiError = await response.json().catch(() => ({
-        message: `HTTP ${response.status}: ${response.statusText}`,
-      }));
+      const error: ApiError = await response.json().catch(
+        (): ApiError => ({
+          message: `HTTP ${response.status}: ${response.statusText}`,
+        })
+      );
 
       throw error;
     }
@@ -197,6 +205,7 @@ export const getAuthToken = (): string | null => {
 export const getApiBaseUrl = (): string => {
   return getConfig(
     "API_BASE_URL",
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1"
+    import.meta.env.VITE_API_BASE_URL,
+    "https://api.dumpstation.monzim.com/api/v1"
   );
 };
