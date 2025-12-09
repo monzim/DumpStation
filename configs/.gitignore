@@ -1,0 +1,24 @@
+# Environment files with secrets
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Backup files
+backups/
+*.sql
+*.tar.gz
+*.dump
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+
+# Docker override files
+docker-compose.override.yml
+compose.override.yml

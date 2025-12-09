@@ -113,34 +113,86 @@ Perfect for DevOps teams, solo developers, and organizations that need reliable,
 - **PostgreSQL Database** to backup (can be local or remote)
 - **Cloud Storage** (AWS S3, Cloudflare R2, or MinIO)
 
-### Installation
+### 🎯 Easy Deployment (Recommended)
+
+**Deploy DumpStation with a single command using our automated script:**
 
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/monzim/dumpstation.git
-cd dumpstation
+git clone https://github.com/monzim/DumpStation.git
+cd dumpstation/configs
+```
+
+2. **Run the deployment script**
+
+```bash
+./deploy.sh
+```
+
+The script will:
+
+- ✅ Check Docker installation
+- ✅ Create `.env` from template
+- ✅ Validate configuration
+- ✅ Pull latest images (backend + frontend)
+- ✅ Start all services with health checks
+- ✅ Display access URLs
+
+3. **Configure required variables when prompted**
+
+Edit the `.env` file and set:
+
+```env
+# Required
+POSTGRES_PASSWORD=your_secure_password
+JWT_SECRET=your_jwt_secret_here  # Generate with: openssl rand -base64 64
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_URL
+
+# Important: Update for your setup
+CORS_ALLOWED_ORIGINS=https://yourdomain.com
+VITE_API_BASE_URL=https://api.yourdomain.com/api/v1
+```
+
+4. **Access DumpStation**
+
+- **Web Interface**: `http://localhost:3000`
+- **Backend API**: `http://localhost:8080`
+- **API Documentation**: `http://localhost:8080/swagger/`
+
+That's it! DumpStation is now running with both backend and frontend. 🎉
+
+---
+
+### 📋 Manual Installation (Alternative)
+
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+1. **Clone the repository**
+
+```bash
+git clone https://github.com/monzim/DumpStation.git
+cd dumpstation/configs
 ```
 
 2. **Configure environment variables**
 
 ```bash
 # Copy example environment file
-cp server/.env.example server/.env
+cp .env.example .env
 
 # Edit the configuration
-nano server/.env
+nano .env
 ```
 
 **Essential configuration:**
 
 ```env
 # Database (for DumpStation itself)
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_secure_password
-DB_NAME=backup_service
+POSTGRES_DB=backup_service
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_secure_password
 
 # JWT Secret (generate a secure random string)
 JWT_SECRET=your-super-secret-jwt-key-change-this
@@ -148,49 +200,50 @@ JWT_SECRET=your-super-secret-jwt-key-change-this
 # Discord Webhook (required for authentication)
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_URL
 
+# API URL for frontend
+VITE_API_BASE_URL=http://localhost:8080/api/v1
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+
 # System Admin User
 SYSTEM_USERNAME=admin
 SYSTEM_EMAIL=admin@yourdomain.com
 ```
 
-3. **Start the services**
+3. **Start all services**
 
 ```bash
-cd server
-docker-compose up -d
+docker compose up -d
 ```
 
 This will start:
 
 - **DumpStation API** on `http://localhost:8080`
+- **DumpStation Web UI** on `http://localhost:3000`
 - **PostgreSQL Database** (DumpStation's internal database)
-- **MinIO** (local S3-compatible storage for testing) on `http://localhost:9000`
+- **MinIO** (optional local S3-compatible storage)
 
-4. **Access the web interface**
-
-The React frontend can be run locally or deployed to Cloudflare Workers.
-
-**Option A: Local Development**
+4. **Check deployment status**
 
 ```bash
-cd web
-pnpm install
-pnpm dev
+docker compose ps
+docker compose logs -f
 ```
 
-Visit `http://localhost:7511`
+</details>
 
-**Option B: Use the live demo**
+---
 
-Visit [https://dumpstation.monzim.com](https://dumpstation.monzim.com)
+### 🔐 First Login
 
-5. **Login**
+1. Navigate to `http://localhost:3000`
+2. Click **"Login with Discord"**
+3. Check your Discord channel for the OTP code
+4. Enter the code to authenticate
+5. You're in! Start adding databases to backup
 
-- Click "Login with Discord"
-- Check your Discord channel for the OTP code
-- Enter the code to authenticate
-
-6. **Add your first database backup**
+### 🗄️ Add Your First Database
 
 - Navigate to **Databases** → **Add Database**
 - Enter your PostgreSQL connection details
@@ -233,29 +286,43 @@ Your first backup will run according to the schedule, or you can trigger it manu
 
 ### 🐳 Docker Deployment
 
-**Production Deployment:**
+**Production-Ready Deployment:**
+
+Our production setup includes both backend and frontend in a single compose file:
 
 ```bash
-cd server
-docker-compose -f docker-compose.prod.yml up -d
+cd configs
+./deploy.sh
 ```
+
+Or manually:
+
+```bash
+cd configs
+docker compose up -d
+```
+
+**What's Included:**
+
+- Backend API (Port 8080)
+- Web Frontend (Port 3000)
+- PostgreSQL Database (Internal only)
+- Health checks and auto-restart
+- Optimized logging with rotation
+- Separate internal/external networks
 
 **Using External PostgreSQL:**
 
-Update `docker-compose.prod.yml` to point to your external database:
+Update `.env` in the configs directory:
 
-```yaml
-environment:
-  DB_HOST: your-postgres-host.example.com
-  DB_PORT: 5432
-  DB_USER: dumpstation
-  DB_PASSWORD: ${DB_PASSWORD}
-  DB_NAME: dumpstation_prod
+```env
+POSTGRES_PASSWORD=your_external_db_password
+# The backend will connect to the 'postgres' service by default
 ```
 
-**Behind Reverse Proxy:**
+**Behind Reverse Proxy (Traefik):**
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for nginx and Caddy configuration examples.
+Add labels to services in `compose.yml`. See [configs/README.md](configs/README.md) for complete Traefik configuration examples with automatic SSL.
 
 ---
 
@@ -395,15 +462,40 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines.
 ![Database Management](docs/screenshots/databases.png)
 _Manage multiple databases with flexible scheduling_
 
+### Database Details
+
+![Database Details](docs/screenshots/database_details.png)
+_Detailed view of a single database with backup history and settings_
+
+### Scheduling Configuration
+
+![Scheduling Configuration](docs/screenshots/scheduling.png)
+_Set up cron-based backup schedules with ease_
+
 ### Backup History
 
 ![Backup History](docs/screenshots/backups.png)
 _Track all backups with detailed status and one-click restore_
 
+### Backup Restore
+
+![Backup Restore](docs/screenshots/restore.png)
+_Easily restore backups to the same or different database_
+
 ### Storage Configuration
 
 ![Storage Configuration](docs/screenshots/storage.png)
 _Configure S3, R2, or MinIO storage providers_
+
+### Notifications Settings
+
+![Notifications Settings](docs/screenshots/notifications.png)
+_Set up Discord notifications for backup events_
+
+### Settings
+
+![Settings](docs/screenshots/settings.png)
+_Manage user profile, 2FA, and system settings_
 
 </div>
 

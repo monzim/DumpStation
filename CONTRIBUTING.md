@@ -89,7 +89,7 @@ git clone https://github.com/YOUR_USERNAME/dumpstation.git
 cd dumpstation
 
 # Add upstream remote
-git remote add upstream https://github.com/monzim/dumpstation.git
+git remote add upstream https://github.com/monzim/DumpStation.git
 ```
 
 ### 2. Backend Setup (Go)

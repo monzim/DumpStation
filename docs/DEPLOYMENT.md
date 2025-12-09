@@ -73,7 +73,7 @@ Perfect for testing, development, or small-scale production deployments.
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/monzim/dumpstation.git
+git clone https://github.com/monzim/DumpStation.git
 cd dumpstation/server
 ```
 
@@ -238,7 +238,7 @@ mkdir -p /opt/dumpstation
 cd /opt/dumpstation
 
 # Clone repository
-git clone https://github.com/monzim/dumpstation.git .
+git clone https://github.com/monzim/DumpStation.git .
 cd server
 ```
 

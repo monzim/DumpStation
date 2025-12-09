@@ -196,7 +196,7 @@ Automatic cleanup after 60 days (configurable).
 
 ```bash
 # Clone repository
-git clone https://github.com/monzim/dumpstation.git
+git clone https://github.com/monzim/DumpStation.git
 cd dumpstation/server
 
 # Install dependencies
