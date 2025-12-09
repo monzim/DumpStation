@@ -11,7 +11,8 @@ const getConfig = (key: string, defaultValue: string): string => {
 
 const API_BASE_URL = getConfig(
   "API_BASE_URL",
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api/v1"
+  import.meta.env.VITE_API_BASE_URL ||
+    "https://api.dumpstation.monzim.com/api/v1"
 );
 
 const TWO_FA_TOKEN_KEY = "2fa_token";
