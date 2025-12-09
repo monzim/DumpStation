@@ -15,6 +15,7 @@ import {
   Menu,
   RefreshCw,
   Settings,
+  Tags,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -50,6 +51,12 @@ const navItems: NavItem[] = [
     value: "logs",
     icon: Activity,
     route: "/activity",
+  },
+  {
+    label: "Labels",
+    value: "labels",
+    icon: Tags,
+    route: "/labels",
   },
   {
     label: "Notifications",

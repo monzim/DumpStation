@@ -20,12 +20,32 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { LabelBadge } from "@/components/ui/label-badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useDatabases,
@@ -34,21 +54,27 @@ import {
   useTriggerBackup,
   useUnpauseDatabase,
 } from "@/lib/api/databases";
+import { useAssignLabelsToDatabase, useLabels } from "@/lib/api/labels";
 import type { DatabaseConfig } from "@/lib/types/api";
 import { parseCronExpression } from "@/lib/utils/format";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Archive,
+  Check,
   Database,
+  Filter,
   Grid3X3,
   List,
+  Loader2,
   MoreVertical,
   PauseCircle,
   Pencil,
   PlayCircle,
   Plus,
   Settings2,
+  Tags,
   Trash2,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { DatabaseBackupsDialog } from "./database-backups-dialog";
@@ -99,12 +125,18 @@ export function DatabaseList() {
   const [settings, setSettings] = useState<DatabaseListSettings>(() =>
     getStoredSettings()
   );
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [labelFilterOpen, setLabelFilterOpen] = useState(false);
+  const [labelEditingDatabase, setLabelEditingDatabase] =
+    useState<DatabaseConfig | null>(null);
 
   const { data: databases, isLoading } = useDatabases();
+  const { data: labels } = useLabels();
   const deleteMutation = useDeleteDatabase();
   const pauseMutation = usePauseDatabase();
   const unpauseMutation = useUnpauseDatabase();
   const triggerBackupMutation = useTriggerBackup();
+  const assignLabelsMutation = useAssignLabelsToDatabase();
 
   const navigate = useNavigate();
 
@@ -135,6 +167,69 @@ export function DatabaseList() {
     await triggerBackupMutation.mutateAsync(database.id);
   };
 
+  // Filter databases by selected labels
+  const filteredDatabases =
+    databases?.filter((db) => {
+      if (selectedLabels.length === 0) return true;
+      return selectedLabels.some((labelId) =>
+        db.labels?.some((label) => label.id === labelId)
+      );
+    }) || [];
+
+  const toggleLabel = (labelId: string) => {
+    setSelectedLabels((prev) =>
+      prev.includes(labelId)
+        ? prev.filter((id) => id !== labelId)
+        : [...prev, labelId]
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedLabels([]);
+  };
+
+  const handleQuickLabelToggle = async (
+    database: DatabaseConfig,
+    labelId: string
+  ) => {
+    const currentLabels = database.labels?.map((l) => l.id) || [];
+    const newLabels = currentLabels.includes(labelId)
+      ? currentLabels.filter((id) => id !== labelId)
+      : [...currentLabels, labelId];
+
+    try {
+      await assignLabelsMutation.mutateAsync({
+        databaseId: database.id,
+        labelIds: newLabels,
+      });
+    } catch (error) {
+      // Error is handled by the mutation
+    }
+  };
+
+  // Group databases by labels
+  const groupedByLabels = () => {
+    const groups: { label: any; databases: DatabaseConfig[] }[] = [];
+    const unlabeled: DatabaseConfig[] = [];
+
+    labels?.forEach((label) => {
+      const dbs = filteredDatabases.filter((db) =>
+        db.labels?.some((l) => l.id === label.id)
+      );
+      if (dbs.length > 0) {
+        groups.push({ label, databases: dbs });
+      }
+    });
+
+    filteredDatabases.forEach((db) => {
+      if (!db.labels || db.labels.length === 0) {
+        unlabeled.push(db);
+      }
+    });
+
+    return { groups, unlabeled };
+  };
+
   const renderDatabaseActions = (database: DatabaseConfig) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -154,6 +249,15 @@ export function DatabaseList() {
         >
           <Pencil className="h-4 w-4 mr-2" />
           Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            setLabelEditingDatabase(database);
+          }}
+          disabled={isDemo}
+        >
+          <Tags className="h-4 w-4 mr-2" />
+          Manage Labels
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => handlePauseToggle(database)}
@@ -247,6 +351,13 @@ export function DatabaseList() {
               )}
               {database.enabled && <Badge variant="outline">Enabled</Badge>}
             </div>
+            {database.labels && database.labels.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {database.labels.map((label) => (
+                  <LabelBadge key={label.id} label={label} size="sm" />
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       ))}
@@ -307,6 +418,29 @@ export function DatabaseList() {
                 ) : (
                   <Badge variant="default">Active</Badge>
                 )}
+                {database.labels && database.labels.length > 0 && (
+                  <>
+                    {database.labels.slice(0, 2).map((label) => (
+                      <LabelBadge
+                        key={label.id}
+                        label={label}
+                        size="sm"
+                        onRemove={
+                          isDemo
+                            ? undefined
+                            : () => {
+                                handleQuickLabelToggle(database, label.id);
+                              }
+                        }
+                      />
+                    ))}
+                    {database.labels.length > 2 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{database.labels.length - 2}
+                      </Badge>
+                    )}
+                  </>
+                )}
               </div>
               {renderDatabaseActions(database)}
             </div>
@@ -347,6 +481,13 @@ export function DatabaseList() {
                   )}
                 </div>
               </div>
+              {database.labels && database.labels.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {database.labels.map((label) => (
+                    <LabelBadge key={label.id} label={label} size="sm" />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -430,11 +571,62 @@ export function DatabaseList() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              {databases?.length ?? 0} database
+              {filteredDatabases.length} of {databases?.length ?? 0} database
               {databases?.length !== 1 ? "s" : ""}
             </span>
+            {selectedLabels.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-7 px-2"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Clear filters
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Label Filter */}
+            <Popover open={labelFilterOpen} onOpenChange={setLabelFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Labels
+                  {selectedLabels.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {selectedLabels.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="end">
+                <Command>
+                  <CommandInput placeholder="Search labels..." />
+                  <CommandEmpty>No labels found.</CommandEmpty>
+                  <CommandGroup className="max-h-64 overflow-auto">
+                    {labels?.map((label) => (
+                      <CommandItem
+                        key={label.id}
+                        value={label.name}
+                        onSelect={() => toggleLabel(label.id)}
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <input
+                            type="checkbox"
+                            checked={selectedLabels.includes(label.id)}
+                            onChange={() => {}}
+                            className="h-4 w-4"
+                          />
+                          <LabelBadge label={label} size="sm" />
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
             {/* View Toggle */}
             <div className="flex items-center border rounded-lg p-1 bg-muted/30">
               <Button
@@ -512,12 +704,58 @@ export function DatabaseList() {
           ) : (
             renderSkeletonList()
           )
-        ) : databases && databases.length > 0 ? (
-          settings.viewMode === "card" ? (
-            renderCardView(databases)
-          ) : (
-            renderListView(databases)
-          )
+        ) : filteredDatabases.length > 0 ? (
+          <div className="space-y-8">
+            {/* Render databases grouped by labels */}
+            {groupedByLabels().groups.map(({ label, databases }) => (
+              <div key={label.id} className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <LabelBadge label={label} size="md" />
+                  <span className="text-sm text-muted-foreground">
+                    ({databases.length})
+                  </span>
+                </div>
+                {settings.viewMode === "card"
+                  ? renderCardView(databases)
+                  : renderListView(databases)}
+              </div>
+            ))}
+
+            {/* Unlabeled section */}
+            {groupedByLabels().unlabeled.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 px-2 rounded-md bg-muted flex items-center">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Unlabeled
+                    </span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    ({groupedByLabels().unlabeled.length})
+                  </span>
+                </div>
+                {settings.viewMode === "card"
+                  ? renderCardView(groupedByLabels().unlabeled)
+                  : renderListView(groupedByLabels().unlabeled)}
+              </div>
+            )}
+          </div>
+        ) : selectedLabels.length > 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Filter className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">
+                No Databases Match Filters
+              </h3>
+              <p className="text-muted-foreground text-center mb-4 max-w-md">
+                No databases found with the selected labels
+              </p>
+              <Button onClick={clearFilters} variant="outline">
+                <X className="h-4 w-4 mr-2" />
+                Clear Filters
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
@@ -582,6 +820,75 @@ export function DatabaseList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Quick Label Edit Dialog */}
+      <Dialog
+        open={!!labelEditingDatabase}
+        onOpenChange={(open) => !open && setLabelEditingDatabase(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Labels</DialogTitle>
+            <DialogDescription>
+              Manage labels for {labelEditingDatabase?.name}. Click to toggle.
+              Max 10 labels.
+            </DialogDescription>
+          </DialogHeader>
+          {assignLabelsMutation.isPending && (
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center rounded-lg z-50">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  Updating labels...
+                </p>
+              </div>
+            </div>
+          )}
+          <Command className="border rounded-lg">
+            <CommandInput placeholder="Search labels..." />
+            <CommandEmpty>No labels found.</CommandEmpty>
+            <CommandGroup className="max-h-64 overflow-auto">
+              {labels?.map((label) => {
+                const isSelected = labelEditingDatabase?.labels?.some(
+                  (l) => l.id === label.id
+                );
+                const currentCount = labelEditingDatabase?.labels?.length || 0;
+                const canAdd = currentCount < 10;
+
+                return (
+                  <CommandItem
+                    key={label.id}
+                    value={label.name}
+                    onSelect={() => {
+                      if (
+                        labelEditingDatabase &&
+                        !assignLabelsMutation.isPending
+                      ) {
+                        if (!isSelected && !canAdd) return;
+                        handleQuickLabelToggle(labelEditingDatabase, label.id);
+                      }
+                    }}
+                    disabled={
+                      (!isSelected && !canAdd) || assignLabelsMutation.isPending
+                    }
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <div className="h-4 w-4 border rounded flex items-center justify-center">
+                        {isSelected && <Check className="h-3 w-3" />}
+                      </div>
+                      <LabelBadge label={label} size="sm" />
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </Command>
+          <div className="text-xs text-muted-foreground text-center pt-2">
+            {labelEditingDatabase?.labels?.length || 0} / 10 labels selected
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

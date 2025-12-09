@@ -13,6 +13,7 @@ import { Route as StorageRouteImport } from './routes/storage'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LabelsRouteImport } from './routes/labels'
 import { Route as BackupsRouteImport } from './routes/backups'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
@@ -39,6 +40,11 @@ const NotificationsRoute = NotificationsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LabelsRoute = LabelsRouteImport.update({
+  id: '/labels',
+  path: '/labels',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BackupsRoute = BackupsRouteImport.update({
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/activity': typeof ActivityRoute
   '/backups': typeof BackupsRoute
+  '/labels': typeof LabelsRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/backups': typeof BackupsRoute
+  '/labels': typeof LabelsRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/activity': typeof ActivityRoute
   '/backups': typeof BackupsRoute
+  '/labels': typeof LabelsRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/activity'
     | '/backups'
+    | '/labels'
     | '/login'
     | '/notifications'
     | '/settings'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/backups'
+    | '/labels'
     | '/login'
     | '/notifications'
     | '/settings'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/activity'
     | '/backups'
+    | '/labels'
     | '/login'
     | '/notifications'
     | '/settings'
@@ -162,6 +174,7 @@ export interface RootRouteChildren {
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
   ActivityRoute: typeof ActivityRoute
   BackupsRoute: typeof BackupsRoute
+  LabelsRoute: typeof LabelsRoute
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
   SettingsRoute: typeof SettingsRoute
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/labels': {
+      id: '/labels'
+      path: '/labels'
+      fullPath: '/labels'
+      preLoaderRoute: typeof LabelsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/backups': {
@@ -269,6 +289,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   ActivityRoute: ActivityRoute,
   BackupsRoute: BackupsRoute,
+  LabelsRoute: LabelsRoute,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
   SettingsRoute: SettingsRoute,

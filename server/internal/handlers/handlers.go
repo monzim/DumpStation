@@ -1730,3 +1730,691 @@ func (h *Handler) logActivity(userID *uuid.UUID, action models.ActivityLogAction
 		log.Printf("[ACTIVITY_LOG] ❌ Failed to log activity [%s]: %v", action, err)
 	}
 }
+
+// ========================================
+// Label Handlers
+// ========================================
+
+// ListLabels godoc
+// @Summary List all labels
+// @Description Retrieves all labels for the authenticated user with usage statistics
+// @Tags Labels
+// @Produce json
+// @Success 200 {array} models.LabelResponse
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /labels [get]
+func (h *Handler) ListLabels(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	labels, err := h.repo.ListLabelsByUser(*userID, isAdmin)
+	if err != nil {
+		logError("Failed to list labels", err)
+		writeError(w, http.StatusInternalServerError, "failed to list labels")
+		return
+	}
+
+	responses := models.LabelsToResponse(labels)
+	writeJSON(w, http.StatusOK, responses)
+}
+
+// CreateLabel godoc
+// @Summary Create a new label
+// @Description Creates a new label with custom name, color, and description
+// @Tags Labels
+// @Accept json
+// @Produce json
+// @Param body body models.LabelInput true "Label details"
+// @Success 201 {object} models.LabelResponse
+// @Failure 400 {object} map[string]string "Bad request or validation error"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /labels [post]
+func (h *Handler) CreateLabel(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot create labels")
+		return
+	}
+
+	var input models.LabelInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	// Validate input
+	if validationErr, err := h.validator.Validate(&input); validationErr != nil {
+		writeValidationError(w, validationErr)
+		return
+	} else if err != nil {
+		logError("Validation error", err)
+		writeError(w, http.StatusInternalServerError, "validation failed")
+		return
+	}
+
+	label, err := h.repo.CreateLabel(*userID, &input)
+	if err != nil {
+		logError("Failed to create label", err)
+		if err.Error() == "label limit reached: maximum 50 labels per user" {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to create label")
+		return
+	}
+
+	// Log activity
+	h.logActivity(userID, models.ActionLabelCreated, models.LogLevelSuccess, "label", &label.ID, label.Name,
+		fmt.Sprintf("Created label '%s'", label.Name), "", getIPAddress(r))
+
+	// Convert to response with usage stats
+	labelWithUsage := &models.LabelWithUsage{
+		Label: *label,
+	}
+	writeJSON(w, http.StatusCreated, labelWithUsage.ToResponse())
+}
+
+// GetLabel godoc
+// @Summary Get a label by ID
+// @Description Retrieves a specific label with usage statistics
+// @Tags Labels
+// @Produce json
+// @Param id path string true "Label ID"
+// @Success 200 {object} models.LabelResponse
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "Label not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /labels/{id} [get]
+func (h *Handler) GetLabel(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	isAdmin := getIsAdminFromContext(r)
+
+	vars := mux.Vars(r)
+	id, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid label ID")
+		return
+	}
+
+	label, err := h.repo.GetLabel(id, *userID, isAdmin)
+	if err != nil {
+		logError("Failed to get label", err)
+		writeError(w, http.StatusInternalServerError, "failed to get label")
+		return
+	}
+	if label == nil {
+		writeError(w, http.StatusNotFound, "label not found")
+		return
+	}
+
+	// Get usage statistics
+	labels, err := h.repo.ListLabelsByUser(*userID, isAdmin)
+	if err != nil {
+		logError("Failed to get label usage", err)
+		writeError(w, http.StatusInternalServerError, "failed to get label")
+		return
+	}
+
+	// Find the matching label with usage
+	for _, l := range labels {
+		if l.ID == id {
+			writeJSON(w, http.StatusOK, l.ToResponse())
+			return
+		}
+	}
+
+	writeError(w, http.StatusNotFound, "label not found")
+}
+
+// UpdateLabel godoc
+// @Summary Update a label
+// @Description Updates an existing label's name, color, or description
+// @Tags Labels
+// @Accept json
+// @Produce json
+// @Param id path string true "Label ID"
+// @Param body body models.LabelInput true "Updated label details"
+// @Success 200 {object} models.LabelResponse
+// @Failure 400 {object} map[string]string "Invalid ID or validation error"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 404 {object} map[string]string "Label not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /labels/{id} [put]
+func (h *Handler) UpdateLabel(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot update labels")
+		return
+	}
+
+	isAdmin := getIsAdminFromContext(r)
+	vars := mux.Vars(r)
+	id, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid label ID")
+		return
+	}
+
+	var input models.LabelInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	// Validate input
+	if validationErr, err := h.validator.Validate(&input); validationErr != nil {
+		writeValidationError(w, validationErr)
+		return
+	} else if err != nil {
+		logError("Validation error", err)
+		writeError(w, http.StatusInternalServerError, "validation failed")
+		return
+	}
+
+	label, err := h.repo.UpdateLabel(id, *userID, isAdmin, &input)
+	if err != nil {
+		logError("Failed to update label", err)
+		if err == fmt.Errorf("record not found") {
+			writeError(w, http.StatusNotFound, "label not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to update label")
+		return
+	}
+
+	// Log activity
+	h.logActivity(userID, models.ActionLabelUpdated, models.LogLevelSuccess, "label", &label.ID, label.Name,
+		fmt.Sprintf("Updated label '%s'", label.Name), "", getIPAddress(r))
+
+	// Get usage statistics for response
+	labels, _ := h.repo.ListLabelsByUser(*userID, isAdmin)
+	for _, l := range labels {
+		if l.ID == id {
+			writeJSON(w, http.StatusOK, l.ToResponse())
+			return
+		}
+	}
+
+	labelWithUsage := &models.LabelWithUsage{
+		Label: *label,
+	}
+	writeJSON(w, http.StatusOK, labelWithUsage.ToResponse())
+}
+
+// DeleteLabel godoc
+// @Summary Delete a label
+// @Description Deletes a label and removes all its associations
+// @Tags Labels
+// @Param id path string true "Label ID"
+// @Success 204 "No content"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 404 {object} map[string]string "Label not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /labels/{id} [delete]
+func (h *Handler) DeleteLabel(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot delete labels")
+		return
+	}
+
+	isAdmin := getIsAdminFromContext(r)
+	vars := mux.Vars(r)
+	id, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid label ID")
+		return
+	}
+
+	// Get label name before deleting for logging
+	label, _ := h.repo.GetLabel(id, *userID, isAdmin)
+	var labelName string
+	if label != nil {
+		labelName = label.Name
+	}
+
+	err = h.repo.DeleteLabel(id, *userID, isAdmin)
+	if err != nil {
+		logError("Failed to delete label", err)
+		if err == fmt.Errorf("record not found") {
+			writeError(w, http.StatusNotFound, "label not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to delete label")
+		return
+	}
+
+	// Log activity
+	h.logActivity(userID, models.ActionLabelDeleted, models.LogLevelSuccess, "label", &id, labelName,
+		fmt.Sprintf("Deleted label '%s'", labelName), "", getIPAddress(r))
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ========================================
+// Database Label Assignment Handlers
+// ========================================
+
+// AssignLabelsToDatabase godoc
+// @Summary Assign labels to a database
+// @Description Assigns multiple labels to a database configuration
+// @Tags Databases
+// @Accept json
+// @Produce json
+// @Param id path string true "Database ID"
+// @Param body body models.AssignLabelsInput true "Label IDs to assign"
+// @Success 200 {object} models.DatabaseConfigResponse
+// @Failure 400 {object} map[string]string "Invalid ID or validation error"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 404 {object} map[string]string "Database not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /databases/{id}/labels [post]
+func (h *Handler) AssignLabelsToDatabase(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot assign labels")
+		return
+	}
+
+	isAdmin := getIsAdminFromContext(r)
+	vars := mux.Vars(r)
+	dbID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid database ID")
+		return
+	}
+
+	var input models.AssignLabelsInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	// Validate input
+	if validationErr, err := h.validator.Validate(&input); validationErr != nil {
+		writeValidationError(w, validationErr)
+		return
+	} else if err != nil {
+		logError("Validation error", err)
+		writeError(w, http.StatusInternalServerError, "validation failed")
+		return
+	}
+
+	err = h.repo.AssignLabelsToDatabase(dbID, *userID, isAdmin, input.LabelIDs)
+	if err != nil {
+		logError("Failed to assign labels to database", err)
+		if err.Error() == "label limit exceeded: maximum 10 labels per database" {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to assign labels")
+		return
+	}
+
+	// Get updated database with labels
+	db, err := h.repo.GetDatabaseWithLabels(dbID, *userID, isAdmin)
+	if err != nil || db == nil {
+		logError("Failed to get database after label assignment", err)
+		writeError(w, http.StatusInternalServerError, "failed to get updated database")
+		return
+	}
+
+	// Log activity
+	h.logActivity(userID, "database_updated", models.LogLevelSuccess, "database", &db.ID, db.Name,
+		fmt.Sprintf("Assigned labels to database '%s'", db.Name), "", getIPAddress(r))
+
+	writeJSON(w, http.StatusOK, db.ToResponse())
+}
+
+// RemoveLabelFromDatabase godoc
+// @Summary Remove a label from a database
+// @Description Removes a specific label from a database configuration
+// @Tags Databases
+// @Param id path string true "Database ID"
+// @Param labelId path string true "Label ID"
+// @Success 204 "No content"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 404 {object} map[string]string "Not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /databases/{id}/labels/{labelId} [delete]
+func (h *Handler) RemoveLabelFromDatabase(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot remove labels")
+		return
+	}
+
+	isAdmin := getIsAdminFromContext(r)
+	vars := mux.Vars(r)
+	dbID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid database ID")
+		return
+	}
+	labelID, err := uuid.Parse(vars["labelId"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid label ID")
+		return
+	}
+
+	err = h.repo.RemoveLabelFromDatabase(dbID, labelID, *userID, isAdmin)
+	if err != nil {
+		logError("Failed to remove label from database", err)
+		writeError(w, http.StatusInternalServerError, "failed to remove label")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ========================================
+// Storage Label Assignment Handlers
+// ========================================
+
+// AssignLabelsToStorage godoc
+// @Summary Assign labels to a storage config
+// @Description Assigns multiple labels to a storage configuration
+// @Tags Storage
+// @Accept json
+// @Produce json
+// @Param id path string true "Storage ID"
+// @Param body body models.AssignLabelsInput true "Label IDs to assign"
+// @Success 200 {object} models.StorageConfigResponse
+// @Failure 400 {object} map[string]string "Invalid ID or validation error"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 404 {object} map[string]string "Storage not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /storage/{id}/labels [post]
+func (h *Handler) AssignLabelsToStorage(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot assign labels")
+		return
+	}
+
+	isAdmin := getIsAdminFromContext(r)
+	vars := mux.Vars(r)
+	storageID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid storage ID")
+		return
+	}
+
+	var input models.AssignLabelsInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	// Validate input
+	if validationErr, err := h.validator.Validate(&input); validationErr != nil {
+		writeValidationError(w, validationErr)
+		return
+	} else if err != nil {
+		logError("Validation error", err)
+		writeError(w, http.StatusInternalServerError, "validation failed")
+		return
+	}
+
+	err = h.repo.AssignLabelsToStorage(storageID, *userID, isAdmin, input.LabelIDs)
+	if err != nil {
+		logError("Failed to assign labels to storage", err)
+		if err.Error() == "label limit exceeded: maximum 10 labels per storage" {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to assign labels")
+		return
+	}
+
+	// Get updated storage with labels
+	storage, err := h.repo.GetStorageWithLabels(storageID, *userID, isAdmin)
+	if err != nil || storage == nil {
+		logError("Failed to get storage after label assignment", err)
+		writeError(w, http.StatusInternalServerError, "failed to get updated storage")
+		return
+	}
+
+	// Log activity
+	h.logActivity(userID, models.ActionStorageUpdated, models.LogLevelSuccess, "storage", &storage.ID, storage.Name,
+		fmt.Sprintf("Assigned labels to storage '%s'", storage.Name), "", getIPAddress(r))
+
+	writeJSON(w, http.StatusOK, storage.ToResponse())
+}
+
+// RemoveLabelFromStorage godoc
+// @Summary Remove a label from a storage config
+// @Description Removes a specific label from a storage configuration
+// @Tags Storage
+// @Param id path string true "Storage ID"
+// @Param labelId path string true "Label ID"
+// @Success 204 "No content"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 404 {object} map[string]string "Not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /storage/{id}/labels/{labelId} [delete]
+func (h *Handler) RemoveLabelFromStorage(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot remove labels")
+		return
+	}
+
+	isAdmin := getIsAdminFromContext(r)
+	vars := mux.Vars(r)
+	storageID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid storage ID")
+		return
+	}
+	labelID, err := uuid.Parse(vars["labelId"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid label ID")
+		return
+	}
+
+	err = h.repo.RemoveLabelFromStorage(storageID, labelID, *userID, isAdmin)
+	if err != nil {
+		logError("Failed to remove label from storage", err)
+		writeError(w, http.StatusInternalServerError, "failed to remove label")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ========================================
+// Notification Label Assignment Handlers
+// ========================================
+
+// AssignLabelsToNotification godoc
+// @Summary Assign labels to a notification config
+// @Description Assigns multiple labels to a notification configuration
+// @Tags Notifications
+// @Accept json
+// @Produce json
+// @Param id path string true "Notification ID"
+// @Param body body models.AssignLabelsInput true "Label IDs to assign"
+// @Success 200 {object} models.NotificationConfigResponse
+// @Failure 400 {object} map[string]string "Invalid ID or validation error"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 404 {object} map[string]string "Notification not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /notifications/{id}/labels [post]
+func (h *Handler) AssignLabelsToNotification(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot assign labels")
+		return
+	}
+
+	isAdmin := getIsAdminFromContext(r)
+	vars := mux.Vars(r)
+	notifID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid notification ID")
+		return
+	}
+
+	var input models.AssignLabelsInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	// Validate input
+	if validationErr, err := h.validator.Validate(&input); validationErr != nil {
+		writeValidationError(w, validationErr)
+		return
+	} else if err != nil {
+		logError("Validation error", err)
+		writeError(w, http.StatusInternalServerError, "validation failed")
+		return
+	}
+
+	err = h.repo.AssignLabelsToNotification(notifID, *userID, isAdmin, input.LabelIDs)
+	if err != nil {
+		logError("Failed to assign labels to notification", err)
+		if err.Error() == "label limit exceeded: maximum 10 labels per notification" {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to assign labels")
+		return
+	}
+
+	// Get updated notification with labels
+	notif, err := h.repo.GetNotificationWithLabels(notifID, *userID, isAdmin)
+	if err != nil || notif == nil {
+		logError("Failed to get notification after label assignment", err)
+		writeError(w, http.StatusInternalServerError, "failed to get updated notification")
+		return
+	}
+
+	// Log activity
+	h.logActivity(userID, models.ActionNotificationUpdated, models.LogLevelSuccess, "notification", &notif.ID, notif.Name,
+		fmt.Sprintf("Assigned labels to notification '%s'", notif.Name), "", getIPAddress(r))
+
+	writeJSON(w, http.StatusOK, notif.ToResponse())
+}
+
+// RemoveLabelFromNotification godoc
+// @Summary Remove a label from a notification config
+// @Description Removes a specific label from a notification configuration
+// @Tags Notifications
+// @Param id path string true "Notification ID"
+// @Param labelId path string true "Label ID"
+// @Success 204 "No content"
+// @Failure 400 {object} map[string]string "Invalid ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden (demo user)"
+// @Failure 404 {object} map[string]string "Not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /notifications/{id}/labels/{labelId} [delete]
+func (h *Handler) RemoveLabelFromNotification(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	if userID == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	if isDemoUserFromContext(r) {
+		writeError(w, http.StatusForbidden, "demo users cannot remove labels")
+		return
+	}
+
+	isAdmin := getIsAdminFromContext(r)
+	vars := mux.Vars(r)
+	notifID, err := uuid.Parse(vars["id"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid notification ID")
+		return
+	}
+	labelID, err := uuid.Parse(vars["labelId"])
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid label ID")
+		return
+	}
+
+	err = h.repo.RemoveLabelFromNotification(notifID, labelID, *userID, isAdmin)
+	if err != nil {
+		logError("Failed to remove label from notification", err)
+		writeError(w, http.StatusInternalServerError, "failed to remove label")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -55,6 +55,10 @@ func (db *DB) AutoMigrate() error {
 		&models.Backup{},
 		&models.RestoreJob{},
 		&models.ActivityLog{},
+		&models.Label{},
+		&models.DatabaseLabel{},
+		&models.StorageLabel{},
+		&models.NotificationLabel{},
 	)
 
 	if err != nil {

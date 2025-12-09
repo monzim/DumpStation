@@ -78,6 +78,10 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	protected.HandleFunc("/users/me", h.GetUserProfile).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/users/me/avatar", h.GetUserAvatar).Methods("GET", "OPTIONS")
 
+	// Label routes - GET allowed for demo
+	protected.HandleFunc("/labels", h.ListLabels).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/labels/{id}", h.GetLabel).Methods("GET", "OPTIONS")
+
 	// Demo-restricted routes (write operations blocked for demo accounts)
 	demoRestricted := api.PathPrefix("").Subrouter()
 	demoRestricted.Use(middleware.AuthMiddleware(jwtMgr))
@@ -108,6 +112,23 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	demoRestricted.HandleFunc("/users/me/avatar", h.UploadAvatar).Methods("POST", "OPTIONS")
 	demoRestricted.HandleFunc("/users/me/avatar", h.DeleteAvatar).Methods("DELETE", "OPTIONS")
 	demoRestricted.HandleFunc("/users/me/avatar/upload", h.UploadAvatarMultipart).Methods("POST", "OPTIONS")
+
+	// Label write operations - blocked for demo
+	demoRestricted.HandleFunc("/labels", h.CreateLabel).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/labels/{id}", h.UpdateLabel).Methods("PUT", "OPTIONS")
+	demoRestricted.HandleFunc("/labels/{id}", h.DeleteLabel).Methods("DELETE", "OPTIONS")
+
+	// Database label assignment - blocked for demo
+	demoRestricted.HandleFunc("/databases/{id}/labels", h.AssignLabelsToDatabase).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/databases/{id}/labels/{labelId}", h.RemoveLabelFromDatabase).Methods("DELETE", "OPTIONS")
+
+	// Storage label assignment - blocked for demo
+	demoRestricted.HandleFunc("/storage/{id}/labels", h.AssignLabelsToStorage).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/storage/{id}/labels/{labelId}", h.RemoveLabelFromStorage).Methods("DELETE", "OPTIONS")
+
+	// Notification label assignment - blocked for demo
+	demoRestricted.HandleFunc("/notifications/{id}/labels", h.AssignLabelsToNotification).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/notifications/{id}/labels/{labelId}", h.RemoveLabelFromNotification).Methods("DELETE", "OPTIONS")
 
 	// Demo-blocked routes (completely blocked for demo accounts - 2FA management)
 	demoBlocked := api.PathPrefix("").Subrouter()

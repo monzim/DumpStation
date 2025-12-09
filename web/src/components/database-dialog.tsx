@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   Dialog,
@@ -18,9 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CronBuilder } from "@/components/cron-builder";
+import { LabelSelector } from "@/components/ui/label-selector";
 import { useCreateDatabase, useUpdateDatabase } from "@/lib/api/databases";
 import { useNotifications } from "@/lib/api/notifications";
 import { useStorageConfigs } from "@/lib/api/storage";
+import { useAssignLabelsToDatabase } from "@/lib/api/labels";
 import type { DatabaseConfig, DatabaseConfigInput } from "@/lib/types/api";
 
 interface DatabaseDialogProps {
@@ -37,8 +39,10 @@ export function DatabaseDialog({
   const isEditing = !!database;
   const createMutation = useCreateDatabase();
   const updateMutation = useUpdateDatabase();
+  const assignLabelsMutation = useAssignLabelsToDatabase();
   const { data: notifications } = useNotifications();
   const { data: storageConfigs } = useStorageConfigs();
+  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
 
   const {
     register,
@@ -86,6 +90,7 @@ export function DatabaseDialog({
           value: 30,
         },
       });
+      setSelectedLabelIds(database.labels?.map((l) => l.id) || []);
     } else {
       reset({
         name: "",
@@ -103,6 +108,7 @@ export function DatabaseDialog({
           value: 30,
         },
       });
+      setSelectedLabelIds([]);
     }
   }, [database, reset]);
 
@@ -110,8 +116,20 @@ export function DatabaseDialog({
     try {
       if (isEditing && database) {
         await updateMutation.mutateAsync({ id: database.id, input: data });
+        // Assign labels after update
+        await assignLabelsMutation.mutateAsync({
+          databaseId: database.id,
+          labelIds: selectedLabelIds,
+        });
       } else {
-        await createMutation.mutateAsync(data);
+        const result = await createMutation.mutateAsync(data);
+        // Assign labels after creation
+        if (selectedLabelIds.length > 0) {
+          await assignLabelsMutation.mutateAsync({
+            databaseId: result.id,
+            labelIds: selectedLabelIds,
+          });
+        }
       }
       onOpenChange(false);
     } catch (error) {
@@ -315,6 +333,14 @@ export function DatabaseDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-semibold mb-3">Labels</h4>
+            <LabelSelector
+              selectedLabelIds={selectedLabelIds}
+              onChange={setSelectedLabelIds}
+            />
           </div>
 
           <div className="border-t pt-4">

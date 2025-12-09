@@ -69,6 +69,7 @@ export type StorageProvider = "s3" | "r2";
 export interface NotificationConfig {
   id: string;
   name: string;
+  labels?: Label[];
   created_at: string;
   updated_at: string;
 }
@@ -95,6 +96,7 @@ export interface StorageConfig {
   bucket: string;
   region: string;
   endpoint: string;
+  labels?: Label[];
   created_at: string;
   updated_at: string;
 }
@@ -132,6 +134,7 @@ export interface DatabaseConfig {
   version_last_checked: string;
   enabled: boolean;
   paused: boolean;
+  labels?: Label[];
   created_at: string;
   updated_at: string;
 }
@@ -277,6 +280,30 @@ export interface ActivityLogListResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+// Label Types
+export interface Label {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+  database_count: number;
+  storage_count: number;
+  notification_count: number;
+  total_usage: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LabelInput {
+  name: string;
+  color: string;
+  description?: string;
+}
+
+export interface AssignLabelsInput {
+  label_ids: string[];
 }
 
 // Error Types

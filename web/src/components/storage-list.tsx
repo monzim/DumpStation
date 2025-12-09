@@ -26,8 +26,23 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
+import { LabelBadge } from "@/components/ui/label-badge";
 import { useDatabases } from "@/lib/api/databases";
 import { useDeleteStorageConfig, useStorageConfigs } from "@/lib/api/storage";
+import { useLabels, useAssignLabelsToStorage } from "@/lib/api/labels";
 import type { StorageConfig } from "@/lib/types/api";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -47,6 +62,7 @@ import {
   Server,
   Trash2,
   Zap,
+  Tags,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -85,6 +101,7 @@ function StorageCard({
   linkedDatabases,
   onEdit,
   onDelete,
+  onManageLabels,
   isDeleting,
   isDemo,
 }: {
@@ -92,6 +109,7 @@ function StorageCard({
   linkedDatabases: number;
   onEdit: () => void;
   onDelete: () => void;
+  onManageLabels: () => void;
   isDeleting: boolean;
   isDemo: boolean;
 }) {
@@ -158,6 +176,13 @@ function StorageCard({
               <p className="text-sm text-muted-foreground mt-0.5 truncate">
                 {storage.bucket}
               </p>
+              {storage.labels && storage.labels.length > 0 && (
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                  {storage.labels.map((label) => (
+                    <LabelBadge key={label.id} label={label} size="sm" />
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Actions - Desktop */}
@@ -196,6 +221,10 @@ function StorageCard({
                     <Edit2 className="h-4 w-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onManageLabels}>
+                    <Tags className="h-4 w-4 mr-2" />
+                    Labels
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={onDelete}
@@ -225,6 +254,10 @@ function StorageCard({
                   <DropdownMenuItem onClick={onEdit} disabled={isDemo}>
                     <Edit2 className="h-4 w-4 mr-2" />
                     Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onManageLabels}>
+                    <Tags className="h-4 w-4 mr-2" />
+                    Labels
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -281,7 +314,9 @@ export function StorageList() {
     isRefetching,
   } = useStorageConfigs();
   const { data: databases } = useDatabases();
+  const { data: labels } = useLabels();
   const deleteStorageConfig = useDeleteStorageConfig();
+  const assignLabelsMutation = useAssignLabelsToStorage();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingStorage, setEditingStorage] = useState<StorageConfig | null>(
     null
@@ -290,6 +325,10 @@ export function StorageList() {
   const [storageToDelete, setStorageToDelete] = useState<StorageConfig | null>(
     null
   );
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [labelDialogStorage, setLabelDialogStorage] =
+    useState<StorageConfig | null>(null);
+  const [labelLoading, setLabelLoading] = useState(false);
 
   // Calculate linked databases for each storage
   const getLinkedDatabasesCount = (storageId: string) => {
@@ -331,6 +370,33 @@ export function StorageList() {
   };
 
   const handleRefresh = () => refetch();
+
+  const handleManageLabels = (storage: StorageConfig) => {
+    setLabelDialogStorage(storage);
+    setLabelDialogOpen(true);
+  };
+
+  const handleQuickLabelToggle = async (labelId: string) => {
+    if (!labelDialogStorage) return;
+
+    const currentLabelIds = labelDialogStorage.labels?.map((l) => l.id) || [];
+    const newLabelIds = currentLabelIds.includes(labelId)
+      ? currentLabelIds.filter((id) => id !== labelId)
+      : [...currentLabelIds, labelId];
+
+    setLabelLoading(true);
+    try {
+      await assignLabelsMutation.mutateAsync({
+        storageId: labelDialogStorage.id,
+        labelIds: newLabelIds,
+      });
+      toast.success("Labels updated");
+    } catch {
+      toast.error("Failed to update labels");
+    } finally {
+      setLabelLoading(false);
+    }
+  };
 
   // Calculate stats
   const totalStorage = storageConfigs?.length ?? 0;
@@ -520,6 +586,7 @@ export function StorageList() {
                 linkedDatabases={getLinkedDatabasesCount(storage.id)}
                 onEdit={() => handleEdit(storage)}
                 onDelete={() => handleDelete(storage)}
+                onManageLabels={() => handleManageLabels(storage)}
                 isDeleting={deleteStorageConfig.isPending}
                 isDemo={isDemo}
               />
@@ -584,6 +651,52 @@ export function StorageList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Label Management Dialog */}
+      <Dialog open={labelDialogOpen} onOpenChange={setLabelDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Labels</DialogTitle>
+          </DialogHeader>
+          <Command className="border rounded-lg">
+            <CommandInput placeholder="Search labels..." />
+            <CommandEmpty>No labels found.</CommandEmpty>
+            <CommandGroup className="max-h-64 overflow-y-auto">
+              {labels?.map((label) => {
+                const isSelected = labelDialogStorage?.labels?.some(
+                  (l) => l.id === label.id
+                );
+                return (
+                  <CommandItem
+                    key={label.id}
+                    onSelect={() => handleQuickLabelToggle(label.id)}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 flex-1">
+                      <div
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: label.color }}
+                      />
+                      <span className="flex-1">{label.name}</span>
+                    </div>
+                    {isSelected && <Check className="h-4 w-4 shrink-0" />}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </Command>
+        </DialogContent>
+      </Dialog>
+
+      {/* Loading Overlay */}
+      {labelLoading && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-card p-6 rounded-lg shadow-lg flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm font-medium">Updating labels...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

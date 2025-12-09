@@ -185,7 +185,7 @@ func (r *Repository) ListStorageConfigs() ([]*models.StorageConfig, error) {
 // ListStorageConfigsByUser lists storage configs for a specific user (or all if admin)
 func (r *Repository) ListStorageConfigsByUser(userID uuid.UUID, isAdmin bool) ([]*models.StorageConfig, error) {
 	var configs []*models.StorageConfig
-	query := r.db.Order("created_at DESC")
+	query := r.db.Preload("Labels").Order("created_at DESC")
 	if !isAdmin {
 		query = query.Where("user_id = ?", userID)
 	}
@@ -354,7 +354,7 @@ func (r *Repository) ListNotificationConfigs() ([]*models.NotificationConfig, er
 // ListNotificationConfigsByUser lists notification configs for a specific user (or all if admin)
 func (r *Repository) ListNotificationConfigsByUser(userID uuid.UUID, isAdmin bool) ([]*models.NotificationConfig, error) {
 	var configs []*models.NotificationConfig
-	query := r.db.Order("created_at DESC")
+	query := r.db.Preload("Labels").Order("created_at DESC")
 	if !isAdmin {
 		query = query.Where("user_id = ?", userID)
 	}
@@ -523,7 +523,7 @@ func (r *Repository) ListDatabaseConfigs() ([]*models.DatabaseConfig, error) {
 // ListDatabaseConfigsByUser lists database configs for a specific user (or all if admin)
 func (r *Repository) ListDatabaseConfigsByUser(userID uuid.UUID, isAdmin bool) ([]*models.DatabaseConfig, error) {
 	var configs []*models.DatabaseConfig
-	query := r.db.Preload("Storage").Preload("Notification").Order("created_at DESC")
+	query := r.db.Preload("Storage").Preload("Notification").Preload("Labels").Order("created_at DESC")
 	if !isAdmin {
 		query = query.Where("user_id = ?", userID)
 	}
@@ -1391,4 +1391,478 @@ func (r *Repository) SeedDemoUser(username, email string) (*models.User, error) 
 	}
 
 	return user, nil
+}
+
+// ========================================
+// Label Operations
+// ========================================
+
+// CreateLabel creates a new label for a user
+func (r *Repository) CreateLabel(userID uuid.UUID, input *models.LabelInput) (*models.Label, error) {
+	// Check label count limit (50 labels per user)
+	var count int64
+	if err := r.db.Model(&models.Label{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		return nil, fmt.Errorf("failed to count labels: %w", err)
+	}
+	if count >= 50 {
+		return nil, fmt.Errorf("label limit reached: maximum 50 labels per user")
+	}
+
+	label := &models.Label{
+		UserID:      userID,
+		Name:        input.Name,
+		Color:       input.Color,
+		Description: input.Description,
+	}
+
+	result := r.db.Create(label)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to create label: %w", result.Error)
+	}
+
+	return label, nil
+}
+
+// GetLabel retrieves a label by ID with user isolation
+func (r *Repository) GetLabel(id, userID uuid.UUID, isAdmin bool) (*models.Label, error) {
+	var label models.Label
+	query := r.db.Where("id = ?", id)
+
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	result := query.First(&label)
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get label: %w", result.Error)
+	}
+
+	return &label, nil
+}
+
+// ListLabelsByUser retrieves all labels for a user with usage statistics
+func (r *Repository) ListLabelsByUser(userID uuid.UUID, isAdmin bool) ([]*models.LabelWithUsage, error) {
+	var labels []*models.Label
+	query := r.db.Order("name ASC")
+
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	result := query.Find(&labels)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list labels: %w", result.Error)
+	}
+
+	// Convert to LabelWithUsage and calculate usage statistics
+	labelsWithUsage := make([]*models.LabelWithUsage, len(labels))
+	for i, label := range labels {
+		usage := &models.LabelWithUsage{
+			Label: *label,
+		}
+
+		// Count database associations
+		var dbCount, storageCount, notificationCount int64
+		r.db.Model(&models.DatabaseLabel{}).Where("label_id = ?", label.ID).Count(&dbCount)
+		r.db.Model(&models.StorageLabel{}).Where("label_id = ?", label.ID).Count(&storageCount)
+		r.db.Model(&models.NotificationLabel{}).Where("label_id = ?", label.ID).Count(&notificationCount)
+
+		usage.DatabaseCount = int(dbCount)
+		usage.StorageCount = int(storageCount)
+		usage.NotificationCount = int(notificationCount)
+		usage.TotalUsage = usage.DatabaseCount + usage.StorageCount + usage.NotificationCount
+
+		labelsWithUsage[i] = usage
+	}
+
+	return labelsWithUsage, nil
+}
+
+// UpdateLabel updates a label with user isolation
+func (r *Repository) UpdateLabel(id, userID uuid.UUID, isAdmin bool, input *models.LabelInput) (*models.Label, error) {
+	var label models.Label
+	query := r.db.Where("id = ?", id)
+
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	if err := query.First(&label).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, gorm.ErrRecordNotFound
+		}
+		return nil, fmt.Errorf("failed to find label: %w", err)
+	}
+
+	label.Name = input.Name
+	label.Color = input.Color
+	label.Description = input.Description
+
+	result := r.db.Save(&label)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to update label: %w", result.Error)
+	}
+
+	return &label, nil
+}
+
+// DeleteLabel deletes a label and all its associations
+func (r *Repository) DeleteLabel(id, userID uuid.UUID, isAdmin bool) error {
+	query := r.db.Where("id = ?", id)
+
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	// GORM will automatically delete associations due to many2many relationships
+	result := query.Delete(&models.Label{})
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete label: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+// ========================================
+// Database Label Assignment Operations
+// ========================================
+
+// AssignLabelsToDatabase assigns labels to a database config
+func (r *Repository) AssignLabelsToDatabase(dbID, userID uuid.UUID, isAdmin bool, labelIDs []uuid.UUID) error {
+	// Validate label count limit (10 labels per database)
+	if len(labelIDs) > 10 {
+		return fmt.Errorf("label limit exceeded: maximum 10 labels per database")
+	}
+
+	// Verify database ownership
+	var db models.DatabaseConfig
+	query := r.db.Where("id = ?", dbID)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&db).Error; err != nil {
+		return fmt.Errorf("database not found or access denied: %w", err)
+	}
+
+	// Verify all labels belong to the user
+	var labels []models.Label
+	labelQuery := r.db.Where("id IN ?", labelIDs)
+	if !isAdmin {
+		labelQuery = labelQuery.Where("user_id = ?", userID)
+	}
+	if err := labelQuery.Find(&labels).Error; err != nil {
+		return fmt.Errorf("failed to verify labels: %w", err)
+	}
+	if len(labels) != len(labelIDs) {
+		return fmt.Errorf("one or more labels not found or access denied")
+	}
+
+	// Use GORM association to replace labels
+	if err := r.db.Model(&db).Association("Labels").Replace(&labels); err != nil {
+		return fmt.Errorf("failed to assign labels: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveLabelFromDatabase removes a specific label from a database config
+func (r *Repository) RemoveLabelFromDatabase(dbID, labelID, userID uuid.UUID, isAdmin bool) error {
+	// Verify database ownership
+	var db models.DatabaseConfig
+	query := r.db.Where("id = ?", dbID)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&db).Error; err != nil {
+		return fmt.Errorf("database not found or access denied: %w", err)
+	}
+
+	// Verify label ownership
+	var label models.Label
+	labelQuery := r.db.Where("id = ?", labelID)
+	if !isAdmin {
+		labelQuery = labelQuery.Where("user_id = ?", userID)
+	}
+	if err := labelQuery.First(&label).Error; err != nil {
+		return fmt.Errorf("label not found or access denied: %w", err)
+	}
+
+	// Remove the association
+	if err := r.db.Model(&db).Association("Labels").Delete(&label); err != nil {
+		return fmt.Errorf("failed to remove label: %w", err)
+	}
+
+	return nil
+}
+
+// GetDatabaseWithLabels retrieves a database config with its labels preloaded
+func (r *Repository) GetDatabaseWithLabels(id, userID uuid.UUID, isAdmin bool) (*models.DatabaseConfig, error) {
+	var db models.DatabaseConfig
+	query := r.db.Preload("Labels").Where("id = ?", id)
+
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	result := query.First(&db)
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get database: %w", result.Error)
+	}
+
+	return &db, nil
+}
+
+// ========================================
+// Storage Label Assignment Operations
+// ========================================
+
+// AssignLabelsToStorage assigns labels to a storage config
+func (r *Repository) AssignLabelsToStorage(storageID, userID uuid.UUID, isAdmin bool, labelIDs []uuid.UUID) error {
+	// Validate label count limit (10 labels per storage)
+	if len(labelIDs) > 10 {
+		return fmt.Errorf("label limit exceeded: maximum 10 labels per storage")
+	}
+
+	// Verify storage ownership
+	var storage models.StorageConfig
+	query := r.db.Where("id = ?", storageID)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&storage).Error; err != nil {
+		return fmt.Errorf("storage not found or access denied: %w", err)
+	}
+
+	// Verify all labels belong to the user
+	var labels []models.Label
+	labelQuery := r.db.Where("id IN ?", labelIDs)
+	if !isAdmin {
+		labelQuery = labelQuery.Where("user_id = ?", userID)
+	}
+	if err := labelQuery.Find(&labels).Error; err != nil {
+		return fmt.Errorf("failed to verify labels: %w", err)
+	}
+	if len(labels) != len(labelIDs) {
+		return fmt.Errorf("one or more labels not found or access denied")
+	}
+
+	// Use GORM association to replace labels
+	if err := r.db.Model(&storage).Association("Labels").Replace(&labels); err != nil {
+		return fmt.Errorf("failed to assign labels: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveLabelFromStorage removes a specific label from a storage config
+func (r *Repository) RemoveLabelFromStorage(storageID, labelID, userID uuid.UUID, isAdmin bool) error {
+	// Verify storage ownership
+	var storage models.StorageConfig
+	query := r.db.Where("id = ?", storageID)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&storage).Error; err != nil {
+		return fmt.Errorf("storage not found or access denied: %w", err)
+	}
+
+	// Verify label ownership
+	var label models.Label
+	labelQuery := r.db.Where("id = ?", labelID)
+	if !isAdmin {
+		labelQuery = labelQuery.Where("user_id = ?", userID)
+	}
+	if err := labelQuery.First(&label).Error; err != nil {
+		return fmt.Errorf("label not found or access denied: %w", err)
+	}
+
+	// Remove the association
+	if err := r.db.Model(&storage).Association("Labels").Delete(&label); err != nil {
+		return fmt.Errorf("failed to remove label: %w", err)
+	}
+
+	return nil
+}
+
+// GetStorageWithLabels retrieves a storage config with its labels preloaded
+func (r *Repository) GetStorageWithLabels(id, userID uuid.UUID, isAdmin bool) (*models.StorageConfig, error) {
+	var storage models.StorageConfig
+	query := r.db.Preload("Labels").Where("id = ?", id)
+
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	result := query.First(&storage)
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get storage: %w", result.Error)
+	}
+
+	return &storage, nil
+}
+
+// ========================================
+// Notification Label Assignment Operations
+// ========================================
+
+// AssignLabelsToNotification assigns labels to a notification config
+func (r *Repository) AssignLabelsToNotification(notifID, userID uuid.UUID, isAdmin bool, labelIDs []uuid.UUID) error {
+	// Validate label count limit (10 labels per notification)
+	if len(labelIDs) > 10 {
+		return fmt.Errorf("label limit exceeded: maximum 10 labels per notification")
+	}
+
+	// Verify notification ownership
+	var notif models.NotificationConfig
+	query := r.db.Where("id = ?", notifID)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&notif).Error; err != nil {
+		return fmt.Errorf("notification not found or access denied: %w", err)
+	}
+
+	// Verify all labels belong to the user
+	var labels []models.Label
+	labelQuery := r.db.Where("id IN ?", labelIDs)
+	if !isAdmin {
+		labelQuery = labelQuery.Where("user_id = ?", userID)
+	}
+	if err := labelQuery.Find(&labels).Error; err != nil {
+		return fmt.Errorf("failed to verify labels: %w", err)
+	}
+	if len(labels) != len(labelIDs) {
+		return fmt.Errorf("one or more labels not found or access denied")
+	}
+
+	// Use GORM association to replace labels
+	if err := r.db.Model(&notif).Association("Labels").Replace(&labels); err != nil {
+		return fmt.Errorf("failed to assign labels: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveLabelFromNotification removes a specific label from a notification config
+func (r *Repository) RemoveLabelFromNotification(notifID, labelID, userID uuid.UUID, isAdmin bool) error {
+	// Verify notification ownership
+	var notif models.NotificationConfig
+	query := r.db.Where("id = ?", notifID)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&notif).Error; err != nil {
+		return fmt.Errorf("notification not found or access denied: %w", err)
+	}
+
+	// Verify label ownership
+	var label models.Label
+	labelQuery := r.db.Where("id = ?", labelID)
+	if !isAdmin {
+		labelQuery = labelQuery.Where("user_id = ?", userID)
+	}
+	if err := labelQuery.First(&label).Error; err != nil {
+		return fmt.Errorf("label not found or access denied: %w", err)
+	}
+
+	// Remove the association
+	if err := r.db.Model(&notif).Association("Labels").Delete(&label); err != nil {
+		return fmt.Errorf("failed to remove label: %w", err)
+	}
+
+	return nil
+}
+
+// GetNotificationWithLabels retrieves a notification config with its labels preloaded
+func (r *Repository) GetNotificationWithLabels(id, userID uuid.UUID, isAdmin bool) (*models.NotificationConfig, error) {
+	var notif models.NotificationConfig
+	query := r.db.Preload("Labels").Where("id = ?", id)
+
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	result := query.First(&notif)
+	if result.Error == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to get notification: %w", result.Error)
+	}
+
+	return &notif, nil
+}
+
+// ========================================
+// Helper: List entities by label
+// ========================================
+
+// ListDatabasesByLabel retrieves all databases with a specific label
+func (r *Repository) ListDatabasesByLabel(labelID, userID uuid.UUID, isAdmin bool) ([]*models.DatabaseConfig, error) {
+	var databases []*models.DatabaseConfig
+	query := r.db.Joins("JOIN database_labels ON database_labels.database_id = database_configs.id").
+		Where("database_labels.label_id = ?", labelID).
+		Preload("Labels")
+
+	if !isAdmin {
+		query = query.Where("database_configs.user_id = ?", userID)
+	}
+
+	result := query.Find(&databases)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list databases by label: %w", result.Error)
+	}
+
+	return databases, nil
+}
+
+// ListStorageByLabel retrieves all storage configs with a specific label
+func (r *Repository) ListStorageByLabel(labelID, userID uuid.UUID, isAdmin bool) ([]*models.StorageConfig, error) {
+	var storages []*models.StorageConfig
+	query := r.db.Joins("JOIN storage_labels ON storage_labels.storage_id = storage_configs.id").
+		Where("storage_labels.label_id = ?", labelID).
+		Preload("Labels")
+
+	if !isAdmin {
+		query = query.Where("storage_configs.user_id = ?", userID)
+	}
+
+	result := query.Find(&storages)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list storage by label: %w", result.Error)
+	}
+
+	return storages, nil
+}
+
+// ListNotificationsByLabel retrieves all notifications with a specific label
+func (r *Repository) ListNotificationsByLabel(labelID, userID uuid.UUID, isAdmin bool) ([]*models.NotificationConfig, error) {
+	var notifications []*models.NotificationConfig
+	query := r.db.Joins("JOIN notification_labels ON notification_labels.notification_id = notification_configs.id").
+		Where("notification_labels.label_id = ?", labelID).
+		Preload("Labels")
+
+	if !isAdmin {
+		query = query.Where("notification_configs.user_id = ?", userID)
+	}
+
+	result := query.Find(&notifications)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to list notifications by label: %w", result.Error)
+	}
+
+	return notifications, nil
 }

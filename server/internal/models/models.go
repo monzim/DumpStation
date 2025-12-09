@@ -106,6 +106,7 @@ type StorageConfig struct {
 	Endpoint  string          `gorm:"type:varchar(500)" json:"endpoint,omitempty"`
 	AccessKey string          `gorm:"type:text;not null" json:"-"`
 	SecretKey string          `gorm:"type:text;not null" json:"-"`
+	Labels    []Label         `gorm:"many2many:storage_labels;foreignKey:ID;joinForeignKey:StorageID;References:ID;joinReferences:LabelID" json:"labels,omitempty"`
 	CreatedAt time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -139,6 +140,7 @@ type StorageConfigResponse struct {
 	Region    string          `json:"region,omitempty" example:"auto"`
 	Endpoint  string          `json:"endpoint,omitempty" example:"https://***.r2.cloudflarestorage.com"` // Masked endpoint
 	AccessKey string          `json:"access_key" example:"AKI***"`                                       // Masked access key (shows key type prefix)
+	Labels    []Label         `json:"labels,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
 }
@@ -153,6 +155,7 @@ func (s *StorageConfig) ToResponse() *StorageConfigResponse {
 		Region:    s.Region,
 		Endpoint:  utils.MaskEndpoint(s.Endpoint),
 		AccessKey: utils.MaskAccessKey(s.AccessKey),
+		Labels:    s.Labels,
 		CreatedAt: s.CreatedAt,
 		UpdatedAt: s.UpdatedAt,
 	}
@@ -174,6 +177,7 @@ type NotificationConfig struct {
 	User              User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Name              string    `gorm:"type:varchar(255);not null" json:"name"`
 	DiscordWebhookURL string    `gorm:"type:text;not null" json:"-"`
+	Labels            []Label   `gorm:"many2many:notification_labels;foreignKey:ID;joinForeignKey:NotificationID;References:ID;joinReferences:LabelID" json:"labels,omitempty"`
 	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -198,6 +202,7 @@ type NotificationConfigResponse struct {
 	ID                uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name              string    `json:"name" example:"DevOps Alerts"`
 	DiscordWebhookURL string    `json:"discord_webhook_url" example:"https://discord.com/api/webhooks/***/***"` // Masked webhook URL
+	Labels            []Label   `json:"labels,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -208,6 +213,7 @@ func (n *NotificationConfig) ToResponse() *NotificationConfigResponse {
 		ID:                n.ID,
 		Name:              n.Name,
 		DiscordWebhookURL: utils.MaskWebhookURL(n.DiscordWebhookURL),
+		Labels:            n.Labels,
 		CreatedAt:         n.CreatedAt,
 		UpdatedAt:         n.UpdatedAt,
 	}
@@ -258,6 +264,7 @@ type DatabaseConfig struct {
 	VersionLastChecked  *time.Time          `gorm:"type:timestamp" json:"version_last_checked,omitempty"`
 	Enabled             bool                `gorm:"default:true" json:"enabled"`
 	Paused              bool                `gorm:"default:false" json:"paused"`
+	Labels              []Label             `gorm:"many2many:database_labels;foreignKey:ID;joinForeignKey:DatabaseID;References:ID;joinReferences:LabelID" json:"labels,omitempty"`
 	CreatedAt           time.Time           `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt           time.Time           `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -334,6 +341,7 @@ type DatabaseConfigResponse struct {
 	Enabled            bool           `json:"enabled" example:"true"`
 	Paused             bool           `json:"paused" example:"false"`
 	RotationPolicy     RotationPolicy `json:"rotation_policy"`
+	Labels             []Label        `json:"labels,omitempty"`
 	CreatedAt          time.Time      `json:"created_at"`
 	UpdatedAt          time.Time      `json:"updated_at"`
 }
@@ -355,6 +363,7 @@ func (d *DatabaseConfig) ToResponse() *DatabaseConfigResponse {
 		Enabled:            d.Enabled,
 		Paused:             d.Paused,
 		RotationPolicy:     d.GetRotationPolicy(),
+		Labels:             d.Labels,
 		CreatedAt:          d.CreatedAt,
 		UpdatedAt:          d.UpdatedAt,
 	}
@@ -559,6 +568,10 @@ const (
 	Action2FADisabled       ActivityLogAction = "2fa_disabled"
 	Action2FABackupCodeUsed ActivityLogAction = "2fa_backup_code_used"
 	Action2FAFailed         ActivityLogAction = "2fa_verification_failed"
+	// Label related actions
+	ActionLabelCreated ActivityLogAction = "label_created"
+	ActionLabelUpdated ActivityLogAction = "label_updated"
+	ActionLabelDeleted ActivityLogAction = "label_deleted"
 )
 
 // ActivityLogLevel represents the severity level of the log
@@ -606,6 +619,132 @@ type ActivityLogListParams struct {
 	EndDate    *time.Time         `json:"end_date,omitempty"`
 	Limit      int                `json:"limit,omitempty"`
 	Offset     int                `json:"offset,omitempty"`
+}
+
+// ========================================
+// Label Models (Tagging System)
+// ========================================
+
+// Label represents a tag/category that can be applied to multiple entities
+type Label struct {
+	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	User        User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
+	Name        string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_label_name" json:"name"`
+	Color       string    `gorm:"type:varchar(7);not null;default:'#3b82f6'" json:"color"` // hex color
+	Description string    `gorm:"type:varchar(255)" json:"description,omitempty"`
+	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// BeforeCreate hook for Label
+func (l *Label) BeforeCreate(tx *gorm.DB) error {
+	if l.ID == uuid.Nil {
+		l.ID = uuid.New()
+	}
+	return nil
+}
+
+// TableName specifies the table name for Label
+func (Label) TableName() string {
+	return "labels"
+}
+
+// DatabaseLabel represents the many-to-many relationship between databases and labels
+type DatabaseLabel struct {
+	DatabaseID uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"database_id"`
+	LabelID    uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"label_id"`
+	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+// TableName specifies the table name for DatabaseLabel
+func (DatabaseLabel) TableName() string {
+	return "database_labels"
+}
+
+// StorageLabel represents the many-to-many relationship between storage configs and labels
+type StorageLabel struct {
+	StorageID uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"storage_id"`
+	LabelID   uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"label_id"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+// TableName specifies the table name for StorageLabel
+func (StorageLabel) TableName() string {
+	return "storage_labels"
+}
+
+// NotificationLabel represents the many-to-many relationship between notifications and labels
+type NotificationLabel struct {
+	NotificationID uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"notification_id"`
+	LabelID        uuid.UUID `gorm:"type:uuid;primaryKey;index" json:"label_id"`
+	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+// TableName specifies the table name for NotificationLabel
+func (NotificationLabel) TableName() string {
+	return "notification_labels"
+}
+
+// LabelInput for creating/updating labels
+type LabelInput struct {
+	Name        string `json:"name" validate:"required,max=100" example:"Production"`
+	Color       string `json:"color" validate:"required,hexcolor" example:"#3b82f6"`
+	Description string `json:"description" validate:"max=255" example:"Production environment resources"`
+}
+
+// AssignLabelsInput for assigning/removing labels from entities
+type AssignLabelsInput struct {
+	LabelIDs []uuid.UUID `json:"label_ids" validate:"required,dive,uuid" example:"[\"550e8400-e29b-41d4-a716-446655440000\"]"`
+}
+
+// LabelWithUsage extends Label with usage statistics
+type LabelWithUsage struct {
+	Label
+	DatabaseCount     int `json:"database_count" example:"5"`
+	StorageCount      int `json:"storage_count" example:"3"`
+	NotificationCount int `json:"notification_count" example:"2"`
+	TotalUsage        int `json:"total_usage" example:"10"`
+}
+
+// LabelResponse is the response DTO for label endpoints
+// @Description Label information for API responses with usage statistics
+type LabelResponse struct {
+	ID                uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name              string    `json:"name" example:"Production"`
+	Color             string    `json:"color" example:"#3b82f6"`
+	Description       string    `json:"description,omitempty" example:"Production environment resources"`
+	DatabaseCount     int       `json:"database_count" example:"5"`
+	StorageCount      int       `json:"storage_count" example:"3"`
+	NotificationCount int       `json:"notification_count" example:"2"`
+	TotalUsage        int       `json:"total_usage" example:"10"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// ToResponse converts a LabelWithUsage to a LabelResponse
+func (l *LabelWithUsage) ToResponse() *LabelResponse {
+	return &LabelResponse{
+		ID:                l.ID,
+		Name:              l.Name,
+		Color:             l.Color,
+		Description:       l.Description,
+		DatabaseCount:     l.DatabaseCount,
+		StorageCount:      l.StorageCount,
+		NotificationCount: l.NotificationCount,
+		TotalUsage:        l.TotalUsage,
+		CreatedAt:         l.CreatedAt,
+		UpdatedAt:         l.UpdatedAt,
+	}
+}
+
+// LabelsToResponse converts a slice of LabelWithUsage to LabelResponse
+func LabelsToResponse(labels []*LabelWithUsage) []LabelResponse {
+	responses := make([]LabelResponse, len(labels))
+	for i, label := range labels {
+		responses[i] = *label.ToResponse()
+	}
+	return responses
 }
 
 // ========================================
