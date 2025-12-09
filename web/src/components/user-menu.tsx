@@ -6,13 +6,17 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserInitials, useUserAvatar, useUserProfile } from "@/lib/api/user";
+import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { LogOut, Settings } from "lucide-react";
+import { LogOut, Settings, Palette, Sun, Moon, Monitor } from "lucide-react";
 
 interface UserMenuProps {
   onLogout?: () => void;
@@ -23,6 +27,7 @@ export function UserMenu({ onLogout, className }: UserMenuProps) {
   const navigate = useNavigate();
   const { data: user, isLoading } = useUserProfile();
   const { data: avatarUrl } = useUserAvatar(user?.has_profile_picture);
+  const { theme, setTheme } = useTheme();
 
   const handleSettingsClick = () => {
     navigate({ to: "/settings" });
@@ -105,6 +110,43 @@ export function UserMenu({ onLogout, className }: UserMenuProps) {
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </DropdownMenuItem>
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="cursor-pointer">
+              <Palette className="mr-2 h-4 w-4" />
+              <span>Theme</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem
+                onClick={() => setTheme("light")}
+                className="cursor-pointer"
+              >
+                <Sun className="mr-2 h-4 w-4" />
+                <span>Light</span>
+                {theme === "light" && (
+                  <span className="ml-auto text-xs">✓</span>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setTheme("dark")}
+                className="cursor-pointer"
+              >
+                <Moon className="mr-2 h-4 w-4" />
+                <span>Dark</span>
+                {theme === "dark" && <span className="ml-auto text-xs">✓</span>}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setTheme("system")}
+                className="cursor-pointer"
+              >
+                <Monitor className="mr-2 h-4 w-4" />
+                <span>System</span>
+                {theme === "system" && (
+                  <span className="ml-auto text-xs">✓</span>
+                )}
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator />

@@ -492,7 +492,7 @@ func (r *Repository) GetDatabaseConfig(id uuid.UUID) (*models.DatabaseConfig, er
 // GetDatabaseConfigByUser retrieves a database config only if it belongs to the user (or user is admin)
 func (r *Repository) GetDatabaseConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool) (*models.DatabaseConfig, error) {
 	var dbConfig models.DatabaseConfig
-	query := r.db.Preload("Storage").Preload("Notification").Where("id = ?", id)
+	query := r.db.Preload("Storage").Preload("Notification").Preload("Labels").Where("id = ?", id)
 	if !isAdmin {
 		query = query.Where("user_id = ?", userID)
 	}

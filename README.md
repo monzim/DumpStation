@@ -293,14 +293,14 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for nginx and Caddy configuration e
 
 ```
 ┌─────────────────┐
-│  React Frontend │ (TanStack Router + React Query)
-│   (Port 7511)   │
+│  React Frontend  │ (TanStack Router + React Query)
+│   (Port 7511)    │
 └────────┬────────┘
          │ HTTP/REST
          ▼
 ┌─────────────────┐
-│   Go Backend    │ (JWT Auth + Middleware)
-│   (Port 8080)   │
+│   Go Backend     │ (JWT Auth + Middleware)
+│   (Port 8080)    │
 └────┬───┬────┬───┘
      │   │    │
      │   │    └─────────────────┐
@@ -313,16 +313,16 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for nginx and Caddy configuration e
      │
      ▼
 ┌──────────────────────┐
-│   Backup Service     │
-│  - Scheduler (cron)  │
-│  - pg_dump Runner    │
-│  - Version Manager   │
+│   Backup Service      │
+│  - Scheduler (cron)   │
+│  - pg_dump Runner     │
+│  - Version Manager    │
 └─────┬────────────────┘
       │
       ├──────────────┬─────────────┐
       ▼              ▼             ▼
   ┌────────┐    ┌────────┐    ┌────────┐
-  │   S3   │    │   R2   │    │ MinIO  │
+  │   S3    │    │   R2   │    │ MinIO  │
   └────────┘    └────────┘    └────────┘
 ```
 

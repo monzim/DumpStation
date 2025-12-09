@@ -74,6 +74,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { DatabaseIcon } from "@/components/database-icon";
+import { LabelBadge } from "@/components/ui/label-badge";
 
 export const Route = createFileRoute("/databases/$id")({
   component: RouteComponent,
@@ -446,6 +447,13 @@ function RouteComponent() {
                 <p className="text-muted-foreground text-sm sm:text-base font-mono">
                   {database.host}:{database.port}/{database.dbname}
                 </p>
+                {database.labels && database.labels.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap mt-2">
+                    {database.labels.map((label) => (
+                      <LabelBadge key={label.id} label={label} size="sm" />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
