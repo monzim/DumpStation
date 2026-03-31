@@ -165,7 +165,7 @@ verify_versions() {
     fi
     
     echo ""
-    for v in 12 13 14 15 16; do
+    for v in 12 13 14 15 16 17 18; do
         if docker exec backup_service_api test -f /usr/lib/postgresql/$v/bin/pg_dump 2>/dev/null; then
             version_str=$(docker exec backup_service_api /usr/lib/postgresql/$v/bin/pg_dump --version 2>/dev/null || echo "Unknown")
             print_success "PostgreSQL $v: $version_str"
@@ -188,7 +188,7 @@ test_multiversion() {
     echo ""
     print_info "Testing pg_dump for different versions:"
     
-    for v in 12 14 16; do
+    for v in 12 14 16 18; do
         print_info "Testing PostgreSQL $v..."
         if docker exec backup_service_api /usr/lib/postgresql/$v/bin/pg_dump --version 2>/dev/null; then
             print_success "PostgreSQL $v tools available"

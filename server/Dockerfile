@@ -1,6 +1,6 @@
 # =============================================================================
 # Multi-stage Dockerfile for DumpStation
-# Supports PostgreSQL client versions 12, 13, 14, 15, 16, 17
+# Supports PostgreSQL client versions 12, 13, 14, 15, 16, 17, 18
 # Optimized for faster CI/CD builds with better layer caching
 # =============================================================================
 
@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client-15 \
     postgresql-client-16 \
     postgresql-client-17 \
+    postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /var/cache/apt/archives/*
