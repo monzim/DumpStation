@@ -88,7 +88,7 @@ func Load() (*Config, error) {
 			OTPExpiration: getEnvAsInt("OTP_EXPIRATION_MINUTES", 5),
 		},
 		CORS: CORSConfig{
-			AllowedOrigins:   getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
+			AllowedOrigins:   getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{}),
 			AllowedMethods:   getEnvAsSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}),
 			AllowedHeaders:   getEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "X-2FA-Token"}),
 			ExposedHeaders:   getEnvAsSlice("CORS_EXPOSED_HEADERS", []string{}),
@@ -100,7 +100,7 @@ func Load() (*Config, error) {
 			SiteKey:   getEnv("TURNSTILE_SITE_KEY", ""),
 			SecretKey: getEnv("TURNSTILE_SECRET_KEY", ""),
 			Enabled:   getEnvAsBool("TURNSTILE_ENABLED", false),
-			Timeout:   getEnvAsInt("TURNSTILE_TIMEOUT", 10),
+			Timeout:   getEnvAsInt("TURNSTILE_TIMEOUT", 5),
 		},
 	}
 
@@ -111,6 +111,17 @@ func Load() (*Config, error) {
 
 	if cfg.Database.Password == "" {
 		return nil, fmt.Errorf("DB_PASSWORD is required")
+	}
+
+	// CORS sanity: a wildcard origin combined with credentials is a browser
+	// rejection AND a misconfiguration that advertises an insecure policy.
+	// Refuse to start instead of pretending it works.
+	if cfg.CORS.AllowCredentials {
+		for _, origin := range cfg.CORS.AllowedOrigins {
+			if origin == "*" {
+				return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS cannot contain \"*\" while CORS_ALLOW_CREDENTIALS=true; list explicit origins or disable credentials")
+			}
+		}
 	}
 
 	return cfg, nil

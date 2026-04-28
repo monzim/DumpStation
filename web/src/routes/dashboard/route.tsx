@@ -1,16 +1,36 @@
 import { useAuth } from "@/components/auth-provider";
 import { DashboardNav } from "@/components/dashboard-nav";
-import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
+import { apiClient } from "@/lib/api/client";
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useLocation,
+} from "@tanstack/react-router";
 import { Database } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
+  // beforeLoad runs before the route's component renders, so an
+  // unauthenticated visitor never sees the dashboard shell or fires any of
+  // its data-loading queries. Replaces the previously commented-out
+  // useEffect redirect that left the route effectively unguarded.
+  beforeLoad: ({ location }) => {
+    if (!apiClient.getToken()) {
+      throw redirect({
+        to: "/login",
+        search: {
+          redirect: location.href,
+        },
+      });
+    }
+  },
   component: DashboardLayout,
 });
 
 function DashboardLayout() {
-  const { isAuthenticated, logout } = useAuth();
+  const { logout } = useAuth();
   const location = useLocation();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -22,12 +42,6 @@ function DashboardLayout() {
   };
 
   const currentTab = getCurrentTab();
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      // router.push("/login");
-    }
-  }, [isAuthenticated]);
 
   const handleLogout = () => {
     logout();

@@ -5,10 +5,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/monzim/db_proxy/v1/internal/auth"
 	"github.com/monzim/db_proxy/v1/internal/models"
 )
+
+// pending2FATTL bounds how long a Setup2FA-issued secret stays valid before
+// the user must re-initiate setup. Long enough to scan a QR and enter a
+// code, short enough to limit the attack window if the response leaks.
+const pending2FATTL = 10 * time.Minute
 
 // TwoFactorHandler handles all 2FA related operations
 type TwoFactorHandler struct {
@@ -76,9 +82,12 @@ func (h *TwoFactorHandler) Setup2FA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store the secret (not enabled yet - will be enabled after verification)
-	if err := h.repo.SetUser2FASecret(*userID, setupResult.Secret); err != nil {
-		logError("Failed to store 2FA secret", err)
+	// Store the secret in the PENDING column with a TTL. Repeated calls
+	// overwrite the pending value but never the active TwoFactorSecret, so
+	// an attacker who hijacks a session cannot lock the legitimate user out
+	// of an already-enrolled 2FA setup by spamming Setup2FA.
+	if err := h.repo.SetPendingUser2FASecret(*userID, setupResult.Secret, pending2FATTL); err != nil {
+		logError("Failed to store pending 2FA secret", err)
 		writeError(w, http.StatusInternalServerError, "failed to save 2FA secret")
 		return
 	}
@@ -147,14 +156,20 @@ func (h *TwoFactorHandler) VerifySetup2FA(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Check if secret exists (setup was initiated)
-	if user.TwoFactorSecret == "" {
+	// Read the PENDING secret produced by Setup2FA. Reject if missing or
+	// expired so a stale Setup2FA cannot be silently activated by a stolen
+	// session weeks later.
+	if user.PendingTwoFactorSecret == "" {
 		writeError(w, http.StatusBadRequest, "2FA setup not initiated. Please start setup first.")
 		return
 	}
+	if user.PendingTwoFactorExpiresAt == nil || time.Now().After(*user.PendingTwoFactorExpiresAt) {
+		writeError(w, http.StatusBadRequest, "2FA setup expired. Please start setup again.")
+		return
+	}
 
-	// Verify the TOTP code
-	valid, err := h.totpMgr.ValidateCodeWithWindow(user.TwoFactorSecret, req.Code)
+	// Verify the TOTP code against the PENDING secret.
+	valid, err := h.totpMgr.ValidateCodeWithWindow(user.PendingTwoFactorSecret, req.Code)
 	if err != nil || !valid {
 		log.Printf("[2FA] ❌ Invalid TOTP code for user: %s", user.DiscordUsername)
 
@@ -176,8 +191,8 @@ func (h *TwoFactorHandler) VerifySetup2FA(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Enable 2FA with backup codes
-	if err := h.repo.EnableUser2FA(*userID, backupResult.HashedCodes); err != nil {
+	// Promote pending → active and enable 2FA in one transaction.
+	if err := h.repo.PromotePendingUser2FASecret(*userID, user.PendingTwoFactorSecret, backupResult.HashedCodes); err != nil {
 		logError("Failed to enable 2FA", err)
 		writeError(w, http.StatusInternalServerError, "failed to enable 2FA")
 		return

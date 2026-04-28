@@ -8,3 +8,7 @@ draft/
 *.swp
 *.swo
 *~
+dumpstation-prod.session.sql
+
+.claude
+CLAUDE.md

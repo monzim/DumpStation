@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,10 +21,17 @@ type User struct {
 	ProfilePictureMimeType string         `gorm:"type:varchar(50)" json:"-"`                              // MIME type of profile picture (e.g., image/png)
 	IsDemo                 bool           `gorm:"default:false" json:"is_demo"`                           // Whether this is a demo account (read-only access)
 	IsAdmin                bool           `gorm:"default:false" json:"is_admin"`                          // Whether this user has admin privileges (can view all data)
-	TwoFactorSecret        string         `gorm:"type:text" json:"-"`                                     // Encrypted TOTP secret
+	TwoFactorSecret        string         `gorm:"type:text" json:"-"`                                     // Encrypted TOTP secret (active once 2FA enabled)
 	TwoFactorEnabled       bool           `gorm:"default:false" json:"two_factor_enabled"`                // Whether 2FA is enabled
 	TwoFactorBackupCodes   pq.StringArray `gorm:"type:text[]" json:"-"`                                   // Hashed backup recovery codes
 	TwoFactorVerifiedAt    *time.Time     `gorm:"type:timestamp" json:"two_factor_verified_at,omitempty"` // When 2FA was verified during setup
+	// PendingTwoFactorSecret holds an unverified TOTP secret produced by
+	// Setup2FA. It is promoted to TwoFactorSecret only after the user proves
+	// possession via VerifySetup2FA. Keeping it separate prevents an
+	// attacker who calls Setup2FA repeatedly from clobbering the active
+	// secret on a 2FA-enrolled account.
+	PendingTwoFactorSecret    string     `gorm:"type:text" json:"-"`
+	PendingTwoFactorExpiresAt *time.Time `gorm:"type:timestamp" json:"-"`
 	CreatedAt              time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt              time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -67,15 +75,24 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+// OTPMaxFailedAttempts is the threshold after which an OTP token is locked
+// for OTPLockoutDuration. Limits brute force on the 6-digit code space.
+const (
+	OTPMaxFailedAttempts = 5
+	OTPLockoutDuration   = 30 * time.Minute
+)
+
 // OTPToken represents a one-time password token
 type OTPToken struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
-	User      User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-	OTPCode   string    `gorm:"type:varchar(8);not null" json:"-"` // Hidden from API responses for security
-	ExpiresAt time.Time `gorm:"index;not null" json:"expires_at"`
-	Used      bool      `gorm:"default:false" json:"used"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	ID             uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID         uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
+	User           User       `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
+	OTPCode        string     `gorm:"type:varchar(8);not null" json:"-"` // Hidden from API responses for security
+	ExpiresAt      time.Time  `gorm:"index;not null" json:"expires_at"`
+	Used           bool       `gorm:"default:false" json:"used"`
+	FailedAttempts int        `gorm:"not null;default:0" json:"-"`
+	LockedUntil    *time.Time `gorm:"type:timestamp" json:"-"`
+	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
 // BeforeCreate hook for OTPToken
@@ -236,10 +253,39 @@ const (
 	RotationPolicyDays  RotationPolicyType = "days"
 )
 
+// Bounds for RotationPolicy.Value to prevent unbounded retention.
+// Days max is ~10 years; count max is 10k backups per database.
+const (
+	RotationMaxDays  = 3650
+	RotationMaxCount = 10000
+)
+
 // RotationPolicy represents backup retention policy
 type RotationPolicy struct {
 	Type  RotationPolicyType `json:"type" validate:"required,oneof=count days" example:"days"`
-	Value int                `json:"value" validate:"required,min=1" example:"30"`
+	Value int                `json:"value" validate:"required,min=1,max=10000" example:"30"`
+}
+
+// Validate enforces type-aware bounds on Value because the static `max=10000`
+// validator tag is the looser of the two limits — the days policy must be
+// capped at RotationMaxDays.
+func (p RotationPolicy) Validate() error {
+	if p.Value < 1 {
+		return fmt.Errorf("rotation_policy.value must be >= 1")
+	}
+	switch p.Type {
+	case RotationPolicyDays:
+		if p.Value > RotationMaxDays {
+			return fmt.Errorf("rotation_policy.value for days policy must be <= %d", RotationMaxDays)
+		}
+	case RotationPolicyCount:
+		if p.Value > RotationMaxCount {
+			return fmt.Errorf("rotation_policy.value for count policy must be <= %d", RotationMaxCount)
+		}
+	default:
+		return fmt.Errorf("rotation_policy.type must be 'count' or 'days'")
+	}
+	return nil
 }
 
 // DatabaseConfig represents a database backup configuration
@@ -317,7 +363,7 @@ type DatabaseConfigInput struct {
 	DBName          string         `json:"dbname" validate:"required" example:"proddb"`
 	Username        string         `json:"user" validate:"required" example:"backup_user"`
 	Password        string         `json:"password" validate:"required" example:"secure_password"`
-	Schedule        string         `json:"schedule" validate:"required" example:"0 2 * * *"`
+	Schedule        string         `json:"schedule" validate:"required,cron" example:"0 2 * * *"`
 	StorageID       uuid.UUID      `json:"storage_id" validate:"required"`
 	NotificationID  *uuid.UUID     `json:"notification_id,omitempty"`
 	PostgresVersion string         `json:"postgres_version" example:"14"` // Optional: "latest", "15", "14", "13", etc.
@@ -386,6 +432,19 @@ const (
 	BackupStatusRunning BackupStatus = "running"
 	BackupStatusSuccess BackupStatus = "success"
 	BackupStatusFailed  BackupStatus = "failed"
+	// BackupStatusDeleted marks a backup whose storage object has been
+	// removed by the rotation policy. The DB row is kept for audit history
+	// and cannot be restored from.
+	BackupStatusDeleted BackupStatus = "deleted"
+)
+
+// DumpFormat enumerates the pg_dump output formats this service produces.
+// "plain" is restored with psql; "custom" must be restored with pg_restore.
+type DumpFormat string
+
+const (
+	DumpFormatPlain  DumpFormat = "plain"
+	DumpFormatCustom DumpFormat = "custom"
 )
 
 // Backup represents a backup record
@@ -394,9 +453,10 @@ type Backup struct {
 	Name         string         `gorm:"type:varchar(255);not null;default:''" json:"name"`
 	DatabaseID   uuid.UUID      `gorm:"type:uuid;not null;index" json:"database_id"`
 	Database     DatabaseConfig `gorm:"foreignKey:DatabaseID;constraint:OnDelete:CASCADE" json:"-"`
-	Status       BackupStatus   `gorm:"type:varchar(20);not null;default:'pending';check:status IN ('pending','running','success','failed');index" json:"status"`
+	Status       BackupStatus   `gorm:"type:varchar(20);not null;default:'pending';check:status IN ('pending','running','success','failed','deleted');index" json:"status"`
 	SizeBytes    *int64         `gorm:"type:bigint" json:"size_bytes,omitempty"`
 	StoragePath  string         `gorm:"type:text" json:"storage_path,omitempty"`
+	DumpFormat   DumpFormat     `gorm:"type:varchar(20);not null;default:'plain'" json:"dump_format"`
 	ErrorMessage *string        `gorm:"type:text" json:"error_message,omitempty"`
 	StartedAt    time.Time      `gorm:"not null;default:now();index" json:"timestamp"`
 	CompletedAt  *time.Time     `json:"completed_at,omitempty"`

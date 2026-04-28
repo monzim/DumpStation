@@ -5,7 +5,13 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/robfig/cron/v3"
 )
+
+// cronParser uses standard 5-field cron expressions ("minute hour dom month dow"),
+// matching the format the scheduler hands to robfig/cron at runtime. Keep them
+// in sync so anything that validates here will also schedule correctly.
+var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
 // Validator wraps the validator instance
 type Validator struct {
@@ -27,9 +33,24 @@ type ValidationErrorResponse struct {
 
 // New creates a new validator instance
 func New() *Validator {
-	return &Validator{
-		validate: validator.New(),
+	v := validator.New()
+	// Register `cron` tag so models can mark fields as cron expressions and
+	// get the same parse rules the scheduler enforces at runtime.
+	if err := v.RegisterValidation("cron", validateCron); err != nil {
+		panic(fmt.Sprintf("validator: failed to register cron tag: %v", err))
 	}
+	return &Validator{validate: v}
+}
+
+func validateCron(fl validator.FieldLevel) bool {
+	expr := strings.TrimSpace(fl.Field().String())
+	if expr == "" {
+		// `required` tag handles emptiness; treat empty as valid here so the
+		// error surfaced to the user is the simpler `required` message.
+		return true
+	}
+	_, err := cronParser.Parse(expr)
+	return err == nil
 }
 
 // Validate validates a struct and returns formatted error messages
@@ -164,6 +185,9 @@ func getErrorMessage(fieldName, tag, param string, kind string) string {
 
 	case "uuid":
 		return fmt.Sprintf("%s must be a valid UUID", readableField)
+
+	case "cron":
+		return fmt.Sprintf("%s must be a valid cron expression (minute hour dom month dow)", readableField)
 
 	default:
 		return fmt.Sprintf("%s failed validation on tag: %s", readableField, tag)

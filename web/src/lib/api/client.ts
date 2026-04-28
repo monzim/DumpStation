@@ -24,6 +24,44 @@ const API_BASE_URL = getConfig(
 const TWO_FA_TOKEN_KEY = "2fa_token";
 const IS_DEMO_KEY = "is_demo";
 
+// REQUEST_TIMEOUT_MS bounds every API call so a stuck connection cannot
+// hang the UI or pile up unresolved promises. 30s comfortably covers the
+// slowest expected endpoint (manual backup trigger) while still failing
+// fast on real network problems.
+const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * fetchWithTimeout wraps the global fetch with an AbortController so every
+ * request has a hard upper bound. If the caller passed their own signal we
+ * compose it with the timeout signal so explicit cancellations still work.
+ */
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {}
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  // If the caller passed a signal, abort our controller too so cancellation
+  // propagates in both directions.
+  const callerSignal = init.signal;
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      controller.abort();
+    } else {
+      callerSignal.addEventListener("abort", () => controller.abort(), {
+        once: true,
+      });
+    }
+  }
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Session expiration callback type
 type SessionExpiredCallback = () => void;
 
@@ -143,7 +181,7 @@ export class ApiClient {
   }
 
   async get<T>(endpoint: string, use2FAToken = false): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
       method: "GET",
       headers: this.buildHeaders(use2FAToken),
     });
@@ -156,7 +194,7 @@ export class ApiClient {
     data?: unknown,
     use2FAToken = false
   ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
       method: "POST",
       headers: this.buildHeaders(use2FAToken),
       body: data ? JSON.stringify(data) : undefined,
@@ -170,7 +208,7 @@ export class ApiClient {
     data: unknown,
     use2FAToken = false
   ): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
       method: "PUT",
       headers: this.buildHeaders(use2FAToken),
       body: JSON.stringify(data),
@@ -180,7 +218,7 @@ export class ApiClient {
   }
 
   async delete<T>(endpoint: string, use2FAToken = false): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {
       method: "DELETE",
       headers: this.buildHeaders(use2FAToken),
     });

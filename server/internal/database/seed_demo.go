@@ -3,6 +3,8 @@ package database
 import (
 	"log"
 	"math/rand"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,8 +17,29 @@ const (
 	DemoEmail    = "demo@dumpstation.monzim.com"
 )
 
+// isProductionEnv reports whether the runtime environment is marked as
+// production. We refuse to seed the demo account/data in production so
+// placeholder credentials and dummy backup history never leak there.
+// Override with FORCE_DEMO_SEED=true if a production deployment really
+// does need a demo experience (for example, a hosted public preview).
+func isProductionEnv() bool {
+	if force := strings.ToLower(strings.TrimSpace(os.Getenv("FORCE_DEMO_SEED"))); force == "1" || force == "true" || force == "yes" {
+		return false
+	}
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("GO_ENV")))
+	}
+	return env == "production" || env == "prod"
+}
+
 // SeedDemoData seeds demo data for the demo account
 func SeedDemoData(repo *repository.Repository) error {
+	if isProductionEnv() {
+		log.Println("[DEMO] ⏭️  Skipping demo seed (APP_ENV=production). Set FORCE_DEMO_SEED=true to override.")
+		return nil
+	}
+
 	log.Println("[DEMO] 🔧 Seeding demo data...")
 
 	// Create or get demo user

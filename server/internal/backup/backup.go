@@ -32,6 +32,61 @@ func NewService(repo *repository.Repository) *Service {
 	}
 }
 
+// truncateAndRewind clears any bytes already written to f and resets the
+// file offset so subsequent writes start from byte zero. Used between
+// fallback attempts that share the same destination file.
+func truncateAndRewind(f *os.File) error {
+	if err := f.Truncate(0); err != nil {
+		return fmt.Errorf("truncate: %w", err)
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		return fmt.Errorf("seek: %w", err)
+	}
+	return nil
+}
+
+// writePgPassFile writes a libpq passfile containing the credentials for the
+// given DatabaseConfig and returns the path. The caller MUST defer cleanup
+// to remove the file after the backup/restore command exits. We prefer this
+// over PGPASSWORD because environment variables are visible system-wide via
+// /proc/<pid>/environ and `ps -E` on some platforms.
+//
+// passfile format: hostname:port:database:username:password (one entry per
+// line). The file MUST be mode 0600 or libpq refuses to use it.
+func writePgPassFile(dbConfig *models.DatabaseConfig) (string, error) {
+	f, err := os.CreateTemp("", "dumpstation-pgpass-*")
+	if err != nil {
+		return "", fmt.Errorf("create pgpass tempfile: %w", err)
+	}
+	defer f.Close()
+
+	if err := f.Chmod(0o600); err != nil {
+		_ = os.Remove(f.Name())
+		return "", fmt.Errorf("chmod pgpass: %w", err)
+	}
+
+	// libpq treats ':' and '\\' as field delimiters and requires escaping.
+	escape := func(s string) string {
+		s = strings.ReplaceAll(s, `\`, `\\`)
+		return strings.ReplaceAll(s, `:`, `\:`)
+	}
+
+	line := fmt.Sprintf("%s:%d:%s:%s:%s\n",
+		escape(dbConfig.Host),
+		dbConfig.Port,
+		escape(dbConfig.DBName),
+		escape(dbConfig.Username),
+		escape(dbConfig.Password),
+	)
+
+	if _, err := f.WriteString(line); err != nil {
+		_ = os.Remove(f.Name())
+		return "", fmt.Errorf("write pgpass: %w", err)
+	}
+
+	return f.Name(), nil
+}
+
 // ExecuteBackup performs a database backup
 func (s *Service) ExecuteBackup(dbConfig *models.DatabaseConfig) error {
 	return s.ExecuteBackupWithID(dbConfig, uuid.Nil)
@@ -100,8 +155,6 @@ func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID 
 	// Perform backup
 	startTime := time.Now()
 	timestamp := startTime.Format("20060102_150405")
-	backupFilename := fmt.Sprintf("%s_%s.sql", dbConfig.DBName, timestamp)
-	tempFilePath := filepath.Join(os.TempDir(), backupFilename)
 
 	log.Printf("Starting backup for database: %s (PostgreSQL %s)", dbConfig.Name, postgresVersion)
 
@@ -135,20 +188,25 @@ func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID 
 		"--verbose",
 	}
 
-	// Add format-specific arguments
+	// Add format-specific arguments. Storage object name embeds backup.ID
+	// (UUID) so concurrent backups of the same database within the same
+	// second cannot collide on the destination key.
+	var backupFilename string
 	if dumpFormat == "custom" {
-		args = append(args, "-Fc", "-Z", compressionLevel) // Custom format with compression
-		backupFilename = fmt.Sprintf("%s_%s.dump", dbConfig.Name, timestamp)
-		tempFilePath = filepath.Join(os.TempDir(), backupFilename)
+		args = append(args, "-Fc", "-Z", compressionLevel)
+		backupFilename = fmt.Sprintf("%s_%s_%s.dump", dbConfig.Name, timestamp, backup.ID.String())
 	} else {
 		args = append(args, "--format=plain")
+		backupFilename = fmt.Sprintf("%s_%s_%s.sql", dbConfig.DBName, timestamp, backup.ID.String())
 	}
 
-	// Create output file
-	outFile, err := os.Create(tempFilePath)
+	// Create local temp file via os.CreateTemp so concurrent backups never
+	// share a path. Pattern reserves the filename for this process.
+	outFile, err := os.CreateTemp("", "dumpstation-*.bak")
 	if err != nil {
 		return s.handleBackupError(backup.ID, dbConfig, fmt.Sprintf("failed to create temp file: %v", err))
 	}
+	tempFilePath := outFile.Name()
 	defer outFile.Close()
 	defer os.Remove(tempFilePath)
 
@@ -194,6 +252,12 @@ func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID 
 		log.Printf("Failed to update backup status to success: %v", err)
 	}
 
+	// Persist the dump format so the restore path can pick the right tool
+	// (pg_restore for custom, psql for plain).
+	if err := s.repo.SetBackupDumpFormat(backup.ID, models.DumpFormat(dumpFormat)); err != nil {
+		log.Printf("Failed to persist dump format: %v", err)
+	}
+
 	duration := time.Since(startTime)
 	log.Printf("Backup completed for %s in %v. File size: %d bytes (format: %s)", dbConfig.Name, duration, sizeBytes, dumpFormat)
 
@@ -202,8 +266,13 @@ func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID 
 		notifier.SendBackupSuccess(dbConfig.Name, sizeBytes, duration.Round(time.Second).String())
 	}
 
-	// Cleanup old backups
-	go s.cleanupOldBackups(dbConfig, storageClient)
+	// Cleanup old backups synchronously so failures are visible (logged) and
+	// not swallowed by a background goroutine. A failed cleanup does NOT
+	// fail the backup itself — the new backup is already uploaded and the
+	// retention policy will catch up on the next run.
+	if err := s.cleanupOldBackups(dbConfig, storageClient); err != nil {
+		log.Printf("Cleanup failed for %s (backup itself succeeded): %v", dbConfig.Name, err)
+	}
 
 	return nil
 }
@@ -232,11 +301,19 @@ func (s *Service) handleBackupError(backupID uuid.UUID, dbConfig *models.Databas
 // executeBackupWithSSLFallback executes pg_dump with automatic SSL fallback
 // Tries with SSL first, then without SSL if the first attempt fails with SSL-related errors
 func (s *Service) executeBackupWithSSLFallback(ctx context.Context, pgDumpCmd string, args []string, dbConfig *models.DatabaseConfig, outFile *os.File) (SSLMode, error) {
+	// Stage credentials in a 0600 passfile instead of PGPASSWORD env var so
+	// other processes on the box cannot read the password through procfs.
+	passfilePath, err := writePgPassFile(dbConfig)
+	if err != nil {
+		return SSLModeRequire, fmt.Errorf("prepare pgpass: %w", err)
+	}
+	defer os.Remove(passfilePath)
+
 	// Try with SSL first
 	sslMode := SSLModeRequire
 	cmd := exec.CommandContext(ctx, pgDumpCmd, args...)
 	cmd.Env = append(os.Environ(),
-		"PGPASSWORD="+dbConfig.Password,
+		"PGPASSFILE="+passfilePath,
 		fmt.Sprintf("PGSSLMODE=%s", sslMode),
 	)
 
@@ -245,7 +322,7 @@ func (s *Service) executeBackupWithSSLFallback(ctx context.Context, pgDumpCmd st
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err == nil {
 		// Success with SSL
 		return sslMode, nil
@@ -274,14 +351,20 @@ func (s *Service) executeBackupWithSSLFallback(ctx context.Context, pgDumpCmd st
 	if isSSLError {
 		log.Printf("SSL connection failed for %s, attempting without SSL: %s", dbConfig.Name, stderrMsg)
 
+		// Wipe partial bytes left by the failed first attempt; otherwise the
+		// second attempt would append, producing a corrupted dump.
+		if err := truncateAndRewind(outFile); err != nil {
+			return sslMode, fmt.Errorf("failed to reset backup file before retry: %w", err)
+		}
+
 		// Reset the stderr buffer for the second attempt
 		var stderr2 bytes.Buffer
 
-		// Try without SSL
+		// Try without SSL (reuse the same passfile)
 		sslMode = SSLModeDisable
 		cmd2 := exec.CommandContext(ctx, pgDumpCmd, args...)
 		cmd2.Env = append(os.Environ(),
-			"PGPASSWORD="+dbConfig.Password,
+			"PGPASSFILE="+passfilePath,
 			fmt.Sprintf("PGSSLMODE=%s", sslMode),
 		)
 
@@ -292,8 +375,7 @@ func (s *Service) executeBackupWithSSLFallback(ctx context.Context, pgDumpCmd st
 		if err2 == nil {
 			// Success without SSL - update cache
 			log.Printf("Backup succeeded without SSL for database: %s", dbConfig.Name)
-			cacheKey := fmt.Sprintf("%s:%d", dbConfig.Host, dbConfig.Port)
-			s.versionManager.sslModeCache[cacheKey] = SSLModeDisable
+			s.versionManager.SetSSLMode(dbConfig.Host, dbConfig.Port, SSLModeDisable)
 			return sslMode, nil
 		}
 
@@ -307,18 +389,24 @@ func (s *Service) executeBackupWithSSLFallback(ctx context.Context, pgDumpCmd st
 
 // executeRestoreWithSSLFallback executes psql restore with automatic SSL fallback
 func (s *Service) executeRestoreWithSSLFallback(ctx context.Context, psqlCmd string, args []string, targetDBConfig *models.DatabaseConfig) (SSLMode, error) {
+	passfilePath, err := writePgPassFile(targetDBConfig)
+	if err != nil {
+		return SSLModeRequire, fmt.Errorf("prepare pgpass: %w", err)
+	}
+	defer os.Remove(passfilePath)
+
 	// Try with SSL first
 	sslMode := SSLModeRequire
 	cmd := exec.CommandContext(ctx, psqlCmd, args...)
 	cmd.Env = append(os.Environ(),
-		"PGPASSWORD="+targetDBConfig.Password,
+		"PGPASSFILE="+passfilePath,
 		fmt.Sprintf("PGSSLMODE=%s", sslMode),
 	)
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err == nil {
 		// Success with SSL
 		return sslMode, nil
@@ -350,11 +438,11 @@ func (s *Service) executeRestoreWithSSLFallback(ctx context.Context, psqlCmd str
 		// Reset the stderr buffer for the second attempt
 		var stderr2 bytes.Buffer
 
-		// Try without SSL
+		// Try without SSL (reuse the same passfile)
 		sslMode = SSLModeDisable
 		cmd2 := exec.CommandContext(ctx, psqlCmd, args...)
 		cmd2.Env = append(os.Environ(),
-			"PGPASSWORD="+targetDBConfig.Password,
+			"PGPASSFILE="+passfilePath,
 			fmt.Sprintf("PGSSLMODE=%s", sslMode),
 		)
 
@@ -364,8 +452,7 @@ func (s *Service) executeRestoreWithSSLFallback(ctx context.Context, psqlCmd str
 		if err2 == nil {
 			// Success without SSL - update cache
 			log.Printf("Restore succeeded without SSL for database: %s", targetDBConfig.Name)
-			cacheKey := fmt.Sprintf("%s:%d", targetDBConfig.Host, targetDBConfig.Port)
-			s.versionManager.sslModeCache[cacheKey] = SSLModeDisable
+			s.versionManager.SetSSLMode(targetDBConfig.Host, targetDBConfig.Port, SSLModeDisable)
 			return sslMode, nil
 		}
 
@@ -377,12 +464,15 @@ func (s *Service) executeRestoreWithSSLFallback(ctx context.Context, psqlCmd str
 	return sslMode, fmt.Errorf("psql failed: %v, stderr: %s", err, stderrMsg)
 }
 
-// cleanupOldBackups removes old backups based on retention policy
-func (s *Service) cleanupOldBackups(dbConfig *models.DatabaseConfig, storageClient *storage.StorageClient) {
+// cleanupOldBackups removes old backups based on the retention policy.
+// Returns an error summarising any failures so callers can log/alert; partial
+// progress is preserved (successfully deleted backups stay deleted in the DB
+// row even if a later one fails).
+func (s *Service) cleanupOldBackups(dbConfig *models.DatabaseConfig, storageClient *storage.StorageClient) error {
 	// Skip cleanup if paused
 	if dbConfig.Paused {
 		log.Printf("Skipping cleanup for paused database: %s", dbConfig.Name)
-		return
+		return nil
 	}
 
 	log.Printf("Starting cleanup for database: %s", dbConfig.Name)
@@ -390,8 +480,7 @@ func (s *Service) cleanupOldBackups(dbConfig *models.DatabaseConfig, storageClie
 	// Get all backups for this database
 	backups, err := s.repo.ListBackupsByDatabase(dbConfig.ID)
 	if err != nil {
-		log.Printf("Failed to list backups for cleanup: %v", err)
-		return
+		return fmt.Errorf("list backups: %w", err)
 	}
 
 	// Filter successful backups only
@@ -404,35 +493,54 @@ func (s *Service) cleanupOldBackups(dbConfig *models.DatabaseConfig, storageClie
 
 	var toDelete []*models.Backup
 
-	if dbConfig.RotationPolicyType == models.RotationPolicyDays {
-		// Delete backups older than N days
+	switch dbConfig.RotationPolicyType {
+	case models.RotationPolicyDays:
 		cutoffTime := time.Now().AddDate(0, 0, -dbConfig.RotationPolicyValue)
 		for _, b := range successBackups {
 			if b.StartedAt.Before(cutoffTime) {
 				toDelete = append(toDelete, b)
 			}
 		}
-	} else if dbConfig.RotationPolicyType == models.RotationPolicyCount {
-		// Keep only the last N backups
+	case models.RotationPolicyCount:
 		if len(successBackups) > dbConfig.RotationPolicyValue {
 			toDelete = successBackups[dbConfig.RotationPolicyValue:]
 		}
 	}
 
-	// Delete old backups
+	var (
+		deleted    int
+		storageErr int
+		dbErr      int
+	)
 	for _, b := range toDelete {
-		if b.StoragePath != "" {
-			if err := storageClient.DeleteFile(b.StoragePath); err != nil {
-				log.Printf("Failed to delete backup from storage %s: %v", b.StoragePath, err)
-			} else {
-				log.Printf("Deleted old backup: %s", b.StoragePath)
-			}
+		if b.StoragePath == "" {
+			continue
 		}
+		if err := storageClient.DeleteFile(b.StoragePath); err != nil {
+			log.Printf("Failed to delete backup from storage %s: %v", b.StoragePath, err)
+			storageErr++
+			// Leave DB row intact so the next cleanup pass can retry.
+			continue
+		}
+		// Storage delete succeeded: mark DB row so the UI stops listing it
+		// as a restorable backup. Otherwise restore would try to download a
+		// missing object and fail at the worst possible moment.
+		if err := s.repo.MarkBackupDeleted(b.ID); err != nil {
+			log.Printf("Failed to mark backup %s as deleted in DB: %v", b.ID, err)
+			dbErr++
+			continue
+		}
+		log.Printf("Deleted old backup: %s", b.StoragePath)
+		deleted++
 	}
 
 	if len(toDelete) > 0 {
-		log.Printf("Cleanup completed for %s: deleted %d old backups", dbConfig.Name, len(toDelete))
+		log.Printf("Cleanup for %s: deleted=%d storage_failed=%d db_failed=%d", dbConfig.Name, deleted, storageErr, dbErr)
 	}
+	if storageErr > 0 || dbErr > 0 {
+		return fmt.Errorf("partial cleanup failures: storage=%d db=%d", storageErr, dbErr)
+	}
+	return nil
 }
 
 // ExecuteRestore performs a database restore
@@ -509,27 +617,43 @@ func (s *Service) ExecuteRestore(backupID uuid.UUID, req *models.RestoreRequest)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	// Use version-specific psql for restore
+	// Use version-specific tooling for restore
 	postgresVersion := dbConfig.PostgresVersion
 	if postgresVersion == "" {
 		postgresVersion = "latest"
 	}
-	psqlCmd := s.versionManager.GetPsqlVersion(postgresVersion)
 
-	args := []string{
-		"--host", targetHost,
-		"--port", fmt.Sprintf("%d", targetPort),
-		"--username", targetUser,
-		"--dbname", targetDBName,
-		"--no-password",
-		"--file", tempFilePath,
-	}
-
-	// Create a temporary file to capture output
-	tmpOutFile, err := os.Create(filepath.Join(os.TempDir(), fmt.Sprintf("psql_output_%s.log", job.ID)))
-	if err == nil {
-		defer tmpOutFile.Close()
-		defer os.Remove(tmpOutFile.Name())
+	// Pick the right tool based on the dump format we recorded at backup time.
+	// pg_dump custom format (-Fc) is binary and CANNOT be read by psql; only
+	// pg_restore understands it. Plain-text dumps go through psql --file.
+	var (
+		restoreCmd  string
+		restoreArgs []string
+	)
+	switch backup.DumpFormat {
+	case models.DumpFormatCustom:
+		restoreCmd = s.versionManager.GetPgRestoreVersion(postgresVersion)
+		restoreArgs = []string{
+			"--host", targetHost,
+			"--port", fmt.Sprintf("%d", targetPort),
+			"--username", targetUser,
+			"--dbname", targetDBName,
+			"--no-password",
+			"--no-owner",
+			"--no-privileges",
+			tempFilePath,
+		}
+	default:
+		// "plain" or unset (legacy backups predating DumpFormat persistence).
+		restoreCmd = s.versionManager.GetPsqlVersion(postgresVersion)
+		restoreArgs = []string{
+			"--host", targetHost,
+			"--port", fmt.Sprintf("%d", targetPort),
+			"--username", targetUser,
+			"--dbname", targetDBName,
+			"--no-password",
+			"--file", tempFilePath,
+		}
 	}
 
 	// Execute restore with SSL fallback
@@ -542,7 +666,7 @@ func (s *Service) ExecuteRestore(backupID uuid.UUID, req *models.RestoreRequest)
 		Name:     "restore_target",
 	}
 
-	_, err = s.executeRestoreWithSSLFallback(ctx, psqlCmd, args, targetDBConfig)
+	_, err = s.executeRestoreWithSSLFallback(ctx, restoreCmd, restoreArgs, targetDBConfig)
 	if err != nil {
 		log.Printf("Restore error: %s", err)
 		return fmt.Errorf("%s", err)

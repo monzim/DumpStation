@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"log"
+	"runtime/debug"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/monzim/db_proxy/v1/internal/backup"
@@ -10,8 +12,10 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// Scheduler manages scheduled backups
+// Scheduler manages scheduled backups. jobMap is guarded by mu because
+// configuration changes from the API can race with cron-fired callbacks.
 type Scheduler struct {
+	mu        sync.Mutex
 	cron      *cron.Cron
 	repo      *repository.Repository
 	backupSvc *backup.Service
@@ -72,17 +76,19 @@ func (s *Scheduler) AddJob(config *models.DatabaseConfig) error {
 	dbConfig := config
 
 	entryID, err := s.cron.AddFunc(config.Schedule, func() {
-		log.Printf("Executing scheduled backup for: %s", dbConfig.Name)
-		if err := s.backupSvc.ExecuteBackup(dbConfig); err != nil {
-			log.Printf("Scheduled backup failed for %s: %v", dbConfig.Name, err)
-		}
+		runJobWithRecover(dbConfig.Name, func() error {
+			log.Printf("Executing scheduled backup for: %s", dbConfig.Name)
+			return s.backupSvc.ExecuteBackup(dbConfig)
+		})
 	})
 
 	if err != nil {
 		return err
 	}
 
+	s.mu.Lock()
 	s.jobMap[config.ID] = entryID
+	s.mu.Unlock()
 	log.Printf("Scheduled backup for %s with cron: %s", config.Name, config.Schedule)
 
 	return nil
@@ -90,9 +96,14 @@ func (s *Scheduler) AddJob(config *models.DatabaseConfig) error {
 
 // RemoveJob removes a backup job from the scheduler
 func (s *Scheduler) RemoveJob(dbID uuid.UUID) {
-	if entryID, exists := s.jobMap[dbID]; exists {
-		s.cron.Remove(entryID)
+	s.mu.Lock()
+	entryID, exists := s.jobMap[dbID]
+	if exists {
 		delete(s.jobMap, dbID)
+	}
+	s.mu.Unlock()
+	if exists {
+		s.cron.Remove(entryID)
 		log.Printf("Removed backup job for database ID: %s", dbID)
 	}
 }
@@ -101,4 +112,19 @@ func (s *Scheduler) RemoveJob(dbID uuid.UUID) {
 func (s *Scheduler) UpdateJob(config *models.DatabaseConfig) error {
 	s.RemoveJob(config.ID)
 	return s.AddJob(config)
+}
+
+// runJobWithRecover runs fn and contains any panic so the calling cron
+// goroutine survives. Without this, a panic in user-supplied backup logic
+// would kill the cron runner and silently stop ALL scheduled jobs.
+func runJobWithRecover(name string, fn func() error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("PANIC in scheduled job %q: %v\n%s", name, r, debug.Stack())
+		}
+	}()
+
+	if err := fn(); err != nil {
+		log.Printf("Scheduled job %q failed: %v", name, err)
+	}
 }

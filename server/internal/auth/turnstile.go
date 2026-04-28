@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -86,20 +89,45 @@ func VerifyTurnstileToken(secretKey, token, remoteIP string, timeout int) error 
 	return nil
 }
 
-// GetIPAddress extracts the client's IP address from the HTTP request
-// Checks X-Forwarded-For and X-Real-IP headers first, falls back to RemoteAddr
+// trustedProxyHeaders is true when the operator has explicitly opted in to
+// trusting X-Forwarded-For / X-Real-IP. Without this opt-in any client could
+// spoof their source IP, defeating rate limiting and poisoning audit logs.
+//
+// Set TRUST_PROXY_HEADERS=true (or =1) in the environment when the service
+// runs behind a load balancer that strips/sets these headers.
+var trustedProxyHeaders = func() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("TRUST_PROXY_HEADERS")))
+	return v == "1" || v == "true" || v == "yes"
+}()
+
+// GetIPAddress extracts the client's IP address from the HTTP request.
+// When TRUST_PROXY_HEADERS is set, parses X-Forwarded-For (taking the first
+// valid IP) or X-Real-IP. Otherwise uses only RemoteAddr. Returns an IP
+// string with no port — never the raw, unparsed header value, so log
+// injection via crafted headers is impossible.
 func GetIPAddress(r *http.Request) string {
-	// Check X-Forwarded-For header (common with proxies/load balancers)
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		// X-Forwarded-For can contain multiple IPs, take the first one
-		return forwarded
+	if trustedProxyHeaders {
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			for candidate := range strings.SplitSeq(forwarded, ",") {
+				if ip := net.ParseIP(strings.TrimSpace(candidate)); ip != nil {
+					return ip.String()
+				}
+			}
+		}
+		if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+			if ip := net.ParseIP(strings.TrimSpace(realIP)); ip != nil {
+				return ip.String()
+			}
+		}
 	}
 
-	// Check X-Real-IP header
-	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
-		return realIP
+	// Fall back to RemoteAddr; strip the port if present.
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
 	}
-
-	// Fall back to RemoteAddr
-	return r.RemoteAddr
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String()
+	}
+	return ""
 }

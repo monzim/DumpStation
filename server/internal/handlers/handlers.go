@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -204,14 +205,25 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 	logInfo("User found: %s (ID: %s), verifying OTP...", user.DiscordUsername, user.ID)
 
-	// Verify OTP
-	valid, err := h.repo.VerifyOTP(user.ID, req.OTP)
+	// Verify OTP. The repository tracks failed attempts per token and locks
+	// after the threshold; surface a 429 with Retry-After when locked so
+	// clients (and any front-of-house WAF) can back off.
+	verifyResult, err := h.repo.VerifyOTP(user.ID, req.OTP)
 	if err != nil {
 		logError(fmt.Sprintf("OTP verification error for user: %s", user.DiscordUsername), err)
 		writeError(w, http.StatusUnauthorized, "invalid or expired OTP")
 		return
 	}
-	if !valid {
+	if verifyResult.LockedUntil != nil {
+		retryAfter := int(time.Until(*verifyResult.LockedUntil).Seconds())
+		if retryAfter < 1 {
+			retryAfter = 1
+		}
+		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+		writeError(w, http.StatusTooManyRequests, "too many failed OTP attempts; please request a new code later")
+		return
+	}
+	if !verifyResult.OK {
 		log.Printf("[AUTH] ❌ Invalid or expired OTP for user: %s", user.DiscordUsername)
 		writeError(w, http.StatusUnauthorized, "invalid or expired OTP")
 		return
@@ -665,6 +677,13 @@ func (h *Handler) CreateNotificationConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// SSRF guard: confirm the webhook URL points at a real Discord domain
+	// that resolves to a public IP, not a private/loopback/metadata target.
+	if err := notification.ValidateDiscordWebhookURL(input.DiscordWebhookURL); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	config, err := h.repo.CreateNotificationConfig(*userID, &input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create notification config")
@@ -764,6 +783,12 @@ func (h *Handler) UpdateNotificationConfig(w http.ResponseWriter, r *http.Reques
 		}
 		logError("Validation error", err)
 		writeError(w, http.StatusInternalServerError, "validation error")
+		return
+	}
+
+	// SSRF guard, same as Create — see CreateNotificationConfig.
+	if err := notification.ValidateDiscordWebhookURL(input.DiscordWebhookURL); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -1703,24 +1728,11 @@ func isDemoUserFromContext(r *http.Request) bool {
 	return false
 }
 
-// getIPAddress extracts IP address from request
+// getIPAddress extracts the client IP using the shared auth helper, which
+// honors TRUST_PROXY_HEADERS and validates header values to block spoofing
+// and log injection. Wrapped here so existing call sites compile unchanged.
 func getIPAddress(r *http.Request) string {
-	// Check X-Forwarded-For header first
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// X-Forwarded-For can contain multiple IPs, take the first one
-		for idx := 0; idx < len(xff); idx++ {
-			if xff[idx] == ',' {
-				return xff[:idx]
-			}
-		}
-		return xff
-	}
-	// Check X-Real-IP header
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
-	}
-	// Fall back to RemoteAddr
-	return r.RemoteAddr
+	return auth.GetIPAddress(r)
 }
 
 // logActivity is a helper to log activity and handle errors

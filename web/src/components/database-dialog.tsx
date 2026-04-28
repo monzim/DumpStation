@@ -231,6 +231,7 @@ export function DatabaseDialog({
                 id="password"
                 type="password"
                 placeholder="••••••••"
+                autoComplete="new-password"
                 {...register("password", {
                   required: !isEditing ? "Password is required" : false,
                 })}

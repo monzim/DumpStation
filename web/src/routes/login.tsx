@@ -138,10 +138,13 @@ function LoginPage() {
         description: "Check your Discord for the verification code.",
       });
       setStep("verify");
-    } catch (error: unknown) {
-      const apiError = error as { message?: string };
+    } catch {
+      // Auth endpoints intentionally use a single generic message: echoing
+      // the API error (e.g. "user not found" vs "invalid credentials")
+      // would let an attacker enumerate valid usernames or differentiate
+      // rate-limit responses from credential errors.
       toast.error("Login failed", {
-        description: apiError.message || "Invalid credentials",
+        description: "Unable to start login. Check your details and try again.",
       });
       // Reset Turnstile on error
       setTurnstileToken("");
@@ -171,10 +174,10 @@ function LoginPage() {
         setIsAuthenticated(true);
         navigate({ to: "/dashboard" });
       }
-    } catch (error: unknown) {
-      const apiError = error as { message?: string };
+    } catch {
+      // Generic message — see handleLogin for rationale.
       toast.error("Verification failed", {
-        description: apiError.message || "Invalid or expired OTP",
+        description: "Invalid or expired code. Please try again.",
       });
     }
   };
@@ -189,10 +192,10 @@ function LoginPage() {
       });
       setIsAuthenticated(true);
       navigate({ to: "/dashboard" });
-    } catch (error: unknown) {
-      const apiError = error as { message?: string };
+    } catch {
+      // Generic message — see handleLogin for rationale.
       toast.error("2FA verification failed", {
-        description: apiError.message || "Invalid code. Please try again.",
+        description: "Invalid code. Please try again.",
       });
       setTwoFactorCode("");
     }

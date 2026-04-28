@@ -1,6 +1,18 @@
 /**
  * For more details on how to configure Wrangler, refer to:
  * https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * SECURITY NOTE — response headers
+ * --------------------------------
+ * The recommended HTTP security headers (CSP, HSTS, X-Frame-Options,
+ * Referrer-Policy, Permissions-Policy, COOP) are declared in
+ * `public/_headers` (Cloudflare Pages format) AND should additionally be
+ * enforced at the edge via either:
+ *   - a Cloudflare Transform Rule that injects the same headers on every
+ *     response, or
+ *   - a custom Worker entry that wraps `@tanstack/react-start/server-entry`
+ *     and post-processes the Response to apply the headers.
+ * Without one of these, browsers will not enforce the policy.
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",

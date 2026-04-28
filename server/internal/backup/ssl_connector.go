@@ -68,14 +68,19 @@ func (sc *SSLConnector) ExecuteWithSSLFallback(ctx context.Context, cmdName stri
 	return "", SSLModeRequire, err
 }
 
-// executeCommand executes a PostgreSQL command with specified SSL mode
+// executeCommand executes a PostgreSQL command with specified SSL mode.
+// Stages credentials in a 0600 PGPASSFILE rather than the PGPASSWORD env
+// variable so other processes cannot read the password through procfs.
 func (sc *SSLConnector) executeCommand(ctx context.Context, cmdName string, args []string, sslMode SSLMode) (string, error) {
-	// Don't append connection args if they're already in the args
-	// This is typically used for commands like psql directly
-	cmd := exec.CommandContext(ctx, cmdName, args...)
+	passfilePath, err := sc.writePassFile()
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(passfilePath)
 
+	cmd := exec.CommandContext(ctx, cmdName, args...)
 	cmd.Env = append(os.Environ(),
-		"PGPASSWORD="+sc.Password,
+		"PGPASSFILE="+passfilePath,
 		fmt.Sprintf("PGSSLMODE=%s", sslMode),
 	)
 
@@ -88,6 +93,41 @@ func (sc *SSLConnector) executeCommand(ctx context.Context, cmdName string, args
 	}
 
 	return stdout.String(), nil
+}
+
+// writePassFile materialises a libpq passfile from the connector's fields.
+// Caller must remove the returned path when done.
+func (sc *SSLConnector) writePassFile() (string, error) {
+	f, err := os.CreateTemp("", "dumpstation-pgpass-*")
+	if err != nil {
+		return "", fmt.Errorf("create pgpass tempfile: %w", err)
+	}
+	defer f.Close()
+
+	if err := f.Chmod(0o600); err != nil {
+		_ = os.Remove(f.Name())
+		return "", fmt.Errorf("chmod pgpass: %w", err)
+	}
+
+	escape := func(s string) string {
+		s = strings.ReplaceAll(s, `\`, `\\`)
+		return strings.ReplaceAll(s, `:`, `\:`)
+	}
+
+	line := fmt.Sprintf("%s:%s:%s:%s:%s\n",
+		escape(sc.Host),
+		sc.Port,
+		escape(sc.DBName),
+		escape(sc.Username),
+		escape(sc.Password),
+	)
+
+	if _, err := f.WriteString(line); err != nil {
+		_ = os.Remove(f.Name())
+		return "", fmt.Errorf("write pgpass: %w", err)
+	}
+
+	return f.Name(), nil
 }
 
 // isSSLError checks if an error message indicates an SSL-related issue
@@ -139,7 +179,11 @@ func (sc *SSLConnector) TestConnection(ctx context.Context) (SSLMode, error) {
 	return sslMode, err
 }
 
-// GetPSQLEnv returns environment variables for psql with the determined SSL mode
+// GetPSQLEnv returns environment variables for psql with the determined SSL
+// mode. Callers that want to avoid PGPASSWORD entirely should use
+// writePassFile + PGPASSFILE instead. This helper is retained for callers
+// that build short-lived in-process commands where the env-var route is
+// acceptable.
 func (sc *SSLConnector) GetPSQLEnv(sslMode SSLMode) []string {
 	return append(os.Environ(),
 		"PGPASSWORD="+sc.Password,

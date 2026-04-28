@@ -993,6 +993,7 @@ function RouteComponent() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 value={editForm.password || ""}
                 onChange={(e) =>
                   setEditForm({ ...editForm, password: e.target.value })

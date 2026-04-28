@@ -298,6 +298,7 @@ export function BackupDetailsDialog({
                       <Input
                         id="target_password"
                         type="password"
+                        autoComplete="off"
                         placeholder="Enter database password"
                         value={restoreRequest.target_password || ""}
                         onChange={(e) =>

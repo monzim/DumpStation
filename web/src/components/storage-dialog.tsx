@@ -160,6 +160,7 @@ export function StorageDialog({
                 id="access_key"
                 type="password"
                 placeholder="your-access-key"
+                autoComplete="off"
                 {...register("access_key", {
                   required: "Access key is required",
                 })}
@@ -177,6 +178,7 @@ export function StorageDialog({
                 id="secret_key"
                 type="password"
                 placeholder="your-secret-key"
+                autoComplete="off"
                 {...register("secret_key", {
                   required: "Secret key is required",
                 })}

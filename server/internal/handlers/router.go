@@ -19,6 +19,7 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	r := mux.NewRouter()
 
 	// Apply global middleware
+	r.Use(middleware.SecurityHeaders)
 	r.Use(middleware.NewCORSMiddleware(&cfg.CORS))
 	r.Use(middleware.Logger)
 
@@ -27,17 +28,20 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 
 	// Health check route (no authentication required)
 	api.HandleFunc("/health", h.HealthCheck).Methods("GET", "OPTIONS")
-	api.HandleFunc("/health", h.HealthCheck).Methods("GET", "GET")
 
-	// Public routes (no authentication required)
-	api.HandleFunc("/auth/login", h.Login).Methods("POST", "OPTIONS")
-	api.HandleFunc("/auth/verify", h.Verify).Methods("POST", "OPTIONS")
-	api.HandleFunc("/auth/demo-login", h.DemoLogin).Methods("POST", "OPTIONS")
+	// Public auth routes — wrap with per-IP rate limit so OTP brute force
+	// and Discord webhook spam are bounded.
+	authLimit := middleware.AuthRateLimit()
+	authPublic := api.PathPrefix("").Subrouter()
+	authPublic.Use(authLimit)
+	authPublic.HandleFunc("/auth/login", h.Login).Methods("POST", "OPTIONS")
+	authPublic.HandleFunc("/auth/verify", h.Verify).Methods("POST", "OPTIONS")
+	authPublic.HandleFunc("/auth/demo-login", h.DemoLogin).Methods("POST", "OPTIONS")
 
 	// 2FA verification route (uses X-2FA-Token header, not regular auth)
 	if totpMgr != nil {
 		tfaHandler := NewTwoFactorHandler(h, totpMgr)
-		api.HandleFunc("/auth/2fa/verify", tfaHandler.Verify2FA).Methods("POST", "OPTIONS")
+		authPublic.HandleFunc("/auth/2fa/verify", tfaHandler.Verify2FA).Methods("POST", "OPTIONS")
 	}
 
 	// Protected routes (authentication required)

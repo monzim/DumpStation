@@ -103,17 +103,73 @@ func (r *Repository) CreateOTP(userID uuid.UUID, otpCode string, expiresAt time.
 	return result.Error
 }
 
-func (r *Repository) VerifyOTP(userID uuid.UUID, otpCode string) (bool, error) {
-	result := r.db.Model(&models.OTPToken{}).
-		Where("user_id = ? AND otp_code = ? AND expires_at > ? AND used = ?",
-			userID, otpCode, time.Now(), false).
-		Update("used", true)
+// OTPVerifyResult tells the caller whether the OTP was accepted and, if not,
+// whether the failure was due to a temporary lockout. The handler maps
+// LockedUntil to a 429 response with Retry-After.
+type OTPVerifyResult struct {
+	OK          bool
+	LockedUntil *time.Time
+}
 
-	if result.Error != nil {
-		return false, result.Error
-	}
+// VerifyOTP atomically validates the OTP for the user. On success the latest
+// matching token is marked used. On failure we increment FailedAttempts on
+// the most recent unused, unexpired token; once it crosses
+// OTPMaxFailedAttempts the token is locked for OTPLockoutDuration. The
+// previous version had no rate limiting at all, so a 6-digit code (1M
+// states) could be brute forced inside the OTP TTL window.
+func (r *Repository) VerifyOTP(userID uuid.UUID, otpCode string) (OTPVerifyResult, error) {
+	now := time.Now()
+	var result OTPVerifyResult
 
-	return result.RowsAffected > 0, nil
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var token models.OTPToken
+		// Most recent active token for this user.
+		err := tx.Where("user_id = ? AND used = ? AND expires_at > ?", userID, false, now).
+			Order("created_at DESC").
+			First(&token).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// Nothing to verify; treat as plain wrong code (no lockout
+				// to leak existence of pending OTPs).
+				return nil
+			}
+			return fmt.Errorf("load OTP: %w", err)
+		}
+
+		// Honor existing lockout window.
+		if token.LockedUntil != nil && token.LockedUntil.After(now) {
+			lockedCopy := *token.LockedUntil
+			result.LockedUntil = &lockedCopy
+			return nil
+		}
+
+		if token.OTPCode == otpCode {
+			if err := tx.Model(&models.OTPToken{}).
+				Where("id = ?", token.ID).
+				Updates(map[string]any{
+					"used":            true,
+					"failed_attempts": 0,
+					"locked_until":    nil,
+				}).Error; err != nil {
+				return fmt.Errorf("mark used: %w", err)
+			}
+			result.OK = true
+			return nil
+		}
+
+		// Wrong code — bump counter and possibly lock.
+		updates := map[string]any{
+			"failed_attempts": token.FailedAttempts + 1,
+		}
+		if token.FailedAttempts+1 >= models.OTPMaxFailedAttempts {
+			lockTime := now.Add(models.OTPLockoutDuration)
+			updates["locked_until"] = lockTime
+			result.LockedUntil = &lockTime
+		}
+		return tx.Model(&models.OTPToken{}).Where("id = ?", token.ID).Updates(updates).Error
+	})
+
+	return result, err
 }
 
 // Storage operations
@@ -450,6 +506,10 @@ func (r *Repository) DeleteNotificationConfigByUser(id uuid.UUID, userID uuid.UU
 // Database config operations
 
 func (r *Repository) CreateDatabaseConfig(userID uuid.UUID, input *models.DatabaseConfigInput) (*models.DatabaseConfig, error) {
+	if err := input.RotationPolicy.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid rotation policy: %w", err)
+	}
+
 	dbConfig := &models.DatabaseConfig{
 		UserID:         userID,
 		Name:           input.Name,
@@ -537,6 +597,10 @@ func (r *Repository) ListDatabaseConfigsByUser(userID uuid.UUID, isAdmin bool) (
 }
 
 func (r *Repository) UpdateDatabaseConfig(id uuid.UUID, input *models.DatabaseConfigInput) (*models.DatabaseConfig, error) {
+	if err := input.RotationPolicy.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid rotation policy: %w", err)
+	}
+
 	var dbConfig models.DatabaseConfig
 
 	if err := r.db.First(&dbConfig, "id = ?", id).Error; err != nil {
@@ -568,6 +632,10 @@ func (r *Repository) UpdateDatabaseConfig(id uuid.UUID, input *models.DatabaseCo
 
 // UpdateDatabaseConfigByUser updates a database config only if it belongs to the user (or user is admin)
 func (r *Repository) UpdateDatabaseConfigByUser(id uuid.UUID, userID uuid.UUID, isAdmin bool, input *models.DatabaseConfigInput) (*models.DatabaseConfig, error) {
+	if err := input.RotationPolicy.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid rotation policy: %w", err)
+	}
+
 	var dbConfig models.DatabaseConfig
 
 	query := r.db.Where("id = ?", id)
@@ -731,6 +799,24 @@ func (r *Repository) UpdateBackupStatus(id uuid.UUID, status models.BackupStatus
 	}
 
 	result := r.db.Model(&models.Backup{}).Where("id = ?", id).Updates(updates)
+	return result.Error
+}
+
+// SetBackupDumpFormat records which pg_dump format produced the backup so the
+// restore path knows whether to use psql (plain) or pg_restore (custom).
+func (r *Repository) SetBackupDumpFormat(id uuid.UUID, format models.DumpFormat) error {
+	result := r.db.Model(&models.Backup{}).Where("id = ?", id).Update("dump_format", format)
+	return result.Error
+}
+
+// MarkBackupDeleted flips the row to the "deleted" status and clears the
+// storage path. Used by the rotation cleanup AFTER the storage object has
+// been removed, so the DB never advertises a backup whose bytes are gone.
+func (r *Repository) MarkBackupDeleted(id uuid.UUID) error {
+	result := r.db.Model(&models.Backup{}).Where("id = ?", id).Updates(map[string]any{
+		"status":       models.BackupStatusDeleted,
+		"storage_path": "",
+	})
 	return result.Error
 }
 
@@ -1202,14 +1288,22 @@ func (r *Repository) GetUserByID(id uuid.UUID) (*models.User, error) {
 	return &user, nil
 }
 
-// SetUser2FASecret stores the encrypted 2FA secret for a user (during setup, before verification)
-func (r *Repository) SetUser2FASecret(userID uuid.UUID, secret string) error {
+// SetPendingUser2FASecret stores an unverified TOTP secret in the pending
+// column with an expiry. Replaces any prior pending secret for the same
+// user (treats Setup2FA as idempotent within the pending window). The
+// active TwoFactorSecret is untouched, so an attacker cannot use a repeat
+// Setup2FA call to lock an enrolled user out of their existing 2FA.
+func (r *Repository) SetPendingUser2FASecret(userID uuid.UUID, secret string, ttl time.Duration) error {
+	expires := time.Now().Add(ttl)
 	result := r.db.Model(&models.User{}).
 		Where("id = ?", userID).
-		Update("two_factor_secret", secret)
+		Updates(map[string]any{
+			"pending_two_factor_secret":     secret,
+			"pending_two_factor_expires_at": expires,
+		})
 
 	if result.Error != nil {
-		return fmt.Errorf("failed to set 2FA secret: %w", result.Error)
+		return fmt.Errorf("failed to set pending 2FA secret: %w", result.Error)
 	}
 
 	if result.RowsAffected == 0 {
@@ -1219,29 +1313,33 @@ func (r *Repository) SetUser2FASecret(userID uuid.UUID, secret string) error {
 	return nil
 }
 
-// EnableUser2FA enables 2FA for a user after successful verification
-func (r *Repository) EnableUser2FA(userID uuid.UUID, backupCodes []string) error {
+// PromotePendingUser2FASecret moves the pending secret into the active
+// TwoFactorSecret column, clears the pending fields, and enables 2FA with
+// the provided backup codes. Performed in a single transaction to avoid a
+// half-enrolled state.
+func (r *Repository) PromotePendingUser2FASecret(userID uuid.UUID, secret string, backupCodes []string) error {
 	now := time.Now()
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Exec(`
+			UPDATE users
+			SET two_factor_secret = $1,
+			    two_factor_enabled = true,
+			    two_factor_verified_at = $2,
+			    two_factor_backup_codes = $3,
+			    pending_two_factor_secret = '',
+			    pending_two_factor_expires_at = NULL,
+			    updated_at = $4
+			WHERE id = $5`,
+			secret, now, pq.Array(backupCodes), now, userID)
 
-	// Use pq.Array() to properly handle PostgreSQL text[] array type
-	result := r.db.Exec(`
-		UPDATE users 
-		SET two_factor_enabled = true, 
-		    two_factor_verified_at = $1, 
-		    two_factor_backup_codes = $2,
-		    updated_at = $3
-		WHERE id = $4`,
-		now, pq.Array(backupCodes), now, userID)
-
-	if result.Error != nil {
-		return fmt.Errorf("failed to enable 2FA: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-
-	return nil
+		if result.Error != nil {
+			return fmt.Errorf("failed to promote pending 2FA secret: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 
 // DisableUser2FA disables 2FA for a user
@@ -1249,10 +1347,12 @@ func (r *Repository) DisableUser2FA(userID uuid.UUID) error {
 	result := r.db.Model(&models.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{
-			"two_factor_enabled":      false,
-			"two_factor_secret":       nil,
-			"two_factor_backup_codes": nil,
-			"two_factor_verified_at":  nil,
+			"two_factor_enabled":            false,
+			"two_factor_secret":             nil,
+			"two_factor_backup_codes":       nil,
+			"two_factor_verified_at":        nil,
+			"pending_two_factor_secret":     "",
+			"pending_two_factor_expires_at": nil,
 		})
 
 	if result.Error != nil {
@@ -1443,7 +1543,10 @@ func (r *Repository) GetLabel(id, userID uuid.UUID, isAdmin bool) (*models.Label
 	return &label, nil
 }
 
-// ListLabelsByUser retrieves all labels for a user with usage statistics
+// ListLabelsByUser retrieves all labels for a user with usage statistics.
+// Aggregates the per-label association counts in three GROUP BY queries
+// (one per association table) instead of three queries per label, taking
+// the cost from O(n) DB roundtrips to O(1) regardless of label count.
 func (r *Repository) ListLabelsByUser(userID uuid.UUID, isAdmin bool) ([]*models.LabelWithUsage, error) {
 	var labels []*models.Label
 	query := r.db.Order("name ASC")
@@ -1457,24 +1560,58 @@ func (r *Repository) ListLabelsByUser(userID uuid.UUID, isAdmin bool) ([]*models
 		return nil, fmt.Errorf("failed to list labels: %w", result.Error)
 	}
 
-	// Convert to LabelWithUsage and calculate usage statistics
+	if len(labels) == 0 {
+		return []*models.LabelWithUsage{}, nil
+	}
+
+	labelIDs := make([]uuid.UUID, 0, len(labels))
+	for _, l := range labels {
+		labelIDs = append(labelIDs, l.ID)
+	}
+
+	type countRow struct {
+		LabelID uuid.UUID
+		Count   int64
+	}
+
+	loadCounts := func(model any) (map[uuid.UUID]int, error) {
+		var rows []countRow
+		if err := r.db.Model(model).
+			Select("label_id, COUNT(*) AS count").
+			Where("label_id IN ?", labelIDs).
+			Group("label_id").
+			Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		out := make(map[uuid.UUID]int, len(rows))
+		for _, row := range rows {
+			out[row.LabelID] = int(row.Count)
+		}
+		return out, nil
+	}
+
+	dbCounts, err := loadCounts(&models.DatabaseLabel{})
+	if err != nil {
+		return nil, fmt.Errorf("count database labels: %w", err)
+	}
+	storageCounts, err := loadCounts(&models.StorageLabel{})
+	if err != nil {
+		return nil, fmt.Errorf("count storage labels: %w", err)
+	}
+	notificationCounts, err := loadCounts(&models.NotificationLabel{})
+	if err != nil {
+		return nil, fmt.Errorf("count notification labels: %w", err)
+	}
+
 	labelsWithUsage := make([]*models.LabelWithUsage, len(labels))
 	for i, label := range labels {
 		usage := &models.LabelWithUsage{
-			Label: *label,
+			Label:             *label,
+			DatabaseCount:     dbCounts[label.ID],
+			StorageCount:      storageCounts[label.ID],
+			NotificationCount: notificationCounts[label.ID],
 		}
-
-		// Count database associations
-		var dbCount, storageCount, notificationCount int64
-		r.db.Model(&models.DatabaseLabel{}).Where("label_id = ?", label.ID).Count(&dbCount)
-		r.db.Model(&models.StorageLabel{}).Where("label_id = ?", label.ID).Count(&storageCount)
-		r.db.Model(&models.NotificationLabel{}).Where("label_id = ?", label.ID).Count(&notificationCount)
-
-		usage.DatabaseCount = int(dbCount)
-		usage.StorageCount = int(storageCount)
-		usage.NotificationCount = int(notificationCount)
 		usage.TotalUsage = usage.DatabaseCount + usage.StorageCount + usage.NotificationCount
-
 		labelsWithUsage[i] = usage
 	}
 

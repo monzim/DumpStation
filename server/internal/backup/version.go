@@ -9,32 +9,57 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/monzim/db_proxy/v1/internal/models"
 )
 
-// VersionManager handles PostgreSQL version detection and management
+// versionCacheTTL bounds how long a detected PostgreSQL version is trusted
+// before it is re-detected. Protects against stale entries when the upstream
+// database is upgraded without a service restart.
+const versionCacheTTL = 24 * time.Hour
+
+type cachedVersion struct {
+	value     string
+	cachedAt  time.Time
+}
+
+// VersionManager handles PostgreSQL version detection and management.
+// All cache access is mediated by mu so concurrent scheduled backups are safe.
 type VersionManager struct {
-	versionCache map[string]string  // Cache detected versions
-	sslModeCache map[string]SSLMode // Cache SSL mode that worked for each database
+	mu           sync.RWMutex
+	versionCache map[string]cachedVersion
+	sslModeCache map[string]SSLMode
 }
 
 // NewVersionManager creates a new version manager
 func NewVersionManager() *VersionManager {
 	return &VersionManager{
-		versionCache: make(map[string]string),
+		versionCache: make(map[string]cachedVersion),
 		sslModeCache: make(map[string]SSLMode),
 	}
 }
 
+// SetSSLMode records the SSL mode that worked for a host:port pair.
+// External callers must use this rather than touching the map directly.
+func (vm *VersionManager) SetSSLMode(host string, port int, mode SSLMode) {
+	cacheKey := fmt.Sprintf("%s:%d", host, port)
+	vm.mu.Lock()
+	vm.sslModeCache[cacheKey] = mode
+	vm.mu.Unlock()
+}
+
 // DetectPostgresVersion detects the PostgreSQL version of a database with SSL fallback
 func (vm *VersionManager) DetectPostgresVersion(dbConfig *models.DatabaseConfig) (string, error) {
-	// Check cache first
+	// Check cache first (TTL-bounded)
 	cacheKey := fmt.Sprintf("%s:%d", dbConfig.Host, dbConfig.Port)
-	if cached, exists := vm.versionCache[cacheKey]; exists {
-		log.Printf("Using cached PostgreSQL version for %s: %s", dbConfig.Name, cached)
-		return cached, nil
+	vm.mu.RLock()
+	cached, exists := vm.versionCache[cacheKey]
+	vm.mu.RUnlock()
+	if exists && time.Since(cached.cachedAt) < versionCacheTTL {
+		log.Printf("Using cached PostgreSQL version for %s: %s", dbConfig.Name, cached.value)
+		return cached.value, nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -65,14 +90,14 @@ func (vm *VersionManager) DetectPostgresVersion(dbConfig *models.DatabaseConfig)
 		return "", fmt.Errorf("failed to detect PostgreSQL version: %w", err)
 	}
 
-	// Cache the SSL mode that worked
-	vm.sslModeCache[cacheKey] = sslMode
-
 	versionOutput := output
 	majorVersion := vm.ParseMajorVersion(versionOutput)
 
-	// Cache the result
-	vm.versionCache[cacheKey] = majorVersion
+	// Cache the SSL mode that worked and the detected version under one lock acquisition
+	vm.mu.Lock()
+	vm.sslModeCache[cacheKey] = sslMode
+	vm.versionCache[cacheKey] = cachedVersion{value: majorVersion, cachedAt: time.Now()}
+	vm.mu.Unlock()
 
 	log.Printf("Detected PostgreSQL version for %s: %s (SSL mode: %s)", dbConfig.Name, majorVersion, sslMode)
 	return majorVersion, nil
@@ -290,7 +315,10 @@ func (vm *VersionManager) GetDumpCompressionLevel(postgresVersion string) string
 // Returns "require" as default if not cached
 func (vm *VersionManager) GetSSLModeForDatabase(host string, port int) SSLMode {
 	cacheKey := fmt.Sprintf("%s:%d", host, port)
-	if sslMode, exists := vm.sslModeCache[cacheKey]; exists {
+	vm.mu.RLock()
+	sslMode, exists := vm.sslModeCache[cacheKey]
+	vm.mu.RUnlock()
+	if exists {
 		return sslMode
 	}
 	// Default to require, but actual execution will fallback if needed
