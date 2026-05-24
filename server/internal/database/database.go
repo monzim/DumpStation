@@ -59,6 +59,7 @@ func (db *DB) AutoMigrate() error {
 		&models.DatabaseLabel{},
 		&models.StorageLabel{},
 		&models.NotificationLabel{},
+		&models.ServerConnection{},
 	)
 
 	if err != nil {

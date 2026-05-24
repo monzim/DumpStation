@@ -15,6 +15,7 @@ type Config struct {
 	Discord   DiscordConfig
 	CORS      CORSConfig
 	Turnstile TurnstileConfig
+	Secret    SecretConfig
 }
 
 // ServerConfig holds server-related configuration
@@ -64,6 +65,14 @@ type TurnstileConfig struct {
 	Timeout   int    // Verification timeout in seconds
 }
 
+// SecretConfig holds keys for encrypting at-rest secrets such as the
+// PostgreSQL server credentials the DB Servers feature stores.
+type SecretConfig struct {
+	// Key is the base64-encoded 32-byte AES key used by internal/crypto.
+	// Generate with `openssl rand -base64 32`.
+	Key string
+}
+
 // Load loads configuration from environment variables
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -102,6 +111,9 @@ func Load() (*Config, error) {
 			Enabled:   getEnvAsBool("TURNSTILE_ENABLED", false),
 			Timeout:   getEnvAsInt("TURNSTILE_TIMEOUT", 5),
 		},
+		Secret: SecretConfig{
+			Key: getEnv("DUMPSTATION_SECRET_KEY", ""),
+		},
 	}
 
 	// Validate required fields
@@ -111,6 +123,10 @@ func Load() (*Config, error) {
 
 	if cfg.Database.Password == "" {
 		return nil, fmt.Errorf("DB_PASSWORD is required")
+	}
+
+	if cfg.Secret.Key == "" {
+		return nil, fmt.Errorf("DUMPSTATION_SECRET_KEY is required (generate with: openssl rand -base64 32)")
 	}
 
 	// CORS sanity: a wildcard origin combined with credentials is a browser

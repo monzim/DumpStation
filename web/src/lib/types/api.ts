@@ -323,3 +323,83 @@ export interface ApiError {
   code?: string;
   errors?: ValidationError[];
 }
+
+// ============================================================================
+// DB Servers feature — direct PostgreSQL server administration.
+// Mirrors models.ServerConnection* on the backend.
+// ============================================================================
+
+export type ServerSSLMode = "require" | "prefer" | "disable";
+
+export interface ServerConnection {
+  id: string;
+  name: string;
+  host: string; // already masked by the API
+  port: number;
+  user: string; // already masked by the API
+  ssl_mode: ServerSSLMode;
+  last_tested_at?: string;
+  last_test_status?: string;
+  last_test_error?: string;
+  last_test_ssl_mode?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServerConnectionInput {
+  name: string;
+  host: string;
+  port: number;
+  user: string;
+  password: string; // empty on update means "keep existing"
+  ssl_mode?: ServerSSLMode;
+}
+
+export interface ServerConnectionTestResult {
+  ok: boolean;
+  ssl_mode?: string;
+  message?: string;
+  latency?: string;
+}
+
+export interface ServerDatabaseInfo {
+  name: string;
+  owner: string;
+  encoding: string;
+  size_bytes: number;
+  size_human: string;
+}
+
+export interface ServerTableInfo {
+  schema: string;
+  name: string;
+  row_count: number;
+  size_bytes: number;
+  size_human: string;
+}
+
+export interface ServerRoleInfo {
+  name: string;
+  can_login: boolean;
+  is_superuser: boolean;
+  create_db: boolean;
+  create_role: boolean;
+}
+
+export interface ServerCreateDatabaseInput {
+  name: string;
+  owner?: string;
+}
+
+export interface ServerCreateUserInput {
+  username: string;
+  password: string;
+  can_login: boolean;
+}
+
+export type ServerGrantPreset = "readonly" | "readwrite" | "owner";
+
+export interface ServerGrantInput {
+  username: string;
+  preset: ServerGrantPreset;
+}

@@ -632,6 +632,15 @@ const (
 	ActionLabelCreated ActivityLogAction = "label_created"
 	ActionLabelUpdated ActivityLogAction = "label_updated"
 	ActionLabelDeleted ActivityLogAction = "label_deleted"
+	// DB Servers (direct PostgreSQL administration) actions
+	ActionServerConnectionCreated ActivityLogAction = "server_connection_created"
+	ActionServerConnectionUpdated ActivityLogAction = "server_connection_updated"
+	ActionServerConnectionDeleted ActivityLogAction = "server_connection_deleted"
+	ActionServerDatabaseCreated   ActivityLogAction = "server_database_created"
+	ActionServerDatabaseDropped   ActivityLogAction = "server_database_dropped"
+	ActionServerUserCreated       ActivityLogAction = "server_user_created"
+	ActionServerUserDropped       ActivityLogAction = "server_user_dropped"
+	ActionServerRoleGranted       ActivityLogAction = "server_role_granted"
 )
 
 // ActivityLogLevel represents the severity level of the log
@@ -859,4 +868,161 @@ type AuthResponseWith2FA struct {
 	Requires2FA        bool      `json:"requires_2fa" example:"true"`
 	TwoFactorToken     string    `json:"two_factor_token,omitempty" example:"temp_token_for_2fa_verification"`
 	TwoFactorExpiresAt time.Time `json:"two_factor_expires_at,omitempty" example:"2025-11-17T22:05:00Z"`
+}
+
+// ============================================================================
+// DB Servers feature — PostgreSQL server administration.
+//
+// A ServerConnection stores root/admin credentials for a remote PostgreSQL
+// server so the DB Servers UI can list/create/drop databases and users without
+// the user reaching for psql or pgAdmin. The Password column holds the
+// AES-GCM ciphertext produced by internal/crypto — never plaintext.
+// ============================================================================
+
+// ServerConnection stores the admin credentials for a single PostgreSQL server
+// that the owning user has registered for direct administration.
+type ServerConnection struct {
+	ID       uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID   uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	User     User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
+	Name     string    `gorm:"type:varchar(255);not null" json:"name"`
+	Host     string    `gorm:"type:varchar(255);not null" json:"host"`
+	Port     int       `gorm:"not null;default:5432" json:"port"`
+	Username string    `gorm:"type:varchar(255);not null" json:"user"`
+	// Password is the AES-GCM ciphertext produced by internal/crypto.
+	// JSON-excluded; the response DTO never returns it.
+	Password         string     `gorm:"type:text;not null" json:"-"`
+	SSLMode          string     `gorm:"type:varchar(20);default:'prefer'" json:"ssl_mode"`
+	LastTestedAt     *time.Time `gorm:"type:timestamp" json:"last_tested_at,omitempty"`
+	LastTestStatus   string     `gorm:"type:varchar(20)" json:"last_test_status,omitempty"`
+	LastTestError    string     `gorm:"type:text" json:"last_test_error,omitempty"`
+	LastTestSSLMode  string     `gorm:"type:varchar(20)" json:"last_test_ssl_mode,omitempty"`
+	CreatedAt        time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt        time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// BeforeCreate ensures a UUID is assigned even when the caller didn't supply one.
+func (s *ServerConnection) BeforeCreate(tx *gorm.DB) error {
+	if s.ID == uuid.Nil {
+		s.ID = uuid.New()
+	}
+	return nil
+}
+
+// ServerConnectionInput is the request body for create/update.
+// On update, Password may be empty to indicate "keep existing".
+type ServerConnectionInput struct {
+	Name     string `json:"name" validate:"required" example:"Primary PG"`
+	Host     string `json:"host" validate:"required" example:"pg.example.com"`
+	Port     int    `json:"port" validate:"required,min=1,max=65535" example:"5432"`
+	Username string `json:"user" validate:"required" example:"postgres"`
+	Password string `json:"password" example:"super-secret"`
+	SSLMode  string `json:"ssl_mode" example:"prefer"` // require | prefer | disable
+}
+
+// ServerConnectionResponse is the masked DTO returned by the API.
+// @Description PostgreSQL server connection with masked sensitive fields
+type ServerConnectionResponse struct {
+	ID              uuid.UUID  `json:"id"`
+	Name            string     `json:"name"`
+	Host            string     `json:"host" example:"***.example.com"`
+	Port            int        `json:"port" example:"5432"`
+	Username        string     `json:"user" example:"pos***"`
+	SSLMode         string     `json:"ssl_mode" example:"prefer"`
+	LastTestedAt    *time.Time `json:"last_tested_at,omitempty"`
+	LastTestStatus  string     `json:"last_test_status,omitempty" example:"ok"`
+	LastTestError   string     `json:"last_test_error,omitempty"`
+	LastTestSSLMode string     `json:"last_test_ssl_mode,omitempty" example:"require"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+// ToResponse converts a ServerConnection to its masked API response form.
+func (s *ServerConnection) ToResponse() *ServerConnectionResponse {
+	return &ServerConnectionResponse{
+		ID:              s.ID,
+		Name:            s.Name,
+		Host:            utils.MaskHostname(s.Host),
+		Port:            s.Port,
+		Username:        utils.MaskUsername(s.Username),
+		SSLMode:         s.SSLMode,
+		LastTestedAt:    s.LastTestedAt,
+		LastTestStatus:  s.LastTestStatus,
+		LastTestError:   s.LastTestError,
+		LastTestSSLMode: s.LastTestSSLMode,
+		CreatedAt:       s.CreatedAt,
+		UpdatedAt:       s.UpdatedAt,
+	}
+}
+
+// ServerConnectionsToResponse maps a slice of pointers to a slice of DTOs.
+func ServerConnectionsToResponse(items []*ServerConnection) []ServerConnectionResponse {
+	out := make([]ServerConnectionResponse, len(items))
+	for i, s := range items {
+		out[i] = *s.ToResponse()
+	}
+	return out
+}
+
+// ServerDatabaseInfo describes one database listed from a remote server.
+type ServerDatabaseInfo struct {
+	Name      string `json:"name" example:"app_prod"`
+	Owner     string `json:"owner" example:"postgres"`
+	Encoding  string `json:"encoding" example:"UTF8"`
+	SizeBytes int64  `json:"size_bytes" example:"15728640"`
+	SizeHuman string `json:"size_human" example:"15 MB"`
+}
+
+// ServerTableInfo describes one table inside a remote database.
+type ServerTableInfo struct {
+	Schema    string `json:"schema" example:"public"`
+	Name      string `json:"name" example:"users"`
+	RowCount  int64  `json:"row_count" example:"1234"`  // pg_class.reltuples estimate
+	SizeBytes int64  `json:"size_bytes" example:"81920"`
+	SizeHuman string `json:"size_human" example:"80 kB"`
+}
+
+// ServerRoleInfo describes one role listed from a remote server.
+type ServerRoleInfo struct {
+	Name        string `json:"name" example:"app_user"`
+	CanLogin    bool   `json:"can_login" example:"true"`
+	IsSuperuser bool   `json:"is_superuser" example:"false"`
+	CreateDB    bool   `json:"create_db" example:"false"`
+	CreateRole  bool   `json:"create_role" example:"false"`
+}
+
+// ServerCreateDatabaseInput is the body for creating a database on a server.
+type ServerCreateDatabaseInput struct {
+	Name  string `json:"name" validate:"required" example:"app_prod"`
+	Owner string `json:"owner,omitempty" example:"app_user"`
+}
+
+// ServerCreateUserInput is the body for creating a role on a server.
+type ServerCreateUserInput struct {
+	Username string `json:"username" validate:"required" example:"app_user"`
+	Password string `json:"password" validate:"required" example:"super-secret"`
+	CanLogin bool   `json:"can_login" example:"true"`
+}
+
+// ServerGrantPreset is the user-facing permission preset for GRANT.
+type ServerGrantPreset string
+
+const (
+	ServerGrantReadOnly  ServerGrantPreset = "readonly"
+	ServerGrantReadWrite ServerGrantPreset = "readwrite"
+	ServerGrantOwner     ServerGrantPreset = "owner"
+)
+
+// ServerGrantInput is the body for granting a preset role on a database.
+type ServerGrantInput struct {
+	Username string            `json:"username" validate:"required" example:"app_user"`
+	Preset   ServerGrantPreset `json:"preset" validate:"required" example:"readwrite"`
+}
+
+// ServerConnectionTestResult is the response from the test endpoint.
+type ServerConnectionTestResult struct {
+	OK       bool   `json:"ok" example:"true"`
+	SSLMode  string `json:"ssl_mode" example:"require"`
+	Message  string `json:"message,omitempty"`
+	Latency  string `json:"latency,omitempty" example:"23ms"`
 }
