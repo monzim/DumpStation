@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -493,6 +494,134 @@ func (h *Handler) ListServerTables(w http.ResponseWriter, r *http.Request) {
 		tables = []models.ServerTableInfo{}
 	}
 	writeJSON(w, http.StatusOK, tables)
+}
+
+// BrowseServerTable godoc
+// @Summary Browse rows of a table on a remote server
+// @Description Returns a page of rows ordered by the table's primary key (or first column when no PK). limit is clamped server-side to MaxBrowseLimit (200).
+// @Tags DB Servers
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Server connection id"
+// @Param dbname path string true "Database name"
+// @Param schema path string true "Schema name"
+// @Param table path string true "Table name"
+// @Param limit query int false "Rows per page (default 50, max 200)"
+// @Param offset query int false "Row offset (default 0)"
+// @Success 200 {object} models.ServerTableRowsResult
+// @Router /server-connections/{id}/databases/{dbname}/tables/{schema}/{table}/rows [get]
+func (h *Handler) BrowseServerTable(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	dbname, schema, table := vars["dbname"], vars["schema"], vars["table"]
+	if dbname == "" || schema == "" || table == "" {
+		writeError(w, http.StatusBadRequest, "dbname, schema, and table are required")
+		return
+	}
+
+	limit := parseIntDefault(r.URL.Query().Get("limit"), 50)
+	offset := parseIntDefault(r.URL.Query().Get("offset"), 0)
+
+	client, _, ok := h.openClient(w, r, dbname)
+	if !ok {
+		return
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), adminRequestTimeout)
+	defer cancel()
+	result, err := client.BrowseTable(ctx, schema, table, limit, offset)
+	if err != nil {
+		writeAdminError(w, "browse table", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// TruncateServerTable godoc
+// @Summary Empty a table on a remote server (plain TRUNCATE, no CASCADE)
+// @Tags DB Servers
+// @Security BearerAuth
+// @Param id path string true "Server connection id"
+// @Param dbname path string true "Database name"
+// @Param schema path string true "Schema name"
+// @Param table path string true "Table name"
+// @Success 204
+// @Failure 409 {object} models.APIError "FK violation — another table references this one"
+// @Router /server-connections/{id}/databases/{dbname}/tables/{schema}/{table}/truncate [post]
+func (h *Handler) TruncateServerTable(w http.ResponseWriter, r *http.Request) {
+	userID := getUserIDFromContext(r)
+	vars := mux.Vars(r)
+	dbname, schema, table := vars["dbname"], vars["schema"], vars["table"]
+	if dbname == "" || schema == "" || table == "" {
+		writeError(w, http.StatusBadRequest, "dbname, schema, and table are required")
+		return
+	}
+
+	client, sc, ok := h.openClient(w, r, dbname)
+	if !ok {
+		return
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), adminRequestTimeout)
+	defer cancel()
+	if err := client.TruncateTable(ctx, schema, table); err != nil {
+		writeAdminError(w, "truncate table", err)
+		return
+	}
+
+	h.logActivity(userID, models.ActionServerTableTruncated, models.LogLevelWarning,
+		"server_table", &sc.ID, sc.Name,
+		fmt.Sprintf("Truncated %q.%q on database %q (server %q)", schema, table, dbname, sc.Name),
+		"", getIPAddress(r))
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GetServerDatabaseERD godoc
+// @Summary Return the schema graph (tables + FK relations) for a database
+// @Description Used by the frontend to render an ERD diagram. Composite FKs surface only the first column pair.
+// @Tags DB Servers
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Server connection id"
+// @Param dbname path string true "Database name"
+// @Success 200 {object} models.ServerERDSchema
+// @Router /server-connections/{id}/databases/{dbname}/erd [get]
+func (h *Handler) GetServerDatabaseERD(w http.ResponseWriter, r *http.Request) {
+	dbname := mux.Vars(r)["dbname"]
+	if dbname == "" {
+		writeError(w, http.StatusBadRequest, "dbname is required")
+		return
+	}
+
+	client, _, ok := h.openClient(w, r, dbname)
+	if !ok {
+		return
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), adminRequestTimeout)
+	defer cancel()
+	erd, err := client.GetSchemaERD(ctx)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("build erd: %v", err))
+		return
+	}
+	writeJSON(w, http.StatusOK, erd)
+}
+
+// parseIntDefault returns the parsed int, or the default when the input is
+// empty or not a valid integer.
+func parseIntDefault(s string, def int) int {
+	if s == "" {
+		return def
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return def
+	}
+	return v
 }
 
 // ============================================================================

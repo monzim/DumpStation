@@ -9,6 +9,8 @@ import type {
   ServerCreateDatabaseInput,
   ServerCreateUserInput,
   ServerGrantInput,
+  ServerTableRowsResult,
+  ServerERDSchema,
 } from "@/lib/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -25,6 +27,26 @@ export const dbServerKeys = {
   databases: (id: string) => [...dbServerKeys.all, id, "databases"] as const,
   tables: (id: string, dbname: string) =>
     [...dbServerKeys.all, id, "databases", dbname, "tables"] as const,
+  tableRows: (
+    id: string,
+    dbname: string,
+    schema: string,
+    table: string,
+    page: number
+  ) =>
+    [
+      ...dbServerKeys.all,
+      id,
+      "databases",
+      dbname,
+      "tables",
+      schema,
+      table,
+      "rows",
+      page,
+    ] as const,
+  erd: (id: string, dbname: string) =>
+    [...dbServerKeys.all, id, "databases", dbname, "erd"] as const,
   users: (id: string) => [...dbServerKeys.all, id, "users"] as const,
 };
 
@@ -77,6 +99,26 @@ export const dbServerApi = {
     apiClient.post<void>(
       `/server-connections/${id}/databases/${encodeURIComponent(dbname)}/grants`,
       input
+    ),
+
+  browseTable: (
+    id: string,
+    dbname: string,
+    schema: string,
+    table: string,
+    limit: number,
+    offset: number
+  ) =>
+    apiClient.get<ServerTableRowsResult>(
+      `/server-connections/${id}/databases/${encodeURIComponent(dbname)}/tables/${encodeURIComponent(schema)}/${encodeURIComponent(table)}/rows?limit=${limit}&offset=${offset}`
+    ),
+  truncateTable: (id: string, dbname: string, schema: string, table: string) =>
+    apiClient.post<void>(
+      `/server-connections/${id}/databases/${encodeURIComponent(dbname)}/tables/${encodeURIComponent(schema)}/${encodeURIComponent(table)}/truncate`
+    ),
+  getDatabaseERD: (id: string, dbname: string) =>
+    apiClient.get<ServerERDSchema>(
+      `/server-connections/${id}/databases/${encodeURIComponent(dbname)}/erd`
     ),
 };
 
@@ -237,3 +279,64 @@ export function useGrantPresetRole(serverId: string) {
     onError: (e: any) => toast.error(e?.message ?? "Failed to grant role"),
   });
 }
+
+// ============================================================================
+// Table browser, TRUNCATE, ERD
+// ============================================================================
+
+const ROWS_PER_PAGE = 50;
+
+export function useServerTableRows(
+  serverId: string,
+  dbname: string,
+  schema: string,
+  table: string,
+  page: number
+) {
+  return useQuery({
+    queryKey: dbServerKeys.tableRows(serverId, dbname, schema, table, page),
+    queryFn: () =>
+      dbServerApi.browseTable(
+        serverId,
+        dbname,
+        schema,
+        table,
+        ROWS_PER_PAGE,
+        Math.max(0, (page - 1) * ROWS_PER_PAGE)
+      ),
+    enabled: !!serverId && !!dbname && !!schema && !!table,
+  });
+}
+
+export function useTruncateServerTable(serverId: string, dbname: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ schema, table }: { schema: string; table: string }) =>
+      dbServerApi.truncateTable(serverId, dbname, schema, table),
+    onSuccess: () => {
+      // Refresh the table list (row count estimates) and any cached pages.
+      qc.invalidateQueries({ queryKey: dbServerKeys.tables(serverId, dbname) });
+      qc.invalidateQueries({
+        queryKey: [
+          ...dbServerKeys.all,
+          serverId,
+          "databases",
+          dbname,
+          "tables",
+        ],
+      });
+      toast.success("Table cleared");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to clear table"),
+  });
+}
+
+export function useDbServerERD(serverId: string, dbname: string) {
+  return useQuery({
+    queryKey: dbServerKeys.erd(serverId, dbname),
+    queryFn: () => dbServerApi.getDatabaseERD(serverId, dbname),
+    enabled: !!serverId && !!dbname,
+  });
+}
+
+export const TABLE_ROWS_PER_PAGE = ROWS_PER_PAGE;

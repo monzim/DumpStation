@@ -403,3 +403,48 @@ export interface ServerGrantInput {
   username: string;
   preset: ServerGrantPreset;
 }
+
+// Table browser / TRUNCATE / ERD
+export interface ServerColumnInfo {
+  name: string;
+  data_type: string;
+  is_nullable: boolean;
+  default?: string;
+  is_primary_key: boolean;
+}
+
+export interface ServerTableRowsResult {
+  columns: ServerColumnInfo[];
+  rows: unknown[][];
+  limit: number;
+  offset: number;
+  estimated_total: number;
+}
+
+export interface ServerERDColumn {
+  name: string;
+  data_type: string;
+  is_nullable: boolean;
+  is_primary_key: boolean;
+}
+
+export interface ServerERDTable {
+  schema: string;
+  name: string;
+  columns: ServerERDColumn[];
+}
+
+export interface ServerERDRelation {
+  from_schema: string;
+  from_table: string;
+  from_column: string;
+  to_schema: string;
+  to_table: string;
+  to_column: string;
+  constraint_name: string;
+}
+
+export interface ServerERDSchema {
+  tables: ServerERDTable[];
+  relations: ServerERDRelation[];
+}

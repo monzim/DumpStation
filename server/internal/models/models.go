@@ -641,6 +641,7 @@ const (
 	ActionServerUserCreated       ActivityLogAction = "server_user_created"
 	ActionServerUserDropped       ActivityLogAction = "server_user_dropped"
 	ActionServerRoleGranted       ActivityLogAction = "server_role_granted"
+	ActionServerTableTruncated    ActivityLogAction = "server_table_truncated"
 )
 
 // ActivityLogLevel represents the severity level of the log
@@ -1025,4 +1026,59 @@ type ServerConnectionTestResult struct {
 	SSLMode  string `json:"ssl_mode" example:"require"`
 	Message  string `json:"message,omitempty"`
 	Latency  string `json:"latency,omitempty" example:"23ms"`
+}
+
+// ServerColumnInfo is column-level metadata for a single table.
+type ServerColumnInfo struct {
+	Name         string `json:"name" example:"id"`
+	DataType     string `json:"data_type" example:"uuid"`
+	IsNullable   bool   `json:"is_nullable" example:"false"`
+	Default      string `json:"default,omitempty" example:"gen_random_uuid()"`
+	IsPrimaryKey bool   `json:"is_primary_key" example:"true"`
+}
+
+// ServerTableRowsResult is the response payload for the table-browse endpoint.
+// Rows is [][]any so cells preserve the foreign server's native types
+// (timestamps, booleans, numbers, JSON, etc.) for the frontend to render.
+type ServerTableRowsResult struct {
+	Columns        []ServerColumnInfo `json:"columns"`
+	Rows           [][]any            `json:"rows"`
+	Limit          int                `json:"limit" example:"50"`
+	Offset         int                `json:"offset" example:"0"`
+	EstimatedTotal int64              `json:"estimated_total" example:"12345"`
+}
+
+// ServerERDColumn is the slimmer column variant used in the ERD payload —
+// just enough for an erDiagram block.
+type ServerERDColumn struct {
+	Name         string `json:"name"`
+	DataType     string `json:"data_type"`
+	IsNullable   bool   `json:"is_nullable"`
+	IsPrimaryKey bool   `json:"is_primary_key"`
+}
+
+// ServerERDTable is one table in the schema graph.
+type ServerERDTable struct {
+	Schema  string            `json:"schema" example:"public"`
+	Name    string            `json:"name" example:"users"`
+	Columns []ServerERDColumn `json:"columns"`
+}
+
+// ServerERDRelation is one foreign-key relation between two tables.
+// For composite FKs we surface only the first column pair — sufficient for
+// the high-level ERD purpose and keeps the rendering simple.
+type ServerERDRelation struct {
+	FromSchema     string `json:"from_schema"`
+	FromTable      string `json:"from_table"`
+	FromColumn     string `json:"from_column"`
+	ToSchema       string `json:"to_schema"`
+	ToTable        string `json:"to_table"`
+	ToColumn       string `json:"to_column"`
+	ConstraintName string `json:"constraint_name"`
+}
+
+// ServerERDSchema is the complete graph for one database.
+type ServerERDSchema struct {
+	Tables    []ServerERDTable    `json:"tables"`
+	Relations []ServerERDRelation `json:"relations"`
 }

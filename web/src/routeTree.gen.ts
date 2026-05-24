@@ -23,7 +23,9 @@ import { Route as DatabasesIndexRouteImport } from './routes/databases.index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DatabasesIdRouteImport } from './routes/databases.$id'
 import { Route as DbServersIdIndexRouteImport } from './routes/db-servers.$id.index'
-import { Route as DbServersIdDatabasesDbnameRouteImport } from './routes/db-servers.$id.databases.$dbname'
+import { Route as DbServersIdDatabasesDbnameIndexRouteImport } from './routes/db-servers.$id.databases.$dbname.index'
+import { Route as DbServersIdDatabasesDbnameErdRouteImport } from './routes/db-servers.$id.databases.$dbname.erd'
+import { Route as DbServersIdDatabasesDbnameTablesSchemaTableRouteImport } from './routes/db-servers.$id.databases.$dbname.tables.$schema.$table'
 
 const StorageRoute = StorageRouteImport.update({
   id: '/storage',
@@ -95,10 +97,22 @@ const DbServersIdIndexRoute = DbServersIdIndexRouteImport.update({
   path: '/db-servers/$id/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DbServersIdDatabasesDbnameRoute =
-  DbServersIdDatabasesDbnameRouteImport.update({
-    id: '/db-servers/$id/databases/$dbname',
-    path: '/db-servers/$id/databases/$dbname',
+const DbServersIdDatabasesDbnameIndexRoute =
+  DbServersIdDatabasesDbnameIndexRouteImport.update({
+    id: '/db-servers/$id/databases/$dbname/',
+    path: '/db-servers/$id/databases/$dbname/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DbServersIdDatabasesDbnameErdRoute =
+  DbServersIdDatabasesDbnameErdRouteImport.update({
+    id: '/db-servers/$id/databases/$dbname/erd',
+    path: '/db-servers/$id/databases/$dbname/erd',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DbServersIdDatabasesDbnameTablesSchemaTableRoute =
+  DbServersIdDatabasesDbnameTablesSchemaTableRouteImport.update({
+    id: '/db-servers/$id/databases/$dbname/tables/$schema/$table',
+    path: '/db-servers/$id/databases/$dbname/tables/$schema/$table',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -117,7 +131,9 @@ export interface FileRoutesByFullPath {
   '/databases': typeof DatabasesIndexRoute
   '/db-servers': typeof DbServersIndexRoute
   '/db-servers/$id': typeof DbServersIdIndexRoute
-  '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameRoute
+  '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
+  '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameIndexRoute
+  '/db-servers/$id/databases/$dbname/tables/$schema/$table': typeof DbServersIdDatabasesDbnameTablesSchemaTableRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -133,7 +149,9 @@ export interface FileRoutesByTo {
   '/databases': typeof DatabasesIndexRoute
   '/db-servers': typeof DbServersIndexRoute
   '/db-servers/$id': typeof DbServersIdIndexRoute
-  '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameRoute
+  '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
+  '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameIndexRoute
+  '/db-servers/$id/databases/$dbname/tables/$schema/$table': typeof DbServersIdDatabasesDbnameTablesSchemaTableRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -151,7 +169,9 @@ export interface FileRoutesById {
   '/databases/': typeof DatabasesIndexRoute
   '/db-servers/': typeof DbServersIndexRoute
   '/db-servers/$id/': typeof DbServersIdIndexRoute
-  '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameRoute
+  '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
+  '/db-servers/$id/databases/$dbname/': typeof DbServersIdDatabasesDbnameIndexRoute
+  '/db-servers/$id/databases/$dbname/tables/$schema/$table': typeof DbServersIdDatabasesDbnameTablesSchemaTableRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -170,7 +190,9 @@ export interface FileRouteTypes {
     | '/databases'
     | '/db-servers'
     | '/db-servers/$id'
+    | '/db-servers/$id/databases/$dbname/erd'
     | '/db-servers/$id/databases/$dbname'
+    | '/db-servers/$id/databases/$dbname/tables/$schema/$table'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -186,7 +208,9 @@ export interface FileRouteTypes {
     | '/databases'
     | '/db-servers'
     | '/db-servers/$id'
+    | '/db-servers/$id/databases/$dbname/erd'
     | '/db-servers/$id/databases/$dbname'
+    | '/db-servers/$id/databases/$dbname/tables/$schema/$table'
   id:
     | '__root__'
     | '/'
@@ -203,7 +227,9 @@ export interface FileRouteTypes {
     | '/databases/'
     | '/db-servers/'
     | '/db-servers/$id/'
-    | '/db-servers/$id/databases/$dbname'
+    | '/db-servers/$id/databases/$dbname/erd'
+    | '/db-servers/$id/databases/$dbname/'
+    | '/db-servers/$id/databases/$dbname/tables/$schema/$table'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -220,7 +246,9 @@ export interface RootRouteChildren {
   DatabasesIndexRoute: typeof DatabasesIndexRoute
   DbServersIndexRoute: typeof DbServersIndexRoute
   DbServersIdIndexRoute: typeof DbServersIdIndexRoute
-  DbServersIdDatabasesDbnameRoute: typeof DbServersIdDatabasesDbnameRoute
+  DbServersIdDatabasesDbnameErdRoute: typeof DbServersIdDatabasesDbnameErdRoute
+  DbServersIdDatabasesDbnameIndexRoute: typeof DbServersIdDatabasesDbnameIndexRoute
+  DbServersIdDatabasesDbnameTablesSchemaTableRoute: typeof DbServersIdDatabasesDbnameTablesSchemaTableRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -323,11 +351,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DbServersIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/db-servers/$id/databases/$dbname': {
-      id: '/db-servers/$id/databases/$dbname'
+    '/db-servers/$id/databases/$dbname/': {
+      id: '/db-servers/$id/databases/$dbname/'
       path: '/db-servers/$id/databases/$dbname'
       fullPath: '/db-servers/$id/databases/$dbname'
-      preLoaderRoute: typeof DbServersIdDatabasesDbnameRouteImport
+      preLoaderRoute: typeof DbServersIdDatabasesDbnameIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/db-servers/$id/databases/$dbname/erd': {
+      id: '/db-servers/$id/databases/$dbname/erd'
+      path: '/db-servers/$id/databases/$dbname/erd'
+      fullPath: '/db-servers/$id/databases/$dbname/erd'
+      preLoaderRoute: typeof DbServersIdDatabasesDbnameErdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/db-servers/$id/databases/$dbname/tables/$schema/$table': {
+      id: '/db-servers/$id/databases/$dbname/tables/$schema/$table'
+      path: '/db-servers/$id/databases/$dbname/tables/$schema/$table'
+      fullPath: '/db-servers/$id/databases/$dbname/tables/$schema/$table'
+      preLoaderRoute: typeof DbServersIdDatabasesDbnameTablesSchemaTableRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -359,7 +401,10 @@ const rootRouteChildren: RootRouteChildren = {
   DatabasesIndexRoute: DatabasesIndexRoute,
   DbServersIndexRoute: DbServersIndexRoute,
   DbServersIdIndexRoute: DbServersIdIndexRoute,
-  DbServersIdDatabasesDbnameRoute: DbServersIdDatabasesDbnameRoute,
+  DbServersIdDatabasesDbnameErdRoute: DbServersIdDatabasesDbnameErdRoute,
+  DbServersIdDatabasesDbnameIndexRoute: DbServersIdDatabasesDbnameIndexRoute,
+  DbServersIdDatabasesDbnameTablesSchemaTableRoute:
+    DbServersIdDatabasesDbnameTablesSchemaTableRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

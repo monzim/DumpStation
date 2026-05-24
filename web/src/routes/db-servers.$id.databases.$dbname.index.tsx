@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { AppLayout } from "@/components/app-layout";
 import {
   createFileRoute,
+  Link,
   useNavigate,
   useParams,
 } from "@tanstack/react-router";
@@ -17,19 +18,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ServerGrantDialog } from "@/components/server-grant-dialog";
 import {
   ArrowLeft,
+  ChevronRight,
   Database as DbIcon,
   KeyRound,
+  Network,
   Search,
   Table as TableIcon,
 } from "lucide-react";
 
-export const Route = createFileRoute("/db-servers/$id/databases/$dbname")({
+export const Route = createFileRoute("/db-servers/$id/databases/$dbname/")({
   component: DbServerDatabasePage,
 });
 
 function DbServerDatabasePage() {
   const { id, dbname } = useParams({
-    from: "/db-servers/$id/databases/$dbname",
+    from: "/db-servers/$id/databases/$dbname/",
   });
   const navigate = useNavigate();
   const { data: server } = useDbServer(id);
@@ -86,9 +89,22 @@ function DbServerDatabasePage() {
                   </p>
                 </div>
               </div>
-              <Button onClick={() => setGrantOpen(true)} className="shrink-0">
-                <KeyRound className="h-4 w-4 mr-2" /> Grant access
-              </Button>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    navigate({
+                      to: "/db-servers/$id/databases/$dbname/erd",
+                      params: { id, dbname },
+                    })
+                  }
+                >
+                  <Network className="h-4 w-4 mr-2" /> Schema diagram
+                </Button>
+                <Button onClick={() => setGrantOpen(true)}>
+                  <KeyRound className="h-4 w-4 mr-2" /> Grant access
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -154,34 +170,39 @@ function DbServerDatabasePage() {
         ) : (
           <div className="space-y-1.5">
             {filtered.map((t) => (
-              <div
+              <Link
                 key={`${t.schema}.${t.name}`}
-                className="flex items-center gap-3 p-3 rounded-xl border bg-card hover:bg-muted/40 transition-colors"
+                to="/db-servers/$id/databases/$dbname/tables/$schema/$table"
+                params={{ id, dbname, schema: t.schema, table: t.name }}
+                className="group block"
               >
-                <div className="bg-muted text-muted-foreground p-2 rounded-lg shrink-0">
-                  <TableIcon className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-mono text-sm truncate">
-                    <span className="text-muted-foreground">{t.schema}.</span>
-                    <span className="font-medium">{t.name}</span>
+                <div className="flex items-center gap-3 p-3 rounded-xl border bg-card hover:bg-muted/40 hover:border-muted-foreground/20 transition-colors">
+                  <div className="bg-muted text-muted-foreground p-2 rounded-lg shrink-0 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                    <TableIcon className="h-4 w-4" />
                   </div>
-                </div>
-                <div className="hidden sm:flex items-center gap-4 shrink-0">
-                  <div className="text-right">
-                    <div className="text-xs text-muted-foreground">rows</div>
-                    <div className="text-xs font-medium tabular-nums">
-                      {t.row_count.toLocaleString()}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-sm truncate">
+                      <span className="text-muted-foreground">{t.schema}.</span>
+                      <span className="font-medium">{t.name}</span>
                     </div>
                   </div>
-                  <div className="text-right min-w-16">
-                    <div className="text-xs text-muted-foreground">size</div>
-                    <div className="text-xs font-medium tabular-nums">
-                      {t.size_human}
+                  <div className="hidden sm:flex items-center gap-4 shrink-0">
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground">rows</div>
+                      <div className="text-xs font-medium tabular-nums">
+                        {t.row_count.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right min-w-16">
+                      <div className="text-xs text-muted-foreground">size</div>
+                      <div className="text-xs font-medium tabular-nums">
+                        {t.size_human}
+                      </div>
                     </div>
                   </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground/80 transition-colors shrink-0" />
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
