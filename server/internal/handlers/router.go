@@ -134,6 +134,25 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	demoRestricted.HandleFunc("/notifications/{id}/labels", h.AssignLabelsToNotification).Methods("POST", "OPTIONS")
 	demoRestricted.HandleFunc("/notifications/{id}/labels/{labelId}", h.RemoveLabelFromNotification).Methods("DELETE", "OPTIONS")
 
+	// DB Servers — read endpoints allow demo accounts
+	protected.HandleFunc("/server-connections", h.ListServerConnections).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/server-connections/{id}", h.GetServerConnection).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/server-connections/{id}/databases", h.ListServerDatabases).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/server-connections/{id}/databases/{dbname}/tables", h.ListServerTables).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/server-connections/{id}/users", h.ListServerUsers).Methods("GET", "OPTIONS")
+
+	// DB Servers — write endpoints blocked for demo
+	demoRestricted.HandleFunc("/server-connections", h.CreateServerConnection).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/test", h.TestServerConnectionAdHoc).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}", h.UpdateServerConnection).Methods("PUT", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}", h.DeleteServerConnection).Methods("DELETE", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}/test", h.TestServerConnection).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}/databases", h.CreateServerDatabase).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}/databases/{dbname}", h.DropServerDatabase).Methods("DELETE", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}/users", h.CreateServerUser).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}/users/{username}", h.DropServerUser).Methods("DELETE", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}/databases/{dbname}/grants", h.GrantServerRole).Methods("POST", "OPTIONS")
+
 	// Demo-blocked routes (completely blocked for demo accounts - 2FA management)
 	demoBlocked := api.PathPrefix("").Subrouter()
 	demoBlocked.Use(middleware.AuthMiddleware(jwtMgr))

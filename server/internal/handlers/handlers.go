@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/monzim/db_proxy/v1/internal/auth"
 	"github.com/monzim/db_proxy/v1/internal/backup"
+	"github.com/monzim/db_proxy/v1/internal/crypto"
 	"github.com/monzim/db_proxy/v1/internal/middleware"
 	"github.com/monzim/db_proxy/v1/internal/models"
 	"github.com/monzim/db_proxy/v1/internal/notification"
@@ -32,12 +33,14 @@ type Handler struct {
 	turnstileEnabled bool
 	turnstileSecret  string
 	turnstileTimeout int
+	cipher           *crypto.Cipher
 }
 
 // New creates a new handler instance
 func New(repo *repository.Repository, jwtMgr *auth.JWTManager, backupSvc *backup.Service,
 	scheduler *scheduler.Scheduler, notifier *notification.DiscordNotifier, otpExpiry time.Duration,
-	turnstileEnabled bool, turnstileSecret string, turnstileTimeout int) *Handler {
+	turnstileEnabled bool, turnstileSecret string, turnstileTimeout int,
+	cipher *crypto.Cipher) *Handler {
 	return &Handler{
 		repo:             repo,
 		jwtMgr:           jwtMgr,
@@ -49,6 +52,7 @@ func New(repo *repository.Repository, jwtMgr *auth.JWTManager, backupSvc *backup
 		turnstileEnabled: turnstileEnabled,
 		turnstileSecret:  turnstileSecret,
 		turnstileTimeout: turnstileTimeout,
+		cipher:           cipher,
 	}
 }
 

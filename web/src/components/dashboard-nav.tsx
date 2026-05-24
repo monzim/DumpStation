@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   RefreshCw,
+  Server,
   Settings,
   Tags,
   X,
@@ -39,6 +40,12 @@ const navItems: NavItem[] = [
     value: "databases",
     icon: Database,
     route: "/databases",
+  },
+  {
+    label: "DB Servers",
+    value: "db-servers",
+    icon: Server,
+    route: "/db-servers",
   },
   {
     label: "Backups",

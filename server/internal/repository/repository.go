@@ -2003,3 +2003,123 @@ func (r *Repository) ListNotificationsByLabel(labelID, userID uuid.UUID, isAdmin
 
 	return notifications, nil
 }
+
+// ============================================================================
+// ServerConnection (DB Servers feature) — direct PostgreSQL administration.
+// Callers MUST pass the already-encrypted password ciphertext; this layer
+// stores opaque bytes and never sees plaintext.
+// ============================================================================
+
+// CreateServerConnection persists a new server connection. The password
+// parameter must already be the AES-GCM ciphertext (caller responsibility).
+func (r *Repository) CreateServerConnection(userID uuid.UUID, input *models.ServerConnectionInput, encryptedPassword string) (*models.ServerConnection, error) {
+	sslMode := input.SSLMode
+	if sslMode == "" {
+		sslMode = "prefer"
+	}
+	sc := &models.ServerConnection{
+		UserID:   userID,
+		Name:     input.Name,
+		Host:     input.Host,
+		Port:     input.Port,
+		Username: input.Username,
+		Password: encryptedPassword,
+		SSLMode:  sslMode,
+	}
+	if err := r.db.Create(sc).Error; err != nil {
+		return nil, fmt.Errorf("failed to create server connection: %w", err)
+	}
+	return sc, nil
+}
+
+// GetServerConnectionByUser fetches a server connection scoped by owner
+// (admin bypass). Returns (nil, nil) when not found, matching the convention
+// used by the other GetXByUser methods.
+func (r *Repository) GetServerConnectionByUser(id, userID uuid.UUID, isAdmin bool) (*models.ServerConnection, error) {
+	var sc models.ServerConnection
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&sc).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get server connection: %w", err)
+	}
+	return &sc, nil
+}
+
+// ListServerConnectionsByUser lists all server connections owned by a user
+// (or all when the caller is an admin).
+func (r *Repository) ListServerConnectionsByUser(userID uuid.UUID, isAdmin bool) ([]*models.ServerConnection, error) {
+	var items []*models.ServerConnection
+	query := r.db.Order("created_at DESC")
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.Find(&items).Error; err != nil {
+		return nil, fmt.Errorf("failed to list server connections: %w", err)
+	}
+	return items, nil
+}
+
+// UpdateServerConnectionByUser updates a server connection. If
+// encryptedPassword is empty, the existing password is preserved.
+func (r *Repository) UpdateServerConnectionByUser(id, userID uuid.UUID, isAdmin bool, input *models.ServerConnectionInput, encryptedPassword string) (*models.ServerConnection, error) {
+	var sc models.ServerConnection
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	if err := query.First(&sc).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find server connection: %w", err)
+	}
+
+	sc.Name = input.Name
+	sc.Host = input.Host
+	sc.Port = input.Port
+	sc.Username = input.Username
+	if input.SSLMode != "" {
+		sc.SSLMode = input.SSLMode
+	}
+	if encryptedPassword != "" {
+		sc.Password = encryptedPassword
+	}
+
+	if err := r.db.Save(&sc).Error; err != nil {
+		return nil, fmt.Errorf("failed to update server connection: %w", err)
+	}
+	return &sc, nil
+}
+
+// DeleteServerConnectionByUser deletes a server connection scoped by owner.
+func (r *Repository) DeleteServerConnectionByUser(id, userID uuid.UUID, isAdmin bool) error {
+	query := r.db.Where("id = ?", id)
+	if !isAdmin {
+		query = query.Where("user_id = ?", userID)
+	}
+	result := query.Delete(&models.ServerConnection{})
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete server connection: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// UpdateServerConnectionTestResult records the outcome of a connection test.
+// Failures are still recorded so the UI can show what went wrong.
+func (r *Repository) UpdateServerConnectionTestResult(id uuid.UUID, status, sslMode, errMessage string) error {
+	now := time.Now()
+	return r.db.Model(&models.ServerConnection{}).Where("id = ?", id).Updates(map[string]any{
+		"last_tested_at":     now,
+		"last_test_status":   status,
+		"last_test_ssl_mode": sslMode,
+		"last_test_error":    errMessage,
+	}).Error
+}

@@ -19,6 +19,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     const path = location.pathname;
     if (path === "/dashboard" || path === "/dashboard/") return "overview";
     if (path.startsWith("/databases")) return "databases";
+    if (path.startsWith("/db-servers")) return "db-servers";
     if (path.startsWith("/backups")) return "backups";
     if (path.startsWith("/activity")) return "logs";
     if (path.startsWith("/notifications")) return "notifications";

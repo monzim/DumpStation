@@ -13,6 +13,7 @@ import (
 	"github.com/monzim/db_proxy/v1/internal/backup"
 	"github.com/monzim/db_proxy/v1/internal/cleanup"
 	"github.com/monzim/db_proxy/v1/internal/config"
+	"github.com/monzim/db_proxy/v1/internal/crypto"
 	"github.com/monzim/db_proxy/v1/internal/database"
 	"github.com/monzim/db_proxy/v1/internal/handlers"
 	"github.com/monzim/db_proxy/v1/internal/models"
@@ -111,10 +112,17 @@ func main() {
 		log.Printf("[ACTIVITY_LOG] ⚠️  Failed to log system startup: %v", err)
 	}
 
+	// Initialize crypto for at-rest encryption of server credentials
+	cipher, err := crypto.NewCipher(cfg.Secret.Key)
+	if err != nil {
+		log.Fatalf("Failed to initialize secret cipher: %v", err)
+	}
+
 	// Initialize handlers
 	otpExpiry := time.Duration(cfg.Discord.OTPExpiration) * time.Minute
 	h := handlers.New(repo, jwtMgr, backupSvc, sched, notifier, otpExpiry,
-		cfg.Turnstile.Enabled, cfg.Turnstile.SecretKey, cfg.Turnstile.Timeout)
+		cfg.Turnstile.Enabled, cfg.Turnstile.SecretKey, cfg.Turnstile.Timeout,
+		cipher)
 
 	// Initialize TOTP manager for 2FA
 	totpConfig := auth.DefaultTOTPConfig()
