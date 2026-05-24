@@ -47,14 +47,14 @@ import {
   Users,
 } from "lucide-react";
 
-export const Route = createFileRoute("/db-servers/$id")({
+export const Route = createFileRoute("/db-servers/$id/")({
   component: DbServerDetailPage,
 });
 
 type TabKey = "databases" | "users";
 
 function DbServerDetailPage() {
-  const { id } = useParams({ from: "/db-servers/$id" });
+  const { id } = useParams({ from: "/db-servers/$id/" });
   const navigate = useNavigate();
   const { data: server, isLoading } = useDbServer(id);
   const [tab, setTab] = useState<TabKey>("databases");

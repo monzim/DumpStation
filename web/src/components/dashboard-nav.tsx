@@ -1,4 +1,10 @@
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { UserMenu } from "@/components/user-menu";
@@ -8,6 +14,7 @@ import {
   Activity,
   Archive,
   Bell,
+  ChevronDown,
   Database,
   HardDrive,
   LayoutDashboard,
@@ -28,56 +35,24 @@ interface NavItem {
   route: string;
 }
 
-const navItems: NavItem[] = [
-  {
-    label: "Overview",
-    value: "overview",
-    icon: LayoutDashboard,
-    route: "/dashboard",
-  },
-  {
-    label: "Databases",
-    value: "databases",
-    icon: Database,
-    route: "/databases",
-  },
-  {
-    label: "DB Servers",
-    value: "db-servers",
-    icon: Server,
-    route: "/db-servers",
-  },
-  {
-    label: "Backups",
-    value: "backups",
-    icon: Archive,
-    route: "/backups",
-  },
-  {
-    label: "Activity",
-    value: "logs",
-    icon: Activity,
-    route: "/activity",
-  },
-  {
-    label: "Labels",
-    value: "labels",
-    icon: Tags,
-    route: "/labels",
-  },
-  {
-    label: "Notifications",
-    value: "notifications",
-    icon: Bell,
-    route: "/notifications",
-  },
-  {
-    label: "Storage",
-    value: "storage",
-    icon: HardDrive,
-    route: "/storage",
-  },
+// Primary nav — always visible on desktop.
+const primaryItems: NavItem[] = [
+  { label: "Overview", value: "overview", icon: LayoutDashboard, route: "/dashboard" },
+  { label: "Databases", value: "databases", icon: Database, route: "/databases" },
+  { label: "DB Servers", value: "db-servers", icon: Server, route: "/db-servers" },
+  { label: "Backups", value: "backups", icon: Archive, route: "/backups" },
+  { label: "Activity", value: "logs", icon: Activity, route: "/activity" },
 ];
+
+// Secondary nav — collapsed into a "More" dropdown on desktop, kept
+// inline on mobile (where a vertical list has space).
+const secondaryItems: NavItem[] = [
+  { label: "Labels", value: "labels", icon: Tags, route: "/labels" },
+  { label: "Notifications", value: "notifications", icon: Bell, route: "/notifications" },
+  { label: "Storage", value: "storage", icon: HardDrive, route: "/storage" },
+];
+
+const allItems = [...primaryItems, ...secondaryItems];
 
 interface DashboardNavProps {
   currentTab: string;
@@ -104,25 +79,25 @@ export function DashboardNav({
   };
 
   const handleRefresh = () => {
-    if (onRefresh) {
-      onRefresh();
-    }
+    if (onRefresh) onRefresh();
     setOpen(false);
   };
 
   const handleLogout = () => {
-    if (onLogout) {
-      onLogout();
-    }
+    if (onLogout) onLogout();
     setOpen(false);
   };
 
+  const isSecondaryActive = secondaryItems.some((i) => i.value === currentTab);
+  const activeSecondaryLabel =
+    secondaryItems.find((i) => i.value === currentTab)?.label ?? "More";
+
   return (
     <>
-      {/* Desktop Navigation - Clean pill-style tabs */}
+      {/* Desktop nav — primary pills + a "More" dropdown for the rest */}
       <div className="hidden md:flex items-center gap-3">
-        <nav className="flex items-center gap-1 bg-muted/40 p-1 rounded-full">
-          {navItems.map((item) => {
+        <nav className="flex items-center gap-0.5 bg-muted/40 p-1 rounded-full">
+          {primaryItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentTab === item.value;
             return (
@@ -130,32 +105,59 @@ export function DashboardNav({
                 key={item.value}
                 onClick={() => handleNavClick(item)}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
-                  "hover:bg-background/60",
+                  "flex items-center gap-2 px-3.5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
                   isActive
                     ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 shrink-0" />
                 <span className="hidden lg:inline">{item.label}</span>
               </button>
             );
           })}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  "flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors",
+                  isSecondaryActive
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                )}
+              >
+                <span className="hidden lg:inline">{activeSecondaryLabel}</span>
+                <span className="lg:hidden">More</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-44">
+              {secondaryItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = currentTab === item.value;
+                return (
+                  <DropdownMenuItem
+                    key={item.value}
+                    onClick={() => handleNavClick(item)}
+                    className={cn("gap-2.5 cursor-pointer", isActive && "bg-muted")}
+                  >
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    <span>{item.label}</span>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </nav>
 
-        {/* User Menu */}
         <UserMenu onLogout={onLogout} />
       </div>
 
-      {/* Mobile Navigation - Bottom sheet with modern design */}
+      {/* Mobile nav — full list in a left sheet */}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild className="md:hidden">
-          <Button
-            variant="outline"
-            size="icon"
-            className="relative rounded-full"
-          >
+          <Button variant="outline" size="icon" className="relative rounded-full">
             <Menu className="h-5 w-5" />
             <span className="sr-only">Toggle menu</span>
           </Button>
@@ -165,7 +167,6 @@ export function DashboardNav({
           className="w-[280px] p-0 flex flex-col"
           closeButton={false}
         >
-          {/* Mobile header */}
           <div className="flex items-center justify-between p-6 border-b">
             <div className="flex items-center gap-3">
               <div className="bg-primary/10 p-2 rounded-lg">
@@ -173,9 +174,7 @@ export function DashboardNav({
               </div>
               <div>
                 <h2 className="font-semibold text-base">DumpStation</h2>
-                <p className="text-xs text-muted-foreground">
-                  Database Backups
-                </p>
+                <p className="text-xs text-muted-foreground">Database Backups</p>
               </div>
             </div>
             <Button
@@ -188,10 +187,9 @@ export function DashboardNav({
             </Button>
           </div>
 
-          {/* Navigation items */}
           <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-1">
-              {navItems.map((item) => {
+              {allItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentTab === item.value;
                 return (
@@ -212,12 +210,10 @@ export function DashboardNav({
               })}
             </div>
 
-            {/* Actions section */}
             {(onRefresh || onLogout) && (
               <>
                 <Separator className="my-4" />
                 <div className="space-y-1">
-                  {/* Settings - Mobile */}
                   <button
                     onClick={() => {
                       navigate({ to: "/settings" });
@@ -244,10 +240,7 @@ export function DashboardNav({
                       )}
                     >
                       <RefreshCw
-                        className={cn(
-                          "h-5 w-5 shrink-0",
-                          isRefreshing && "animate-spin"
-                        )}
+                        className={cn("h-5 w-5 shrink-0", isRefreshing && "animate-spin")}
                       />
                       <span>Refresh Stats</span>
                     </button>
@@ -266,7 +259,6 @@ export function DashboardNav({
             )}
           </div>
 
-          {/* Mobile footer with version/info */}
           <div className="border-t p-4">
             <div className="text-xs text-muted-foreground text-center">
               <p className="font-medium">DumpStation v1.0</p>

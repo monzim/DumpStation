@@ -21,8 +21,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DbServersIndexRouteImport } from './routes/db-servers.index'
 import { Route as DatabasesIndexRouteImport } from './routes/databases.index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as DbServersIdRouteImport } from './routes/db-servers.$id'
 import { Route as DatabasesIdRouteImport } from './routes/databases.$id'
+import { Route as DbServersIdIndexRouteImport } from './routes/db-servers.$id.index'
 import { Route as DbServersIdDatabasesDbnameRouteImport } from './routes/db-servers.$id.databases.$dbname'
 
 const StorageRoute = StorageRouteImport.update({
@@ -85,21 +85,21 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
-const DbServersIdRoute = DbServersIdRouteImport.update({
-  id: '/db-servers/$id',
-  path: '/db-servers/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DatabasesIdRoute = DatabasesIdRouteImport.update({
   id: '/databases/$id',
   path: '/databases/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DbServersIdIndexRoute = DbServersIdIndexRouteImport.update({
+  id: '/db-servers/$id/',
+  path: '/db-servers/$id/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DbServersIdDatabasesDbnameRoute =
   DbServersIdDatabasesDbnameRouteImport.update({
-    id: '/databases/$dbname',
-    path: '/databases/$dbname',
-    getParentRoute: () => DbServersIdRoute,
+    id: '/db-servers/$id/databases/$dbname',
+    path: '/db-servers/$id/databases/$dbname',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -113,10 +113,10 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
-  '/db-servers/$id': typeof DbServersIdRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/databases': typeof DatabasesIndexRoute
   '/db-servers': typeof DbServersIndexRoute
+  '/db-servers/$id': typeof DbServersIdIndexRoute
   '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameRoute
 }
 export interface FileRoutesByTo {
@@ -129,10 +129,10 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
-  '/db-servers/$id': typeof DbServersIdRouteWithChildren
   '/dashboard': typeof DashboardIndexRoute
   '/databases': typeof DatabasesIndexRoute
   '/db-servers': typeof DbServersIndexRoute
+  '/db-servers/$id': typeof DbServersIdIndexRoute
   '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameRoute
 }
 export interface FileRoutesById {
@@ -147,10 +147,10 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
-  '/db-servers/$id': typeof DbServersIdRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/databases/': typeof DatabasesIndexRoute
   '/db-servers/': typeof DbServersIndexRoute
+  '/db-servers/$id/': typeof DbServersIdIndexRoute
   '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameRoute
 }
 export interface FileRouteTypes {
@@ -166,10 +166,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/storage'
     | '/databases/$id'
-    | '/db-servers/$id'
     | '/dashboard/'
     | '/databases'
     | '/db-servers'
+    | '/db-servers/$id'
     | '/db-servers/$id/databases/$dbname'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -182,10 +182,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/storage'
     | '/databases/$id'
-    | '/db-servers/$id'
     | '/dashboard'
     | '/databases'
     | '/db-servers'
+    | '/db-servers/$id'
     | '/db-servers/$id/databases/$dbname'
   id:
     | '__root__'
@@ -199,10 +199,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/storage'
     | '/databases/$id'
-    | '/db-servers/$id'
     | '/dashboard/'
     | '/databases/'
     | '/db-servers/'
+    | '/db-servers/$id/'
     | '/db-servers/$id/databases/$dbname'
   fileRoutesById: FileRoutesById
 }
@@ -217,9 +217,10 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StorageRoute: typeof StorageRoute
   DatabasesIdRoute: typeof DatabasesIdRoute
-  DbServersIdRoute: typeof DbServersIdRouteWithChildren
   DatabasesIndexRoute: typeof DatabasesIndexRoute
   DbServersIndexRoute: typeof DbServersIndexRoute
+  DbServersIdIndexRoute: typeof DbServersIdIndexRoute
+  DbServersIdDatabasesDbnameRoute: typeof DbServersIdDatabasesDbnameRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -308,13 +309,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
-    '/db-servers/$id': {
-      id: '/db-servers/$id'
-      path: '/db-servers/$id'
-      fullPath: '/db-servers/$id'
-      preLoaderRoute: typeof DbServersIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/databases/$id': {
       id: '/databases/$id'
       path: '/databases/$id'
@@ -322,12 +316,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DatabasesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/db-servers/$id/': {
+      id: '/db-servers/$id/'
+      path: '/db-servers/$id'
+      fullPath: '/db-servers/$id'
+      preLoaderRoute: typeof DbServersIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/db-servers/$id/databases/$dbname': {
       id: '/db-servers/$id/databases/$dbname'
-      path: '/databases/$dbname'
+      path: '/db-servers/$id/databases/$dbname'
       fullPath: '/db-servers/$id/databases/$dbname'
       preLoaderRoute: typeof DbServersIdDatabasesDbnameRouteImport
-      parentRoute: typeof DbServersIdRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -344,18 +345,6 @@ const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
   DashboardRouteRouteChildren,
 )
 
-interface DbServersIdRouteChildren {
-  DbServersIdDatabasesDbnameRoute: typeof DbServersIdDatabasesDbnameRoute
-}
-
-const DbServersIdRouteChildren: DbServersIdRouteChildren = {
-  DbServersIdDatabasesDbnameRoute: DbServersIdDatabasesDbnameRoute,
-}
-
-const DbServersIdRouteWithChildren = DbServersIdRoute._addFileChildren(
-  DbServersIdRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
@@ -367,9 +356,10 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StorageRoute: StorageRoute,
   DatabasesIdRoute: DatabasesIdRoute,
-  DbServersIdRoute: DbServersIdRouteWithChildren,
   DatabasesIndexRoute: DatabasesIndexRoute,
   DbServersIndexRoute: DbServersIndexRoute,
+  DbServersIdIndexRoute: DbServersIdIndexRoute,
+  DbServersIdDatabasesDbnameRoute: DbServersIdDatabasesDbnameRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
