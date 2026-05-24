@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { AppLayout } from "@/components/app-layout";
 import {
   createFileRoute,
@@ -9,8 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DbServerERD } from "@/components/db-server-erd";
 import { ArrowLeft, Network } from "lucide-react";
+
+// Lazy-loaded so mermaid (~1 MB raw) only ships when the ERD route is
+// actually opened — keeps it out of the Cloudflare Worker server bundle.
+const DbServerERD = lazy(() =>
+  import("@/components/db-server-erd").then((m) => ({ default: m.DbServerERD }))
+);
 
 export const Route = createFileRoute(
   "/db-servers/$id/databases/$dbname/erd"
@@ -92,7 +98,9 @@ function ErdPage() {
             </CardContent>
           </Card>
         ) : data ? (
-          <DbServerERD schema={data} />
+          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+            <DbServerERD schema={data} />
+          </Suspense>
         ) : null}
       </div>
     </AppLayout>
