@@ -20,8 +20,14 @@ type User struct {
 	ID                     uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	DiscordUserID          string         `gorm:"type:varchar(255);uniqueIndex" json:"discord_user_id,omitempty"`
 	DiscordUsername        string         `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
-	GitHubLogin            string         `gorm:"type:varchar(255);uniqueIndex" json:"github_login,omitempty"`
-	GitHubUserID           int64          `gorm:"type:bigint;uniqueIndex" json:"github_user_id,omitempty"`
+	// GitHub identifiers are NOT marked uniqueIndex: GORM's AutoMigrate
+	// tries to add a UNIQUE constraint when the column appears, which
+	// fails on a populated users table because every pre-existing row
+	// would default to the same value (empty string / 0). The allow-list
+	// at the OAuth callback layer is the source of truth for "one
+	// account allowed", so we don't need a DB constraint here.
+	GitHubLogin            string         `gorm:"type:varchar(255);index" json:"github_login,omitempty"`
+	GitHubUserID           int64          `gorm:"type:bigint;index" json:"github_user_id,omitempty"`
 	AvatarURL              string         `gorm:"type:varchar(500)" json:"avatar_url,omitempty"` // Remote avatar URL (e.g. GitHub)
 	Email                  string         `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
 	ProfilePictureData     []byte         `gorm:"type:bytea" json:"-"`                                    // Profile picture stored as binary data

@@ -74,6 +74,31 @@ func (db *DB) AutoMigrate() error {
 		log.Printf("warning: could not drop NOT NULL on users.discord_user_id (likely already nullable): %v", err)
 	}
 
+	// Some AutoMigrate paths abort silently when a new column would be
+	// added together with a UNIQUE constraint on a table whose existing
+	// rows would all collide on the column's zero value. Add the columns
+	// explicitly and idempotently here so an upgraded deployment with a
+	// populated users / notification_configs / otp_tokens table picks up
+	// the new fields without operator intervention.
+	manualColumns := []struct {
+		stmt string
+		hint string
+	}{
+		{`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_login varchar(255)`, "users.github_login"},
+		{`ALTER TABLE users ADD COLUMN IF NOT EXISTS github_user_id bigint`, "users.github_user_id"},
+		{`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url varchar(500)`, "users.avatar_url"},
+		{`ALTER TABLE notification_configs ADD COLUMN IF NOT EXISTS telegram_bot_token text`, "notification_configs.telegram_bot_token"},
+		{`ALTER TABLE notification_configs ADD COLUMN IF NOT EXISTS telegram_chat_id varchar(64)`, "notification_configs.telegram_chat_id"},
+		{`ALTER TABLE notification_configs ALTER COLUMN discord_webhook_url DROP NOT NULL`, "notification_configs.discord_webhook_url DROP NOT NULL"},
+		{`ALTER TABLE otp_tokens ADD COLUMN IF NOT EXISTS purpose varchar(32) NOT NULL DEFAULT 'login'`, "otp_tokens.purpose"},
+		{`ALTER TABLE otp_tokens ADD COLUMN IF NOT EXISTS entity_id uuid`, "otp_tokens.entity_id"},
+	}
+	for _, m := range manualColumns {
+		if err := db.DB.Exec(m.stmt).Error; err != nil {
+			log.Printf("warning: schema patch for %s failed (likely already applied): %v", m.hint, err)
+		}
+	}
+
 	log.Println("Auto-migration completed successfully")
 	return nil
 }
