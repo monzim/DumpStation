@@ -66,6 +66,14 @@ func (db *DB) AutoMigrate() error {
 		return fmt.Errorf("failed to run auto-migration: %w", err)
 	}
 
+	// GORM AutoMigrate adds columns but never relaxes existing constraints.
+	// The legacy schema marked users.discord_user_id as NOT NULL, which
+	// prevents GitHub-only signups from succeeding. Drop the constraint
+	// idempotently so both auth flows can coexist.
+	if err := db.DB.Exec(`ALTER TABLE users ALTER COLUMN discord_user_id DROP NOT NULL`).Error; err != nil {
+		log.Printf("warning: could not drop NOT NULL on users.discord_user_id (likely already nullable): %v", err)
+	}
+
 	log.Println("Auto-migration completed successfully")
 	return nil
 }

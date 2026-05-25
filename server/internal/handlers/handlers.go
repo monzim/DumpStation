@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/monzim/db_proxy/v1/internal/auth"
 	"github.com/monzim/db_proxy/v1/internal/backup"
+	"github.com/monzim/db_proxy/v1/internal/config"
 	"github.com/monzim/db_proxy/v1/internal/crypto"
 	"github.com/monzim/db_proxy/v1/internal/middleware"
 	"github.com/monzim/db_proxy/v1/internal/models"
@@ -34,13 +35,14 @@ type Handler struct {
 	turnstileSecret  string
 	turnstileTimeout int
 	cipher           *crypto.Cipher
+	cfg              *config.Config
 }
 
 // New creates a new handler instance
 func New(repo *repository.Repository, jwtMgr *auth.JWTManager, backupSvc *backup.Service,
 	scheduler *scheduler.Scheduler, notifier *notification.DiscordNotifier, otpExpiry time.Duration,
 	turnstileEnabled bool, turnstileSecret string, turnstileTimeout int,
-	cipher *crypto.Cipher) *Handler {
+	cipher *crypto.Cipher, cfg *config.Config) *Handler {
 	return &Handler{
 		repo:             repo,
 		jwtMgr:           jwtMgr,
@@ -53,6 +55,7 @@ func New(repo *repository.Repository, jwtMgr *auth.JWTManager, backupSvc *backup
 		turnstileSecret:  turnstileSecret,
 		turnstileTimeout: turnstileTimeout,
 		cipher:           cipher,
+		cfg:              cfg,
 	}
 }
 
@@ -229,6 +232,12 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	if !verifyResult.OK {
 		log.Printf("[AUTH] ❌ Invalid or expired OTP for user: %s", user.DiscordUsername)
+		// Audit failed OTP attempts so the activity log surfaces brute-force
+		// attempts even when the per-token failure counter hasn't locked yet.
+		h.logActivity(&user.ID, models.ActionLogin, models.LogLevelWarning,
+			"user", &user.ID, user.DiscordUsername,
+			fmt.Sprintf("Failed OTP attempt for %q", user.DiscordUsername),
+			"", getIPAddress(r))
 		writeError(w, http.StatusUnauthorized, "invalid or expired OTP")
 		return
 	}
@@ -323,11 +332,10 @@ func (h *Handler) DemoLogin(w http.ResponseWriter, r *http.Request) {
 
 	logInfo("✅ Demo JWT token generated (expires: %v)", expiresAt)
 
-	// Log the demo login
-	h.logActivity(&user.ID, models.ActionLogin, models.LogLevelInfo,
-		"user", &user.ID, user.DiscordUsername,
-		"Demo user logged in",
-		`{"demo": true}`, getIPAddress(r))
+	// Demo-user activity is intentionally NOT logged: the demo account is a
+	// public preview and its actions would just create audit-log noise. The
+	// repository's LogActivity already drops demo writes, but skipping the
+	// call here avoids the extra DB round trip.
 
 	writeJSON(w, http.StatusOK, models.DemoAuthResponse{
 		Token:     token,
@@ -335,6 +343,67 @@ func (h *Handler) DemoLogin(w http.ResponseWriter, r *http.Request) {
 		IsDemo:    true,
 		Message:   "Welcome to DumpStation demo! This is a read-only account for exploring the system.",
 	})
+}
+
+// Refresh godoc
+// @Summary  Refresh JWT session
+// @Description Issues a new JWT with a fresh expiration while preserving the original session start.
+// @Description Refuses if the absolute session lifetime (SessionAbsoluteMax) has been exceeded.
+// @Tags     Authentication
+// @Security BearerAuth
+// @Produce  json
+// @Success  200 {object} map[string]any
+// @Failure  401 {object} map[string]string "Session expired or token invalid"
+// @Router   /auth/refresh [post]
+func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	raw := r.Context().Value(middleware.UserContextKey)
+	claims, ok := raw.(*auth.Claims)
+	if !ok || claims == nil {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+
+	token, expiresAt, sessionExpiresAt, err := h.jwtMgr.RefreshToken(claims)
+	if err != nil {
+		if err == auth.ErrSessionExpired {
+			writeError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Audit refresh quietly — useful for spotting odd refresh patterns but
+	// not interesting enough to ping the user.
+	_ = h.repo.LogActivity(&claims.UserID, models.ActionSessionRefreshed, models.LogLevelInfo,
+		"user", &claims.UserID, "",
+		"Session refreshed",
+		"", getIPAddress(r))
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"token":              token,
+		"expires_at":         expiresAt,
+		"session_expires_at": sessionExpiresAt,
+	})
+}
+
+// Logout godoc
+// @Summary  Log out the current session
+// @Description Best-effort logout: emits an audit-log entry. JWTs are stateless,
+// @Description so the actual sign-out is the frontend dropping the token.
+// @Tags     Authentication
+// @Security BearerAuth
+// @Success  204 "No Content"
+// @Router   /auth/logout [post]
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	raw := r.Context().Value(middleware.UserContextKey)
+	if claims, ok := raw.(*auth.Claims); ok && claims != nil {
+		_ = h.repo.LogActivity(&claims.UserID, models.ActionLogout, models.LogLevelInfo,
+			"user", &claims.UserID, "",
+			"User logged out",
+			"", getIPAddress(r))
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Health check handler
@@ -683,8 +752,20 @@ func (h *Handler) CreateNotificationConfig(w http.ResponseWriter, r *http.Reques
 
 	// SSRF guard: confirm the webhook URL points at a real Discord domain
 	// that resolves to a public IP, not a private/loopback/metadata target.
-	if err := notification.ValidateDiscordWebhookURL(input.DiscordWebhookURL); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	// Skip when no Discord webhook was provided (Telegram-only config).
+	if input.DiscordWebhookURL != "" {
+		if err := notification.ValidateDiscordWebhookURL(input.DiscordWebhookURL); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	// At least one channel must be present so the row isn't useless. The
+	// BeforeSave hook enforces this in the DB too — checking here gives a
+	// clean 400 instead of a 500 from the GORM error.
+	if input.DiscordWebhookURL == "" && (input.TelegramBotToken == "" || input.TelegramChatID == "") {
+		writeError(w, http.StatusBadRequest,
+			"provide a Discord webhook URL, a Telegram bot_token+chat_id, or both")
 		return
 	}
 
@@ -694,7 +775,12 @@ func (h *Handler) CreateNotificationConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Return response DTO with masked webhook URL
+	h.logActivity(userID, models.ActionNotificationCreated, models.LogLevelSuccess,
+		"notification", &config.ID, config.Name,
+		fmt.Sprintf("Notification config %q created", config.Name),
+		"", getIPAddress(r))
+
+	// Return response DTO with masked credentials
 	writeJSON(w, http.StatusCreated, config.ToResponse())
 }
 
@@ -842,10 +928,22 @@ func (h *Handler) DeleteNotificationConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Capture the name *before* delete so the audit log carries it.
+	existing, _ := h.repo.GetNotificationConfigByUser(id, *userID, isAdmin)
+
 	if err := h.repo.DeleteNotificationConfigByUser(id, *userID, isAdmin); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete notification config")
 		return
 	}
+
+	name := ""
+	if existing != nil {
+		name = existing.Name
+	}
+	h.logActivity(userID, models.ActionNotificationDeleted, models.LogLevelWarning,
+		"notification", &id, name,
+		fmt.Sprintf("Notification config %q deleted", name),
+		"", getIPAddress(r))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -1476,6 +1574,14 @@ func (h *Handler) RestoreBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON in request body: "+err.Error())
 		return
 	}
+
+	// Audit: someone (real user, demo is blocked above) asked us to restore.
+	// The backup service will emit started/completed/failed entries on its
+	// own as the job progresses.
+	h.logActivity(userID, models.ActionRestoreTriggered, models.LogLevelInfo,
+		"backup", &backup.ID, backup.Name,
+		fmt.Sprintf("Restore triggered for backup %q", backup.Name),
+		"", getIPAddress(r))
 
 	// Execute restore asynchronously
 	go func() {

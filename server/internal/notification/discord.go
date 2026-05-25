@@ -181,6 +181,14 @@ func (dn *DiscordNotifier) SendOTP(otp string) error {
 	return dn.SendMessage(message)
 }
 
+// SendDownloadOTP sends a backup-download OTP via Discord webhook.
+func (dn *DiscordNotifier) SendDownloadOTP(otp, backupName string) error {
+	message := fmt.Sprintf("📥 **Backup Download Code**: `%s`\n📦 Backup: `%s`\n⏰ Expires in 5 minutes.\n\n_Requested at: %s_",
+		otp, backupName,
+		fmt.Sprintf("<t:%d:F>", time.Now().Unix()))
+	return dn.SendMessage(message)
+}
+
 // SendBackupSuccess sends backup success notification
 func (dn *DiscordNotifier) SendBackupSuccess(dbName string, sizeBytes int64, duration string) error {
 	message := fmt.Sprintf("✅ **Backup Completed**\n📊 Database: `%s`\n💾 Size: %s\n⏱️ Duration: %s",

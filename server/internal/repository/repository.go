@@ -90,6 +90,64 @@ func (r *Repository) GetUserByDiscordID(discordUserID string) (*models.User, err
 	return &user, nil
 }
 
+// UpsertGitHubUser finds or creates the local user row that backs a
+// successful GitHub OAuth login. We look up by github_user_id (numeric,
+// stable, never recycled) first; if not found we fall back to github_login
+// for users created before the id was captured; otherwise we create.
+//
+// On every successful lookup we refresh the cached login + email + avatar
+// in case the user renamed themselves on GitHub since the last sign-in.
+//
+// The created user is granted admin rights — this is a single-user
+// deployment by design, and the allow-list check happens at the OAuth
+// callback layer so anyone with a row in this table is already trusted.
+func (r *Repository) UpsertGitHubUser(githubID int64, login, email, avatarURL string) (*models.User, error) {
+	var user models.User
+	err := r.db.Where("github_user_id = ?", githubID).First(&user).Error
+	if err == gorm.ErrRecordNotFound {
+		// Try by login as a fallback for users created without an id.
+		err = r.db.Where("github_login = ?", login).First(&user).Error
+	}
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return nil, fmt.Errorf("lookup github user: %w", err)
+	}
+
+	if err == gorm.ErrRecordNotFound {
+		user = models.User{
+			GitHubLogin:  login,
+			GitHubUserID: githubID,
+			AvatarURL:    avatarURL,
+			Email:        email,
+			IsAdmin:      true,
+		}
+		if err := r.db.Create(&user).Error; err != nil {
+			return nil, fmt.Errorf("create github user: %w", err)
+		}
+		return &user, nil
+	}
+
+	// Refresh changeable fields.
+	updates := map[string]any{
+		"github_login":   login,
+		"github_user_id": githubID,
+	}
+	if email != "" {
+		updates["email"] = email
+	}
+	if avatarURL != "" {
+		updates["avatar_url"] = avatarURL
+	}
+	if err := r.db.Model(&user).Updates(updates).Error; err != nil {
+		return nil, fmt.Errorf("refresh github user: %w", err)
+	}
+
+	// Re-read so the caller sees the merged state.
+	if err := r.db.First(&user, "id = ?", user.ID).Error; err != nil {
+		return nil, fmt.Errorf("reload github user: %w", err)
+	}
+	return &user, nil
+}
+
 // OTP operations
 
 func (r *Repository) CreateOTP(userID uuid.UUID, otpCode string, expiresAt time.Time) error {
@@ -97,10 +155,82 @@ func (r *Repository) CreateOTP(userID uuid.UUID, otpCode string, expiresAt time.
 		UserID:    userID,
 		OTPCode:   otpCode,
 		ExpiresAt: expiresAt,
+		Purpose:   models.OTPPurposeLogin,
 	}
 
 	result := r.db.Create(otp)
 	return result.Error
+}
+
+// CreatePurposeOTP creates a purpose-tagged OTP optionally bound to a single
+// entity (e.g. a Backup id for download gating). Returns the created row so
+// the caller can hand back its id without exposing the code itself.
+func (r *Repository) CreatePurposeOTP(userID uuid.UUID, otpCode string, purpose models.OTPPurpose, entityID *uuid.UUID, expiresAt time.Time) (*models.OTPToken, error) {
+	otp := &models.OTPToken{
+		UserID:    userID,
+		OTPCode:   otpCode,
+		Purpose:   purpose,
+		EntityID:  entityID,
+		ExpiresAt: expiresAt,
+	}
+	if err := r.db.Create(otp).Error; err != nil {
+		return nil, fmt.Errorf("failed to create purpose OTP: %w", err)
+	}
+	return otp, nil
+}
+
+// VerifyPurposeOTP validates an OTP that was issued with CreatePurposeOTP.
+// Lookup is keyed by the OTP id (handed back at issue time) so download
+// codes from different backups never collide, even within the same user.
+func (r *Repository) VerifyPurposeOTP(otpID uuid.UUID, userID uuid.UUID, code string, purpose models.OTPPurpose) (OTPVerifyResult, error) {
+	now := time.Now()
+	var result OTPVerifyResult
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var token models.OTPToken
+		err := tx.Where(
+			"id = ? AND user_id = ? AND purpose = ? AND used = ? AND expires_at > ?",
+			otpID, userID, purpose, false, now,
+		).First(&token).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return fmt.Errorf("load purpose OTP: %w", err)
+		}
+
+		if token.LockedUntil != nil && token.LockedUntil.After(now) {
+			lockedCopy := *token.LockedUntil
+			result.LockedUntil = &lockedCopy
+			return nil
+		}
+
+		if token.OTPCode == code {
+			if err := tx.Model(&models.OTPToken{}).
+				Where("id = ?", token.ID).
+				Updates(map[string]any{
+					"used":            true,
+					"failed_attempts": 0,
+					"locked_until":    nil,
+				}).Error; err != nil {
+				return fmt.Errorf("mark used: %w", err)
+			}
+			result.OK = true
+			return nil
+		}
+
+		updates := map[string]any{
+			"failed_attempts": token.FailedAttempts + 1,
+		}
+		if token.FailedAttempts+1 >= models.OTPMaxFailedAttempts {
+			lockTime := now.Add(models.OTPLockoutDuration)
+			updates["locked_until"] = lockTime
+			result.LockedUntil = &lockTime
+		}
+		return tx.Model(&models.OTPToken{}).Where("id = ?", token.ID).Updates(updates).Error
+	})
+
+	return result, err
 }
 
 // OTPVerifyResult tells the caller whether the OTP was accepted and, if not,
@@ -123,8 +253,12 @@ func (r *Repository) VerifyOTP(userID uuid.UUID, otpCode string) (OTPVerifyResul
 
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var token models.OTPToken
-		// Most recent active token for this user.
-		err := tx.Where("user_id = ? AND used = ? AND expires_at > ?", userID, false, now).
+		// Most recent active login token for this user. Filtering by purpose
+		// keeps backup-download OTPs from being accepted at the login step.
+		err := tx.Where(
+			"user_id = ? AND used = ? AND expires_at > ? AND purpose = ?",
+			userID, false, now, models.OTPPurposeLogin,
+		).
 			Order("created_at DESC").
 			First(&token).Error
 		if err != nil {
@@ -353,6 +487,8 @@ func (r *Repository) CreateNotificationConfig(userID uuid.UUID, input *models.No
 		UserID:            userID,
 		Name:              input.Name,
 		DiscordWebhookURL: input.DiscordWebhookURL,
+		TelegramBotToken:  input.TelegramBotToken,
+		TelegramChatID:    input.TelegramChatID,
 	}
 
 	result := r.db.Create(notification)
@@ -435,6 +571,8 @@ func (r *Repository) UpdateNotificationConfig(id uuid.UUID, input *models.Notifi
 
 	notification.Name = input.Name
 	notification.DiscordWebhookURL = input.DiscordWebhookURL
+	notification.TelegramBotToken = input.TelegramBotToken
+	notification.TelegramChatID = input.TelegramChatID
 
 	result := r.db.Save(&notification)
 	if result.Error != nil {
@@ -461,6 +599,8 @@ func (r *Repository) UpdateNotificationConfigByUser(id uuid.UUID, userID uuid.UU
 
 	notification.Name = input.Name
 	notification.DiscordWebhookURL = input.DiscordWebhookURL
+	notification.TelegramBotToken = input.TelegramBotToken
+	notification.TelegramChatID = input.TelegramChatID
 
 	result := r.db.Save(&notification)
 	if result.Error != nil {
@@ -913,6 +1053,53 @@ func (r *Repository) ListAllBackupsByUser(userID uuid.UUID, isAdmin bool) ([]*mo
 	return backups, nil
 }
 
+// ListFailedBackupsByUser returns every backup row owned by the user with
+// status='failed'. Used by the Settings → Maintenance "Purge failed backups"
+// action so the handler can free storage objects before deleting rows.
+// Admins see failures for every user; regular users only see their own.
+func (r *Repository) ListFailedBackupsByUser(userID uuid.UUID, isAdmin bool) ([]*models.Backup, error) {
+	var backups []*models.Backup
+	query := r.db.Preload("Database").
+		Joins("JOIN database_configs ON backups.database_id = database_configs.id").
+		Where("backups.status = ?", models.BackupStatusFailed)
+	if !isAdmin {
+		query = query.Where("database_configs.user_id = ?", userID)
+	}
+	if err := query.Order("backups.started_at DESC").Find(&backups).Error; err != nil {
+		return nil, fmt.Errorf("failed to list failed backups: %w", err)
+	}
+	return backups, nil
+}
+
+// CountFailedBackupsByUser is a cheap counter used by the Settings UI to
+// render "Purge N failed backups" before the user clicks the destructive
+// action.
+func (r *Repository) CountFailedBackupsByUser(userID uuid.UUID, isAdmin bool) (int64, error) {
+	var count int64
+	query := r.db.Model(&models.Backup{}).
+		Joins("JOIN database_configs ON backups.database_id = database_configs.id").
+		Where("backups.status = ?", models.BackupStatusFailed)
+	if !isAdmin {
+		query = query.Where("database_configs.user_id = ?", userID)
+	}
+	if err := query.Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count failed backups: %w", err)
+	}
+	return count, nil
+}
+
+// DeleteBackupsByIDs bulk-deletes Backup rows by primary key.
+func (r *Repository) DeleteBackupsByIDs(ids []uuid.UUID) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	res := r.db.Where("id IN ?", ids).Delete(&models.Backup{})
+	if res.Error != nil {
+		return 0, fmt.Errorf("failed to delete backups: %w", res.Error)
+	}
+	return res.RowsAffected, nil
+}
+
 // Stats operations
 
 func (r *Repository) GetSystemStats() (*models.SystemStats, error) {
@@ -1074,9 +1261,24 @@ func (r *Repository) CreateActivityLog(log *models.ActivityLog) error {
 	return nil
 }
 
-// LogActivity is a helper function to quickly log an activity
+// LogActivity is a helper function to quickly log an activity.
+//
+// Writes from demo accounts are silently dropped: the demo is a public
+// preview and its actions are not audit-worthy. Doing the suppression here
+// covers every current and future call site without each handler having to
+// remember to skip demo. The lookup is a single indexed scalar read.
 func (r *Repository) LogActivity(userID *uuid.UUID, action models.ActivityLogAction, level models.ActivityLogLevel,
 	entityType string, entityID *uuid.UUID, entityName, description, metadata, ipAddress string) error {
+
+	if userID != nil {
+		var isDemo bool
+		if err := r.db.Model(&models.User{}).
+			Select("is_demo").
+			Where("id = ?", *userID).
+			Scan(&isDemo).Error; err == nil && isDemo {
+			return nil
+		}
+	}
 
 	// If metadata is empty, set it to null or empty JSON object
 	if metadata == "" {

@@ -247,6 +247,36 @@ func MaskWebhookURL(url string) string {
 	return "***"
 }
 
+// MaskTelegramToken masks a Telegram bot token for safe display. Telegram
+// tokens are formatted "<bot_id>:<secret>"; we keep the bot id (it's already
+// observable to anyone who has seen a bot reply) and hide the secret.
+//
+//	"123456789:AAEhBPxxxxxxxxxxxx" → "123456789:***"
+func MaskTelegramToken(token string) string {
+	if token == "" {
+		return ""
+	}
+	if i := strings.Index(token, ":"); i > 0 {
+		return token[:i] + ":***"
+	}
+	return "***"
+}
+
+// MaskChatID masks a Telegram chat id, keeping the leading sign and a few
+// digits so the user can recognise which chat the row points at.
+//
+//	"-1001234567890" → "-100***"
+//	"123456789"      → "123***"
+func MaskChatID(chatID string) string {
+	if chatID == "" {
+		return ""
+	}
+	if len(chatID) <= 4 {
+		return "***"
+	}
+	return chatID[:4] + "***"
+}
+
 // MaskAccessKey masks an access key ID for safe display.
 // Examples:
 //   - "AKIAIOSFODNN7EXAMPLE" → "AKI***"

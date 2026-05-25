@@ -3,6 +3,7 @@ package backup
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -123,18 +124,34 @@ func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID 
 		log.Printf("Failed to update backup status to running: %v", err)
 	}
 
+	// Audit: backup started. Demo accounts are suppressed at the repo
+	// layer, so it's safe to log unconditionally.
+	bid := backup.ID
+	_ = s.repo.LogActivity(
+		&dbConfig.UserID,
+		models.ActionBackupStarted,
+		models.LogLevelInfo,
+		"backup",
+		&bid,
+		dbConfig.Name,
+		fmt.Sprintf("Backup started for database %q", dbConfig.Name),
+		"",
+		"",
+	)
+
 	// Get storage config
 	storageConfig, err := s.repo.GetStorageConfig(dbConfig.StorageID)
 	if err != nil {
 		return s.handleBackupError(backup.ID, dbConfig, fmt.Sprintf("failed to get storage config: %v", err))
 	}
 
-	// Get notification config
-	var notifier *notification.DiscordNotifier
+	// Get notification config — may fan out to Discord, Telegram, or both
+	// depending on which credentials the user has filled in.
+	var notifier notification.Notifier
 	if dbConfig.NotificationID != nil {
 		notifConfig, err := s.repo.GetNotificationConfig(*dbConfig.NotificationID)
 		if err == nil && notifConfig != nil {
-			notifier = notification.NewDiscordNotifier(notifConfig.DiscordWebhookURL, "")
+			notifier = notification.NotifierFromConfig(notifConfig)
 		}
 	}
 
@@ -266,6 +283,21 @@ func (s *Service) ExecuteBackupWithID(dbConfig *models.DatabaseConfig, backupID 
 		notifier.SendBackupSuccess(dbConfig.Name, sizeBytes, duration.Round(time.Second).String())
 	}
 
+	// Audit: backup completed.
+	bidDone := backup.ID
+	completedMeta := fmt.Sprintf(`{"size_bytes":%d,"duration":"%s"}`, sizeBytes, duration.Round(time.Second))
+	_ = s.repo.LogActivity(
+		&dbConfig.UserID,
+		models.ActionBackupCompleted,
+		models.LogLevelSuccess,
+		"backup",
+		&bidDone,
+		dbConfig.Name,
+		fmt.Sprintf("Backup completed for %q (%d bytes)", dbConfig.Name, sizeBytes),
+		completedMeta,
+		"",
+	)
+
 	// Cleanup old backups synchronously so failures are visible (logged) and
 	// not swallowed by a background goroutine. A failed cleanup does NOT
 	// fail the backup itself — the new backup is already uploaded and the
@@ -286,12 +318,27 @@ func (s *Service) handleBackupError(backupID uuid.UUID, dbConfig *models.Databas
 		log.Printf("Failed to update backup status to failed: %v", err)
 	}
 
-	// Send failure notification
+	// Audit: backup failed. JSON-encode the error message so embedded quotes
+	// don't break the JSONB column.
+	bid := backupID
+	metaBytes, _ := json.Marshal(map[string]string{"error": errorMsg})
+	_ = s.repo.LogActivity(
+		&dbConfig.UserID,
+		models.ActionBackupFailed,
+		models.LogLevelError,
+		"backup",
+		&bid,
+		dbConfig.Name,
+		fmt.Sprintf("Backup failed for %q", dbConfig.Name),
+		string(metaBytes),
+		"",
+	)
+
+	// Send failure notification across every configured channel.
 	if dbConfig.NotificationID != nil {
 		notifConfig, err := s.repo.GetNotificationConfig(*dbConfig.NotificationID)
 		if err == nil && notifConfig != nil {
-			notifier := notification.NewDiscordNotifier(notifConfig.DiscordWebhookURL, "")
-			notifier.SendBackupFailure(dbConfig.Name, errorMsg)
+			notification.NotifierFromConfig(notifConfig).SendBackupFailure(dbConfig.Name, errorMsg)
 		}
 	}
 
@@ -566,6 +613,20 @@ func (s *Service) ExecuteRestore(backupID uuid.UUID, req *models.RestoreRequest)
 		return fmt.Errorf("failed to create restore job: %w", err)
 	}
 
+	// Audit: restore started.
+	bidRestore := backupID
+	_ = s.repo.LogActivity(
+		&dbConfig.UserID,
+		models.ActionRestoreStarted,
+		models.LogLevelInfo,
+		"backup",
+		&bidRestore,
+		dbConfig.Name,
+		fmt.Sprintf("Restore started for backup %q", dbConfig.Name),
+		"",
+		"",
+	)
+
 	// Determine target
 	targetHost := dbConfig.Host
 	targetPort := dbConfig.Port
@@ -669,20 +730,57 @@ func (s *Service) ExecuteRestore(backupID uuid.UUID, req *models.RestoreRequest)
 	_, err = s.executeRestoreWithSSLFallback(ctx, restoreCmd, restoreArgs, targetDBConfig)
 	if err != nil {
 		log.Printf("Restore error: %s", err)
+
+		// Audit + notify on failure.
+		bidFail := backupID
+		metaBytes, _ := json.Marshal(map[string]string{"error": err.Error()})
+		_ = s.repo.LogActivity(
+			&dbConfig.UserID,
+			models.ActionRestoreFailed,
+			models.LogLevelError,
+			"backup",
+			&bidFail,
+			dbConfig.Name,
+			fmt.Sprintf("Restore failed for backup %q", dbConfig.Name),
+			string(metaBytes),
+			"",
+		)
+		if dbConfig.NotificationID != nil {
+			notifConfig, nErr := s.repo.GetNotificationConfig(*dbConfig.NotificationID)
+			if nErr == nil && notifConfig != nil {
+				notification.NotifierFromConfig(notifConfig).SendRestoreFailure(dbConfig.Name, err.Error())
+			}
+		}
+
 		return fmt.Errorf("%s", err)
 	}
 
 	log.Printf("Restore completed successfully for backup %s", backupID)
 
-	// Send success notification
+	// Audit: restore completed.
+	bidDone := backupID
+	completedMeta := fmt.Sprintf(`{"target":"%s@%s/%s"}`, targetUser, targetHost, targetDBName)
+	_ = s.repo.LogActivity(
+		&dbConfig.UserID,
+		models.ActionRestoreCompleted,
+		models.LogLevelSuccess,
+		"backup",
+		&bidDone,
+		dbConfig.Name,
+		fmt.Sprintf("Restore completed for %q", dbConfig.Name),
+		completedMeta,
+		"",
+	)
+
+	// Send success notification across every configured channel.
 	if dbConfig.NotificationID != nil {
 		notifConfig, err := s.repo.GetNotificationConfig(*dbConfig.NotificationID)
 		if err == nil && notifConfig != nil {
-			notifier := notification.NewDiscordNotifier(notifConfig.DiscordWebhookURL, "")
 			targetDesc := fmt.Sprintf("%s@%s/%s", targetUser, targetHost, targetDBName)
-			notifier.SendRestoreSuccess(dbConfig.Name, targetDesc)
+			notification.NotifierFromConfig(notifConfig).SendRestoreSuccess(dbConfig.Name, targetDesc)
 		}
 	}
 
+	_ = job
 	return nil
 }

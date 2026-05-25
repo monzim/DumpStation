@@ -11,11 +11,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// User represents a system user (multi-tenant system with role-based access)
+// User represents a system user (multi-tenant system with role-based access).
+//
+// DiscordUserID is the legacy Discord-OTP identifier; GitHubLogin/GitHubUserID
+// are populated when the user signs in via GitHub OAuth instead. A user row
+// may carry either, both, or — for demo accounts — neither real provider id.
 type User struct {
 	ID                     uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	DiscordUserID          string         `gorm:"type:varchar(255);uniqueIndex;not null" json:"discord_user_id"`
+	DiscordUserID          string         `gorm:"type:varchar(255);uniqueIndex" json:"discord_user_id,omitempty"`
 	DiscordUsername        string         `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
+	GitHubLogin            string         `gorm:"type:varchar(255);uniqueIndex" json:"github_login,omitempty"`
+	GitHubUserID           int64          `gorm:"type:bigint;uniqueIndex" json:"github_user_id,omitempty"`
+	AvatarURL              string         `gorm:"type:varchar(500)" json:"avatar_url,omitempty"` // Remote avatar URL (e.g. GitHub)
 	Email                  string         `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
 	ProfilePictureData     []byte         `gorm:"type:bytea" json:"-"`                                    // Profile picture stored as binary data
 	ProfilePictureMimeType string         `gorm:"type:varchar(50)" json:"-"`                              // MIME type of profile picture (e.g., image/png)
@@ -40,8 +47,10 @@ type User struct {
 // @Description User profile information for API responses
 type UserProfileResponse struct {
 	ID                uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	DiscordUserID     string    `json:"discord_user_id" example:"monzim"`
-	DiscordUsername   string    `json:"discord_username" example:"monzim"`
+	DiscordUserID     string    `json:"discord_user_id,omitempty" example:"monzim"`
+	DiscordUsername   string    `json:"discord_username,omitempty" example:"monzim"`
+	GitHubLogin       string    `json:"github_login,omitempty" example:"monzim"`
+	AvatarURL         string    `json:"avatar_url,omitempty"`
 	Email             string    `json:"email" example:"user@example.com"`
 	HasProfilePicture bool      `json:"has_profile_picture" example:"true"`
 	IsDemo            bool      `json:"is_demo" example:"false"`
@@ -57,6 +66,8 @@ func (u *User) ToProfileResponse() *UserProfileResponse {
 		ID:                u.ID,
 		DiscordUserID:     u.DiscordUserID,
 		DiscordUsername:   u.DiscordUsername,
+		GitHubLogin:       u.GitHubLogin,
+		AvatarURL:         u.AvatarURL,
 		Email:             u.Email,
 		HasProfilePicture: len(u.ProfilePictureData) > 0,
 		IsDemo:            u.IsDemo,
@@ -82,12 +93,26 @@ const (
 	OTPLockoutDuration   = 30 * time.Minute
 )
 
-// OTPToken represents a one-time password token
+// OTPPurpose tags what an OTP can be redeemed for. Login OTPs and
+// backup-download OTPs share the same table but must never satisfy each
+// other's verify step, so every lookup must filter by purpose.
+type OTPPurpose string
+
+const (
+	OTPPurposeLogin          OTPPurpose = "login"
+	OTPPurposeBackupDownload OTPPurpose = "backup_download"
+)
+
+// OTPToken represents a one-time password token. The same table backs login
+// OTPs (Purpose="login") and the OTP that gates backup downloads
+// (Purpose="backup_download", EntityID = backup id).
 type OTPToken struct {
 	ID             uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	UserID         uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
 	User           User       `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	OTPCode        string     `gorm:"type:varchar(8);not null" json:"-"` // Hidden from API responses for security
+	Purpose        OTPPurpose `gorm:"type:varchar(32);not null;default:'login';index" json:"purpose"`
+	EntityID       *uuid.UUID `gorm:"type:uuid;index" json:"entity_id,omitempty"` // Optional: pins the OTP to one entity (e.g. a backup id)
 	ExpiresAt      time.Time  `gorm:"index;not null" json:"expires_at"`
 	Used           bool       `gorm:"default:false" json:"used"`
 	FailedAttempts int        `gorm:"not null;default:0" json:"-"`
@@ -187,13 +212,17 @@ func StorageConfigsToResponse(configs []*StorageConfig) []StorageConfigResponse 
 	return responses
 }
 
-// NotificationConfig represents Discord notification configuration
+// NotificationConfig represents a chat notification configuration. A single
+// row can carry Discord, Telegram, or both — at least one channel must be
+// populated (enforced by BeforeSave).
 type NotificationConfig struct {
 	ID                uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	UserID            uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"` // Owner of this notification config
 	User              User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Name              string    `gorm:"type:varchar(255);not null" json:"name"`
-	DiscordWebhookURL string    `gorm:"type:text;not null" json:"-"`
+	DiscordWebhookURL string    `gorm:"type:text" json:"-"`
+	TelegramBotToken  string    `gorm:"type:text" json:"-"`
+	TelegramChatID    string    `gorm:"type:varchar(64)" json:"-"`
 	Labels            []Label   `gorm:"many2many:notification_labels;foreignKey:ID;joinForeignKey:NotificationID;References:ID;joinReferences:LabelID" json:"labels,omitempty"`
 	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time `gorm:"autoUpdateTime" json:"updated_at"`
@@ -207,18 +236,43 @@ func (n *NotificationConfig) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// NotificationConfigInput for API requests
-type NotificationConfigInput struct {
-	Name              string `json:"name" validate:"required" example:"DevOps Alerts"`
-	DiscordWebhookURL string `json:"discord_webhook_url" validate:"required,url" example:"https://discord.com/api/webhooks/..."`
+// BeforeSave rejects a config that carries neither Discord nor Telegram
+// credentials — such a row would silently drop every notification.
+func (n *NotificationConfig) BeforeSave(tx *gorm.DB) error {
+	if n.DiscordWebhookURL == "" && (n.TelegramBotToken == "" || n.TelegramChatID == "") {
+		return fmt.Errorf("notification config must have a Discord webhook URL or both Telegram bot token and chat id")
+	}
+	return nil
 }
 
-// NotificationConfigResponse is a secure DTO for API responses with masked webhook URL
-// @Description Notification configuration with masked webhook URL for API responses
+// HasDiscord reports whether this config can dispatch to Discord.
+func (n *NotificationConfig) HasDiscord() bool { return n.DiscordWebhookURL != "" }
+
+// HasTelegram reports whether this config can dispatch to Telegram.
+func (n *NotificationConfig) HasTelegram() bool {
+	return n.TelegramBotToken != "" && n.TelegramChatID != ""
+}
+
+// NotificationConfigInput for API requests. Either DiscordWebhookURL or the
+// pair (TelegramBotToken, TelegramChatID) must be supplied; the BeforeSave
+// hook enforces this server-side as well.
+type NotificationConfigInput struct {
+	Name              string `json:"name" validate:"required" example:"DevOps Alerts"`
+	DiscordWebhookURL string `json:"discord_webhook_url,omitempty" validate:"omitempty,url" example:"https://discord.com/api/webhooks/..."`
+	TelegramBotToken  string `json:"telegram_bot_token,omitempty" example:"123456:ABC-DEF..."`
+	TelegramChatID    string `json:"telegram_chat_id,omitempty" example:"-1001234567890"`
+}
+
+// NotificationConfigResponse is a secure DTO for API responses with masked sensitive fields
+// @Description Notification configuration with masked sensitive fields for API responses
 type NotificationConfigResponse struct {
 	ID                uuid.UUID `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Name              string    `json:"name" example:"DevOps Alerts"`
-	DiscordWebhookURL string    `json:"discord_webhook_url" example:"https://discord.com/api/webhooks/***/***"` // Masked webhook URL
+	DiscordWebhookURL string    `json:"discord_webhook_url,omitempty" example:"https://discord.com/api/webhooks/***/***"`
+	HasDiscord        bool      `json:"has_discord"`
+	TelegramBotToken  string    `json:"telegram_bot_token,omitempty" example:"123456:***"`
+	TelegramChatID    string    `json:"telegram_chat_id,omitempty" example:"-100***"`
+	HasTelegram       bool      `json:"has_telegram"`
 	Labels            []Label   `json:"labels,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
@@ -226,14 +280,23 @@ type NotificationConfigResponse struct {
 
 // ToResponse converts a NotificationConfig to a NotificationConfigResponse with masked sensitive data
 func (n *NotificationConfig) ToResponse() *NotificationConfigResponse {
-	return &NotificationConfigResponse{
-		ID:                n.ID,
-		Name:              n.Name,
-		DiscordWebhookURL: utils.MaskWebhookURL(n.DiscordWebhookURL),
-		Labels:            n.Labels,
-		CreatedAt:         n.CreatedAt,
-		UpdatedAt:         n.UpdatedAt,
+	r := &NotificationConfigResponse{
+		ID:          n.ID,
+		Name:        n.Name,
+		HasDiscord:  n.HasDiscord(),
+		HasTelegram: n.HasTelegram(),
+		Labels:      n.Labels,
+		CreatedAt:   n.CreatedAt,
+		UpdatedAt:   n.UpdatedAt,
 	}
+	if n.HasDiscord() {
+		r.DiscordWebhookURL = utils.MaskWebhookURL(n.DiscordWebhookURL)
+	}
+	if n.HasTelegram() {
+		r.TelegramBotToken = utils.MaskTelegramToken(n.TelegramBotToken)
+		r.TelegramChatID = utils.MaskChatID(n.TelegramChatID)
+	}
+	return r
 }
 
 // NotificationConfigsToResponse converts a slice of NotificationConfig to NotificationConfigResponse
@@ -642,6 +705,11 @@ const (
 	ActionServerUserDropped       ActivityLogAction = "server_user_dropped"
 	ActionServerRoleGranted       ActivityLogAction = "server_role_granted"
 	ActionServerTableTruncated    ActivityLogAction = "server_table_truncated"
+	// Maintenance + download actions
+	ActionFailedBackupsPurged       ActivityLogAction = "failed_backups_purged"
+	ActionBackupDownloadOTPRequested ActivityLogAction = "backup_download_otp_requested"
+	ActionBackupDownloaded           ActivityLogAction = "backup_downloaded"
+	ActionSessionRefreshed           ActivityLogAction = "session_refreshed"
 )
 
 // ActivityLogLevel represents the severity level of the log

@@ -69,14 +69,24 @@ export type StorageProvider = "s3" | "r2";
 export interface NotificationConfig {
   id: string;
   name: string;
+  discord_webhook_url?: string;
+  has_discord: boolean;
+  telegram_bot_token?: string;
+  telegram_chat_id?: string;
+  has_telegram: boolean;
   labels?: Label[];
   created_at: string;
   updated_at: string;
 }
 
+// At least one of discord_webhook_url OR (telegram_bot_token + telegram_chat_id)
+// must be supplied. Backend enforces this in BeforeSave; frontend validates
+// before submit so the user gets immediate feedback.
 export interface NotificationConfigInput {
   name: string;
-  discord_webhook_url: string;
+  discord_webhook_url?: string;
+  telegram_bot_token?: string;
+  telegram_chat_id?: string;
 }
 
 // Statistics Types
@@ -218,7 +228,16 @@ export type ActivityLogAction =
   | "restore_completed"
   | "restore_failed"
   | "system_startup"
-  | "system_shutdown";
+  | "system_shutdown"
+  | "failed_backups_purged"
+  | "backup_download_otp_requested"
+  | "backup_downloaded"
+  | "session_refreshed"
+  // 2FA actions emitted by the backend (handlers/two_factor.go).
+  | "2fa_setup_started"
+  | "2fa_enabled"
+  | "2fa_verified"
+  | "2fa_verification_failed";
 
 export type ActivityLogLevel = "info" | "warning" | "error" | "success";
 
