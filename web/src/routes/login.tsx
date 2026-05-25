@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  startGitHubLogin,
+  useAuthConfig,
   useDemoLogin,
   useLogin,
   useVerify,
@@ -13,6 +15,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Database,
+  Github,
   KeyRound,
   Loader2,
   MessageCircle,
@@ -21,7 +24,7 @@ import {
   Smartphone,
   User,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Turnstile } from "@marsidev/react-turnstile";
 
@@ -110,6 +113,33 @@ function LoginPage() {
   const verifyMutation = useVerify();
   const verify2FAMutation = useVerify2FA();
   const demoLoginMutation = useDemoLogin();
+  const authConfig = useAuthConfig();
+
+  // GitHub OAuth callback bounces failures back here with ?github_error=...
+  // Surface a readable message and strip the query string so a refresh
+  // doesn't re-trigger the toast.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("github_error");
+    if (!err) return;
+    const human: Record<string, string> = {
+      not_allowed: "This GitHub account is not on the allow-list.",
+      state_mismatch: "Sign-in attempt expired or was tampered with.",
+      missing_state: "Sign-in attempt was incomplete.",
+      missing_state_cookie: "Sign-in cookie missing. Try again.",
+      missing_code: "GitHub did not return an authorization code.",
+      exchange_failed: "Could not exchange GitHub code. Try again.",
+      upsert_failed: "Server could not register this account.",
+      token_failed: "Could not mint a session token.",
+    };
+    toast.error("GitHub sign-in failed", {
+      description: human[err] ?? err,
+    });
+    params.delete("github_error");
+    const next = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+    window.history.replaceState({}, "", next);
+  }, []);
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -360,6 +390,30 @@ function LoginPage() {
             {/* Login Step */}
             {step === "login" ? (
               <form onSubmit={handleLogin} className="space-y-6">
+                {authConfig.data?.github_enabled && (
+                  <>
+                    <Button
+                      type="button"
+                      onClick={() => startGitHubLogin()}
+                      className="w-full h-12 text-base bg-black text-white hover:bg-zinc-900"
+                      size="lg"
+                    >
+                      <Github className="mr-2 h-5 w-5" />
+                      Sign in with GitHub
+                    </Button>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">
+                          Or with Discord
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div className="space-y-3">
                   <Label htmlFor="username" className="text-sm font-medium">
                     Username or Email

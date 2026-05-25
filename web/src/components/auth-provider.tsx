@@ -7,6 +7,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { serverLogout } from "@/lib/api/auth";
 import { apiClient } from "@/lib/api/client";
 import { useNavigate } from "@tanstack/react-router";
 import { LogIn } from "lucide-react";
@@ -51,6 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [handleSessionExpired]);
 
   const logout = () => {
+    // Fire-and-forget audit hit; we don't await it because the user wants
+    // to be out *now*, not after a network round trip.
+    void serverLogout();
     apiClient.clearToken();
     setIsAuthenticated(false);
     setIsDemo(false);

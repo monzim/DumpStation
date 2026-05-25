@@ -161,3 +161,24 @@ func (sc *StorageClient) ListFiles(prefix string) ([]*s3.Object, error) {
 func GetObjectKey(configID, filename string) string {
 	return fmt.Sprintf("backups/%s/%s", configID, filename)
 }
+
+// PresignDownload returns a time-limited GET URL the browser can hit
+// directly to download the object. Works against S3, R2, and MinIO because
+// the endpoint and credentials baked into the underlying s3Client are
+// already provider-aware (see NewStorageClient). The download filename is
+// set via Content-Disposition so the browser saves it with a sensible name
+// instead of a UUID.
+func (sc *StorageClient) PresignDownload(objectKey, downloadFilename string, ttl time.Duration) (string, error) {
+	req, _ := sc.s3Client.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(sc.bucket),
+		Key:    aws.String(objectKey),
+		ResponseContentDisposition: aws.String(
+			fmt.Sprintf(`attachment; filename="%s"`, downloadFilename),
+		),
+	})
+	url, err := req.Presign(ttl)
+	if err != nil {
+		return "", fmt.Errorf("failed to presign download: %w", err)
+	}
+	return url, nil
+}

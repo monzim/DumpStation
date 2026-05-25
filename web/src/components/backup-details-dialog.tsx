@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DownloadBackupDialog } from "@/components/download-backup-dialog";
 import { useRestoreBackup } from "@/lib/api/backups";
 import {
   Dialog,
@@ -17,6 +18,7 @@ import {
   Archive,
   Database,
   Calendar,
+  Download,
   HardDrive,
   FolderOpen,
   AlertCircle,
@@ -71,6 +73,7 @@ export function BackupDetailsDialog({
 }: BackupDetailsDialogProps) {
   const [showRestoreForm, setShowRestoreForm] = useState(false);
   const [restoreRequest, setRestoreRequest] = useState<RestoreRequest>({});
+  const [downloadOpen, setDownloadOpen] = useState(false);
   const restoreMutation = useRestoreBackup();
 
   const config = statusConfig[backup.status];
@@ -201,6 +204,33 @@ export function BackupDetailsDialog({
               </div>
             )}
           </div>
+
+          {/* Download Section */}
+          {backup.status === "success" && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    Download Backup
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Get a copy of this backup file. A one-time code is sent
+                    to your configured notification channels.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDownloadOpen(true)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              </div>
+            </>
+          )}
 
           {/* Restore Section */}
           {backup.status === "success" && (
@@ -337,6 +367,12 @@ export function BackupDetailsDialog({
             </Button>
           )}
         </DialogFooter>
+
+        <DownloadBackupDialog
+          backup={backup}
+          open={downloadOpen}
+          onOpenChange={setDownloadOpen}
+        />
       </DialogContent>
     </Dialog>
   );

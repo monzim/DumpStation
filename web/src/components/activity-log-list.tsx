@@ -97,6 +97,23 @@ const actionLabels: Record<ActivityLogAction, string> = {
   restore_failed: "Restore Failed",
   system_startup: "System Start",
   system_shutdown: "System Stop",
+  failed_backups_purged: "Failed Backups Purged",
+  backup_download_otp_requested: "Download OTP Requested",
+  backup_downloaded: "Backup Downloaded",
+  session_refreshed: "Session Refreshed",
+  "2fa_setup_started": "2FA Setup Started",
+  "2fa_enabled": "2FA Enabled",
+  "2fa_verified": "2FA Verified",
+  "2fa_verification_failed": "2FA Failed",
+  // Legacy 2FA action names retained in the union for backward compatibility
+  // with older audit-log rows; the backend no longer emits these but the
+  // type system still requires exhaustive label coverage.
+  "2fa_setup_initiated": "2FA Setup Started",
+  "2fa_setup_completed": "2FA Setup Done",
+  "2fa_verification_success": "2FA Verified",
+  "2fa_disabled": "2FA Disabled",
+  "2fa_backup_code_used": "2FA Backup Used",
+  "2fa_backup_codes_regenerated": "2FA Codes Regenerated",
 };
 
 function formatRelativeTime(dateString: string): string {

@@ -38,6 +38,14 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	authPublic.HandleFunc("/auth/verify", h.Verify).Methods("POST", "OPTIONS")
 	authPublic.HandleFunc("/auth/demo-login", h.DemoLogin).Methods("POST", "OPTIONS")
 
+	// GitHub OAuth (single-user allow-list). Mounted on the rate-limited
+	// public subrouter so a misconfigured callback can't be hammered. The
+	// /auth/config endpoint is intentionally public + un-rate-limited so
+	// the login page can render correctly even before auth.
+	api.HandleFunc("/auth/config", h.AuthConfig).Methods("GET", "OPTIONS")
+	authPublic.HandleFunc("/auth/github/login", h.GitHubLogin).Methods("GET", "OPTIONS")
+	authPublic.HandleFunc("/auth/github/callback", h.GitHubCallback).Methods("GET", "OPTIONS")
+
 	// 2FA verification route (uses X-2FA-Token header, not regular auth)
 	if totpMgr != nil {
 		tfaHandler := NewTwoFactorHandler(h, totpMgr)
@@ -78,9 +86,20 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	protected.HandleFunc("/logs", h.ListActivityLogs).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/logs/{id}", h.GetActivityLog).Methods("GET", "OPTIONS")
 
+	// Session lifecycle — refresh allowed for every authenticated user
+	// (including demo so its session also rolls forward). Logout is a soft
+	// audit-log emit; the JWT is stateless.
+	protected.HandleFunc("/auth/refresh", h.Refresh).Methods("POST", "OPTIONS")
+	protected.HandleFunc("/auth/logout", h.Logout).Methods("POST", "OPTIONS")
+
 	// User profile routes - GET allowed for demo
 	protected.HandleFunc("/users/me", h.GetUserProfile).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/users/me/avatar", h.GetUserAvatar).Methods("GET", "OPTIONS")
+
+	// Backup download OTP-gated flow — GET count visible to demo so the
+	// settings UI doesn't 401; the destructive purge + download endpoints
+	// are demo-blocked below.
+	protected.HandleFunc("/backups/failed/count", h.CountFailedBackups).Methods("GET", "OPTIONS")
 
 	// Label routes - GET allowed for demo
 	protected.HandleFunc("/labels", h.ListLabels).Methods("GET", "OPTIONS")
@@ -111,6 +130,9 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 
 	// Backup write operations - blocked for demo
 	demoRestricted.HandleFunc("/backups/{id}/restore", h.RestoreBackup).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/backups/failed", h.PurgeFailedBackups).Methods("DELETE", "OPTIONS")
+	demoRestricted.HandleFunc("/backups/{id}/download/request-otp", h.RequestBackupDownloadOTP).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/backups/{id}/download/verify", h.VerifyBackupDownloadOTP).Methods("POST", "OPTIONS")
 
 	// User profile write operations - blocked for demo
 	demoRestricted.HandleFunc("/users/me/avatar", h.UploadAvatar).Methods("POST", "OPTIONS")

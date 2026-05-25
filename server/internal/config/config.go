@@ -13,9 +13,11 @@ type Config struct {
 	Database  DatabaseConfig
 	JWT       JWTConfig
 	Discord   DiscordConfig
+	GitHub    GitHubConfig
 	CORS      CORSConfig
 	Turnstile TurnstileConfig
 	Secret    SecretConfig
+	WebOrigin string // Frontend origin used for OAuth redirect (e.g. http://localhost:3000)
 }
 
 // ServerConfig holds server-related configuration
@@ -45,6 +47,22 @@ type DiscordConfig struct {
 	WebhookURL    string // Single webhook for both OTP and notifications
 	OTPExpiration int    // OTP expiration in minutes
 }
+
+// GitHubConfig holds GitHub OAuth configuration for the single-user login.
+// Enabled flips true only when ClientID, ClientSecret, and AllowedLogin are
+// all set, so deployments without GitHub OAuth keep using Discord-OTP.
+type GitHubConfig struct {
+	ClientID     string
+	ClientSecret string
+	AllowedLogin string // GitHub login (username) allowed to authenticate
+	RedirectURL  string // Backend callback URL, e.g. https://api.example.com/api/v1/auth/github/callback
+	Enabled      bool   // Derived from non-empty ClientID, ClientSecret, AllowedLogin
+}
+
+// SessionAbsoluteMaxHours is the hard ceiling on how long a single login can
+// be refreshed for before the user must re-authenticate. Matches AWS-Console
+// style sliding session with absolute cap.
+const SessionAbsoluteMaxHours = 12
 
 // CORSConfig holds CORS configuration
 type CORSConfig struct {
@@ -90,12 +108,19 @@ func Load() (*Config, error) {
 		},
 		JWT: JWTConfig{
 			Secret:     getEnv("JWT_SECRET", ""),
-			Expiration: getEnvAsInt("JWT_EXPIRATION_MINUTES", 10),
+			Expiration: getEnvAsInt("JWT_EXPIRATION_MINUTES", 30),
 		},
 		Discord: DiscordConfig{
 			WebhookURL:    getEnv("DISCORD_WEBHOOK_URL", ""),
 			OTPExpiration: getEnvAsInt("OTP_EXPIRATION_MINUTES", 5),
 		},
+		GitHub: GitHubConfig{
+			ClientID:     getEnv("GITHUB_CLIENT_ID", ""),
+			ClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
+			AllowedLogin: getEnv("GITHUB_ALLOWED_LOGIN", ""),
+			RedirectURL:  getEnv("GITHUB_REDIRECT_URL", ""),
+		},
+		WebOrigin: getEnv("WEB_ORIGIN", ""),
 		CORS: CORSConfig{
 			AllowedOrigins:   getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{}),
 			AllowedMethods:   getEnvAsSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}),
@@ -127,6 +152,22 @@ func Load() (*Config, error) {
 
 	if cfg.Secret.Key == "" {
 		return nil, fmt.Errorf("DUMPSTATION_SECRET_KEY is required (generate with: openssl rand -base64 32)")
+	}
+
+	// Enable GitHub OAuth only when fully configured. We allow partial config
+	// (e.g. missing redirect URL) to silently disable the feature rather than
+	// crash the server, so Discord-OTP deployments keep working untouched.
+	if cfg.GitHub.ClientID != "" && cfg.GitHub.ClientSecret != "" && cfg.GitHub.AllowedLogin != "" {
+		cfg.GitHub.Enabled = true
+		if cfg.GitHub.RedirectURL == "" {
+			return nil, fmt.Errorf("GITHUB_REDIRECT_URL is required when GitHub OAuth is configured")
+		}
+		if cfg.WebOrigin == "" && len(cfg.CORS.AllowedOrigins) > 0 {
+			cfg.WebOrigin = cfg.CORS.AllowedOrigins[0]
+		}
+		if cfg.WebOrigin == "" {
+			return nil, fmt.Errorf("WEB_ORIGIN (or CORS_ALLOWED_ORIGINS) is required when GitHub OAuth is configured so the callback can redirect back to the frontend")
+		}
 	}
 
 	// CORS sanity: a wildcard origin combined with credentials is a browser

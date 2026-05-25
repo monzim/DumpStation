@@ -52,12 +52,16 @@ export const mockApi = {
       {
         id: '1',
         name: 'DevOps Alerts',
+        has_discord: true,
+        has_telegram: false,
         created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       },
       {
         id: '2',
         name: 'Production Alerts',
+        has_discord: true,
+        has_telegram: false,
         created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
       },
@@ -71,6 +75,8 @@ export const mockApi = {
     return {
       id,
       name: 'DevOps Alerts',
+        has_discord: true,
+        has_telegram: false,
       created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
       updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     };
@@ -83,6 +89,8 @@ export const mockApi = {
     return {
       id: Math.random().toString(36).substring(7),
       name: input.name,
+      has_discord: !!input.discord_webhook_url,
+      has_telegram: !!(input.telegram_bot_token && input.telegram_chat_id),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -95,6 +103,8 @@ export const mockApi = {
     return {
       id,
       name: input.name,
+      has_discord: !!input.discord_webhook_url,
+      has_telegram: !!(input.telegram_bot_token && input.telegram_chat_id),
       created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
       updated_at: new Date().toISOString(),
     };

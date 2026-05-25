@@ -99,11 +99,39 @@ export class ApiClient {
     if (typeof window !== "undefined") {
       localStorage.removeItem("auth_token");
       localStorage.removeItem(IS_DEMO_KEY);
+      localStorage.removeItem("auth_token_expires_at");
+      localStorage.removeItem("auth_session_expires_at");
     }
   }
 
   getToken(): string | null {
     return this.token;
+  }
+
+  // Session-expiry bookkeeping. The backend hands back both the *token*
+  // expiry (≈30 min, slides forward on refresh) and the *session* expiry
+  // (12 h absolute cap, fixed at login). The SessionGuard component reads
+  // both to decide when to silently refresh vs. force a re-login.
+  setTokenExpiresAt(iso: string) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("auth_token_expires_at", iso);
+    }
+  }
+
+  getTokenExpiresAt(): string | null {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("auth_token_expires_at");
+  }
+
+  setSessionExpiresAt(iso: string) {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("auth_session_expires_at", iso);
+    }
+  }
+
+  getSessionExpiresAt(): string | null {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("auth_session_expires_at");
   }
 
   setIsDemo(isDemo: boolean) {
@@ -178,6 +206,13 @@ export class ApiClient {
     }
 
     return headers;
+  }
+
+  // getBaseURL exposes the resolved API origin so external callers (e.g.
+  // the GitHub-login button) can build absolute redirect URLs without
+  // duplicating the runtime/build-time resolution logic.
+  getBaseURL(): string {
+    return API_BASE_URL;
   }
 
   async get<T>(endpoint: string, use2FAToken = false): Promise<T> {

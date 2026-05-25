@@ -1,4 +1,5 @@
 import { AuthProvider } from "@/components/auth-provider";
+import { SessionGuard } from "@/components/session-guard";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TanStackDevtools } from "@tanstack/react-devtools";
@@ -157,7 +158,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <ThemeProvider defaultTheme="system" storageKey="dumpstation-theme">
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+            <SessionGuard />
+          </AuthProvider>
           <Toaster />
         </ThemeProvider>
         {import.meta.env.DEV && (

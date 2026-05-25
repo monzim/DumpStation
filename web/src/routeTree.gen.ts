@@ -23,6 +23,7 @@ import { Route as DatabasesIndexRouteImport } from './routes/databases.index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DatabasesIdRouteImport } from './routes/databases.$id'
 import { Route as DbServersIdIndexRouteImport } from './routes/db-servers.$id.index'
+import { Route as AuthGithubReturnRouteImport } from './routes/auth.github.return'
 import { Route as DbServersIdDatabasesDbnameIndexRouteImport } from './routes/db-servers.$id.databases.$dbname.index'
 import { Route as DbServersIdDatabasesDbnameErdRouteImport } from './routes/db-servers.$id.databases.$dbname.erd'
 import { Route as DbServersIdDatabasesDbnameTablesSchemaTableRouteImport } from './routes/db-servers.$id.databases.$dbname.tables.$schema.$table'
@@ -97,6 +98,11 @@ const DbServersIdIndexRoute = DbServersIdIndexRouteImport.update({
   path: '/db-servers/$id/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthGithubReturnRoute = AuthGithubReturnRouteImport.update({
+  id: '/auth/github/return',
+  path: '/auth/github/return',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DbServersIdDatabasesDbnameIndexRoute =
   DbServersIdDatabasesDbnameIndexRouteImport.update({
     id: '/db-servers/$id/databases/$dbname/',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof DashboardIndexRoute
   '/databases': typeof DatabasesIndexRoute
   '/db-servers': typeof DbServersIndexRoute
+  '/auth/github/return': typeof AuthGithubReturnRoute
   '/db-servers/$id': typeof DbServersIdIndexRoute
   '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
   '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameIndexRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardIndexRoute
   '/databases': typeof DatabasesIndexRoute
   '/db-servers': typeof DbServersIndexRoute
+  '/auth/github/return': typeof AuthGithubReturnRoute
   '/db-servers/$id': typeof DbServersIdIndexRoute
   '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
   '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameIndexRoute
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/dashboard/': typeof DashboardIndexRoute
   '/databases/': typeof DatabasesIndexRoute
   '/db-servers/': typeof DbServersIndexRoute
+  '/auth/github/return': typeof AuthGithubReturnRoute
   '/db-servers/$id/': typeof DbServersIdIndexRoute
   '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
   '/db-servers/$id/databases/$dbname/': typeof DbServersIdDatabasesDbnameIndexRoute
@@ -189,6 +198,7 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/databases'
     | '/db-servers'
+    | '/auth/github/return'
     | '/db-servers/$id'
     | '/db-servers/$id/databases/$dbname/erd'
     | '/db-servers/$id/databases/$dbname'
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/databases'
     | '/db-servers'
+    | '/auth/github/return'
     | '/db-servers/$id'
     | '/db-servers/$id/databases/$dbname/erd'
     | '/db-servers/$id/databases/$dbname'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/databases/'
     | '/db-servers/'
+    | '/auth/github/return'
     | '/db-servers/$id/'
     | '/db-servers/$id/databases/$dbname/erd'
     | '/db-servers/$id/databases/$dbname/'
@@ -245,6 +257,7 @@ export interface RootRouteChildren {
   DatabasesIdRoute: typeof DatabasesIdRoute
   DatabasesIndexRoute: typeof DatabasesIndexRoute
   DbServersIndexRoute: typeof DbServersIndexRoute
+  AuthGithubReturnRoute: typeof AuthGithubReturnRoute
   DbServersIdIndexRoute: typeof DbServersIdIndexRoute
   DbServersIdDatabasesDbnameErdRoute: typeof DbServersIdDatabasesDbnameErdRoute
   DbServersIdDatabasesDbnameIndexRoute: typeof DbServersIdDatabasesDbnameIndexRoute
@@ -351,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DbServersIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/github/return': {
+      id: '/auth/github/return'
+      path: '/auth/github/return'
+      fullPath: '/auth/github/return'
+      preLoaderRoute: typeof AuthGithubReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/db-servers/$id/databases/$dbname/': {
       id: '/db-servers/$id/databases/$dbname/'
       path: '/db-servers/$id/databases/$dbname'
@@ -400,6 +420,7 @@ const rootRouteChildren: RootRouteChildren = {
   DatabasesIdRoute: DatabasesIdRoute,
   DatabasesIndexRoute: DatabasesIndexRoute,
   DbServersIndexRoute: DbServersIndexRoute,
+  AuthGithubReturnRoute: AuthGithubReturnRoute,
   DbServersIdIndexRoute: DbServersIdIndexRoute,
   DbServersIdDatabasesDbnameErdRoute: DbServersIdDatabasesDbnameErdRoute,
   DbServersIdDatabasesDbnameIndexRoute: DbServersIdDatabasesDbnameIndexRoute,

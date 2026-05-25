@@ -35,6 +35,59 @@ export function useBackup(id: string) {
   });
 }
 
+// ─────────────────── Failed-backup purge ───────────────────
+
+export interface FailedBackupCount {
+  count: number;
+}
+
+export function useFailedBackupCount() {
+  return useQuery({
+    queryKey: ["failed-backup-count"],
+    queryFn: () => apiClient.get<FailedBackupCount>("/backups/failed/count"),
+    refetchInterval: 60_000,
+  });
+}
+
+export function usePurgeFailedBackups() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.delete<{ deleted: number }>("/backups/failed"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["backups"] });
+      queryClient.invalidateQueries({ queryKey: ["failed-backup-count"] });
+    },
+  });
+}
+
+// ─────────────────── OTP-gated backup download ───────────────────
+
+export interface DownloadOTPRequestResponse {
+  otp_id: string;
+  expires_at: string;
+  channels: string[];
+}
+
+export interface DownloadURLResponse {
+  download_url: string;
+  expires_at: string;
+}
+
+export const requestDownloadOTP = (backupId: string) =>
+  apiClient.post<DownloadOTPRequestResponse>(
+    `/backups/${backupId}/download/request-otp`
+  );
+
+export const verifyDownloadOTP = (
+  backupId: string,
+  otpId: string,
+  code: string
+) =>
+  apiClient.post<DownloadURLResponse>(`/backups/${backupId}/download/verify`, {
+    otp_id: otpId,
+    code,
+  });
+
 // Restore a backup
 export function useRestoreBackup() {
   const queryClient = useQueryClient();

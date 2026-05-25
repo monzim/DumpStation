@@ -13,6 +13,10 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TwoFactorSettings } from "@/components/two-factor-settings";
 import {
+  useFailedBackupCount,
+  usePurgeFailedBackups,
+} from "@/lib/api/backups";
+import {
   fileToBase64,
   getUserInitials,
   useDeleteAvatar,
@@ -20,6 +24,16 @@ import {
   useUserAvatar,
   useUserProfile,
 } from "@/lib/api/user";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -306,6 +320,11 @@ function SettingsPage() {
 
         <Separator />
 
+        {/* Maintenance Section */}
+        <MaintenanceSection />
+
+        <Separator />
+
         {/* Account Section */}
         <div className="space-y-6">
           <div className="flex items-center gap-2">
@@ -520,5 +539,99 @@ function SettingsPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+
+// MaintenanceSection surfaces destructive operational actions. Today the
+// only one is "purge failed backups"; the section exists so we have a
+// natural home for future maintenance widgets (orphan blob sweep, ERD
+// cache reset, etc.) without crowding the Security section.
+function MaintenanceSection() {
+  const failedCount = useFailedBackupCount();
+  const purge = usePurgeFailedBackups();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const count = failedCount.data?.count ?? 0;
+
+  const handlePurge = async () => {
+    try {
+      const result = await purge.mutateAsync();
+      toast.success(`Purged ${result.deleted} failed backup(s)`);
+    } catch {
+      toast.error("Failed to purge failed backups");
+    } finally {
+      setConfirmOpen(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <Trash2 className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-semibold">Maintenance</h2>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Failed backups</CardTitle>
+          <CardDescription>
+            Failed backups accumulate over time. Purging removes the rows
+            from the backup history and best-effort deletes any orphaned
+            storage objects. Successful backups are unaffected.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-md border p-4">
+            <div>
+              <p className="text-sm font-medium">Currently failed</p>
+              <p className="text-2xl font-bold">
+                {failedCount.isLoading ? (
+                  <Skeleton className="h-7 w-12" />
+                ) : (
+                  count
+                )}
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              disabled={count === 0 || purge.isPending}
+              onClick={() => setConfirmOpen(true)}
+            >
+              {purge.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Purging…
+                </>
+              ) : (
+                <>Purge {count > 0 ? count : ""} failed backup{count === 1 ? "" : "s"}</>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Purge failed backups?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This deletes <span className="font-semibold">{count}</span>{" "}
+              failed backup row{count === 1 ? "" : "s"} and best-effort
+              removes any orphan storage objects. Successful backups stay
+              untouched. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handlePurge}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Purge
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
