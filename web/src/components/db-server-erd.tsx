@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import type { ServerERDSchema } from "@/lib/types/api";
 
 interface Props {
@@ -78,16 +79,25 @@ export function DbServerERD({ schema }: Props) {
     );
   }
 
+  // The ref'd <div> below has NO React children — only Mermaid's SVG goes
+  // into it via innerHTML. The "Rendering…" placeholder is a sibling so
+  // React never tries to reconcile across the manually-injected SVG (which
+  // was the cause of the "Node.removeChild: The node to be removed is not
+  // a child of this node" error).
   return (
-    <div
-      ref={containerRef}
-      className="overflow-auto rounded-xl border bg-card p-6 [&_svg]:max-w-none min-h-32"
-    >
+    <div className="relative min-h-32">
       {!rendered && (
-        <div className="text-sm text-muted-foreground">
+        <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
           Rendering diagram…
         </div>
       )}
+      <div
+        ref={containerRef}
+        className={cn(
+          "overflow-auto rounded-xl border bg-card p-6 [&_svg]:max-w-none",
+          !rendered && "hidden"
+        )}
+      />
     </div>
   );
 }
