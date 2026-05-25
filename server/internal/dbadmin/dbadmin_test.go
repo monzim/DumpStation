@@ -2,6 +2,7 @@ package dbadmin
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -199,4 +200,218 @@ func containsRole(items []models.ServerRoleInfo, name string) bool {
 		}
 	}
 	return false
+}
+
+// ----------------------------------------------------------------------------
+// Step 1 follow-up tests: column inspection, row browsing, truncate, ERD.
+// ----------------------------------------------------------------------------
+
+// scopedClient creates a fresh database on the test server, returns a client
+// scoped to that database, and registers cleanup that drops it. Use this when
+// a test needs to mutate schema or data without polluting other tests.
+func scopedClient(t *testing.T, opts Options) (*Client, string) {
+	t.Helper()
+	root, err := New(opts)
+	if err != nil {
+		t.Fatalf("connect root: %v", err)
+	}
+	t.Cleanup(func() { _ = root.Close() })
+
+	dbName := "dumpstation_browse_" + uniqueSuffix()
+	if err := root.CreateDatabase(context.Background(), dbName, ""); err != nil {
+		t.Fatalf("CreateDatabase: %v", err)
+	}
+	t.Cleanup(func() { _ = root.DropDatabase(context.Background(), dbName) })
+
+	scoped, err := root.WithDatabase(dbName)
+	if err != nil {
+		t.Fatalf("WithDatabase: %v", err)
+	}
+	t.Cleanup(func() { _ = scoped.Close() })
+	return scoped, dbName
+}
+
+func TestGetTableColumns(t *testing.T) {
+	opts := requireTestDB(t)
+	scoped, _ := scopedClient(t, opts)
+	ctx := context.Background()
+
+	if _, err := scoped.db.ExecContext(ctx, `
+        CREATE TABLE widgets (
+            id          serial PRIMARY KEY,
+            name        text NOT NULL,
+            optional    text,
+            created_at  timestamptz NOT NULL DEFAULT now()
+        );`); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	cols, err := scoped.GetTableColumns(ctx, "public", "widgets")
+	if err != nil {
+		t.Fatalf("GetTableColumns: %v", err)
+	}
+	if len(cols) != 4 {
+		t.Fatalf("expected 4 columns, got %d", len(cols))
+	}
+	if cols[0].Name != "id" || !cols[0].IsPrimaryKey {
+		t.Fatalf("expected id to be the primary key, got %+v", cols[0])
+	}
+	if cols[1].Name != "name" || cols[1].IsNullable {
+		t.Fatalf("expected name NOT NULL, got %+v", cols[1])
+	}
+	if cols[2].Name != "optional" || !cols[2].IsNullable {
+		t.Fatalf("expected optional to be nullable, got %+v", cols[2])
+	}
+	if cols[3].Default == "" {
+		t.Fatalf("expected created_at to have a default, got empty")
+	}
+}
+
+func TestBrowseTablePaginates(t *testing.T) {
+	opts := requireTestDB(t)
+	scoped, _ := scopedClient(t, opts)
+	ctx := context.Background()
+
+	if _, err := scoped.db.ExecContext(ctx, `
+        CREATE TABLE items (id serial PRIMARY KEY, label text);
+        INSERT INTO items (label) SELECT 'row-' || g FROM generate_series(1, 12) g;
+    `); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	page1, err := scoped.BrowseTable(ctx, "public", "items", 5, 0)
+	if err != nil {
+		t.Fatalf("BrowseTable page1: %v", err)
+	}
+	if len(page1.Rows) != 5 {
+		t.Fatalf("page1: expected 5 rows, got %d", len(page1.Rows))
+	}
+	if len(page1.Columns) != 2 {
+		t.Fatalf("expected 2 columns, got %d", len(page1.Columns))
+	}
+	if page1.Columns[0].Name != "id" || !page1.Columns[0].IsPrimaryKey {
+		t.Fatalf("expected id as the PK first column, got %+v", page1.Columns[0])
+	}
+	// First page should start at id=1 (ORDER BY PK ascending).
+	if fmt.Sprint(page1.Rows[0][0]) != "1" {
+		t.Fatalf("page1 first row id: want 1, got %v", page1.Rows[0][0])
+	}
+
+	page2, err := scoped.BrowseTable(ctx, "public", "items", 5, 5)
+	if err != nil {
+		t.Fatalf("BrowseTable page2: %v", err)
+	}
+	if len(page2.Rows) != 5 {
+		t.Fatalf("page2: expected 5 rows, got %d", len(page2.Rows))
+	}
+	if fmt.Sprint(page2.Rows[0][0]) != "6" {
+		t.Fatalf("page2 first row id: want 6, got %v", page2.Rows[0][0])
+	}
+
+	last, err := scoped.BrowseTable(ctx, "public", "items", 5, 10)
+	if err != nil {
+		t.Fatalf("BrowseTable last: %v", err)
+	}
+	if len(last.Rows) != 2 {
+		t.Fatalf("last page: expected 2 rows, got %d", len(last.Rows))
+	}
+}
+
+func TestBrowseTableClampsLimit(t *testing.T) {
+	opts := requireTestDB(t)
+	scoped, _ := scopedClient(t, opts)
+	ctx := context.Background()
+
+	if _, err := scoped.db.ExecContext(ctx, `
+        CREATE TABLE tiny (id serial PRIMARY KEY);
+        INSERT INTO tiny DEFAULT VALUES;
+    `); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	out, err := scoped.BrowseTable(ctx, "public", "tiny", 9999, 0)
+	if err != nil {
+		t.Fatalf("BrowseTable: %v", err)
+	}
+	if out.Limit != MaxBrowseLimit {
+		t.Fatalf("expected limit clamped to %d, got %d", MaxBrowseLimit, out.Limit)
+	}
+}
+
+func TestTruncateTableEmpties(t *testing.T) {
+	opts := requireTestDB(t)
+	scoped, _ := scopedClient(t, opts)
+	ctx := context.Background()
+
+	if _, err := scoped.db.ExecContext(ctx, `
+        CREATE TABLE notes (id serial PRIMARY KEY, body text);
+        INSERT INTO notes (body) VALUES ('a'), ('b'), ('c');
+    `); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	before, err := scoped.BrowseTable(ctx, "public", "notes", 50, 0)
+	if err != nil || len(before.Rows) != 3 {
+		t.Fatalf("expected 3 rows before truncate, got %d (err=%v)", len(before.Rows), err)
+	}
+
+	if err := scoped.TruncateTable(ctx, "public", "notes"); err != nil {
+		t.Fatalf("TruncateTable: %v", err)
+	}
+
+	after, err := scoped.BrowseTable(ctx, "public", "notes", 50, 0)
+	if err != nil {
+		t.Fatalf("BrowseTable after: %v", err)
+	}
+	if len(after.Rows) != 0 {
+		t.Fatalf("expected 0 rows after truncate, got %d", len(after.Rows))
+	}
+}
+
+func TestGetSchemaERDPicksUpForeignKey(t *testing.T) {
+	opts := requireTestDB(t)
+	scoped, _ := scopedClient(t, opts)
+	ctx := context.Background()
+
+	if _, err := scoped.db.ExecContext(ctx, `
+        CREATE TABLE authors (
+            id   serial PRIMARY KEY,
+            name text NOT NULL
+        );
+        CREATE TABLE books (
+            id        serial PRIMARY KEY,
+            title     text NOT NULL,
+            author_id integer NOT NULL REFERENCES authors(id)
+        );
+    `); err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	erd, err := scoped.GetSchemaERD(ctx)
+	if err != nil {
+		t.Fatalf("GetSchemaERD: %v", err)
+	}
+	if len(erd.Tables) != 2 {
+		t.Fatalf("expected 2 tables, got %d", len(erd.Tables))
+	}
+	if len(erd.Relations) != 1 {
+		t.Fatalf("expected 1 FK relation, got %d", len(erd.Relations))
+	}
+	rel := erd.Relations[0]
+	if rel.FromTable != "books" || rel.FromColumn != "author_id" ||
+		rel.ToTable != "authors" || rel.ToColumn != "id" {
+		t.Fatalf("unexpected relation: %+v", rel)
+	}
+	// Each table should have its PK marked.
+	for _, tbl := range erd.Tables {
+		var foundPK bool
+		for _, c := range tbl.Columns {
+			if c.IsPrimaryKey {
+				foundPK = true
+			}
+		}
+		if !foundPK {
+			t.Fatalf("expected %s to have a PK column", tbl.Name)
+		}
+	}
 }

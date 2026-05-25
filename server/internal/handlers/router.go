@@ -139,6 +139,8 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	protected.HandleFunc("/server-connections/{id}", h.GetServerConnection).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/server-connections/{id}/databases", h.ListServerDatabases).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/server-connections/{id}/databases/{dbname}/tables", h.ListServerTables).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/server-connections/{id}/databases/{dbname}/tables/{schema}/{table}/rows", h.BrowseServerTable).Methods("GET", "OPTIONS")
+	protected.HandleFunc("/server-connections/{id}/databases/{dbname}/erd", h.GetServerDatabaseERD).Methods("GET", "OPTIONS")
 	protected.HandleFunc("/server-connections/{id}/users", h.ListServerUsers).Methods("GET", "OPTIONS")
 
 	// DB Servers — write endpoints blocked for demo
@@ -152,6 +154,7 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	demoRestricted.HandleFunc("/server-connections/{id}/users", h.CreateServerUser).Methods("POST", "OPTIONS")
 	demoRestricted.HandleFunc("/server-connections/{id}/users/{username}", h.DropServerUser).Methods("DELETE", "OPTIONS")
 	demoRestricted.HandleFunc("/server-connections/{id}/databases/{dbname}/grants", h.GrantServerRole).Methods("POST", "OPTIONS")
+	demoRestricted.HandleFunc("/server-connections/{id}/databases/{dbname}/tables/{schema}/{table}/truncate", h.TruncateServerTable).Methods("POST", "OPTIONS")
 
 	// Demo-blocked routes (completely blocked for demo accounts - 2FA management)
 	demoBlocked := api.PathPrefix("").Subrouter()
