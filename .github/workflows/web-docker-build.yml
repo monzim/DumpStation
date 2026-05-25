@@ -1,7 +1,11 @@
 # =============================================================================
 # Web Docker Build and Push to GHCR
-# Builds amd64 and arm64 in parallel runners, then merges into a single
-# multi-platform manifest. Mirrors .github/workflows/docker-build-push.yml.
+#
+# Single-platform (linux/amd64) build — the JS install + bundle step is heavy
+# enough that cross-compiling to arm64 via QEMU on a single runner was making
+# this workflow take ~7 minutes. amd64 covers the vast majority of self-hosting
+# targets; if arm64 is ever needed back, restore the matrix pattern used by
+# .github/workflows/docker-build-push.yml (server image) — it's the same shape.
 # =============================================================================
 
 name: Build and Push Web App to GHCR
@@ -27,36 +31,18 @@ env:
     IMAGE_NAME: monzim/dumpstation/web
 
 jobs:
-    # =========================================================================
-    # Build each platform in parallel (each runner is native for amd64; arm64
-    # still uses QEMU but only emulates ~half the work each runner does).
-    # =========================================================================
-    build:
-        name: Build ${{ matrix.platform }}
+    build-and-push:
+        name: Build linux/amd64
         runs-on: ubuntu-latest
         timeout-minutes: 15
         permissions:
             contents: read
             packages: write
-        strategy:
-            fail-fast: false
-            matrix:
-                platform:
-                    - linux/amd64
-                    - linux/arm64
 
         steps:
-            - name: Prepare platform name
-              run: |
-                  platform=${{ matrix.platform }}
-                  echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
-
             - name: Checkout repository
               uses: actions/checkout@v4
 
-            - name: Set up QEMU
-              uses: docker/setup-qemu-action@v3
-
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
 
@@ -67,74 +53,7 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Extract Docker metadata
-              id: meta
-              uses: docker/metadata-action@v5
-              with:
-                  images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-            - name: Build and push by digest
-              id: build
-              uses: docker/build-push-action@v6
-              with:
-                  context: ./web
-                  file: ./web/Dockerfile
-                  platforms: ${{ matrix.platform }}
-                  push: ${{ github.event_name != 'pull_request' }}
-                  labels: ${{ steps.meta.outputs.labels }}
-                  # Per-platform cache scope so amd64 and arm64 layers don't
-                  # invalidate each other.
-                  cache-from: type=gha,scope=web-${{ env.PLATFORM_PAIR }}
-                  cache-to: type=gha,mode=max,scope=web-${{ env.PLATFORM_PAIR }}
-                  outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
-
-            - name: Export digest
-              if: github.event_name != 'pull_request'
-              run: |
-                  mkdir -p /tmp/digests
-                  digest="${{ steps.build.outputs.digest }}"
-                  touch "/tmp/digests/${digest#sha256:}"
-
-            - name: Upload digest
-              if: github.event_name != 'pull_request'
-              uses: actions/upload-artifact@v4
-              with:
-                  name: digests-web-${{ env.PLATFORM_PAIR }}
-                  path: /tmp/digests/*
-                  if-no-files-found: error
-                  retention-days: 1
-
-    # =========================================================================
-    # Merge the per-platform digests into a single multi-arch manifest.
-    # =========================================================================
-    merge:
-        name: Create Multi-Platform Manifest
-        runs-on: ubuntu-latest
-        if: github.event_name != 'pull_request'
-        needs: build
-        permissions:
-            contents: read
-            packages: write
-
-        steps:
-            - name: Download digests
-              uses: actions/download-artifact@v4
-              with:
-                  path: /tmp/digests
-                  pattern: digests-web-*
-                  merge-multiple: true
-
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
-
-            - name: Log in to GitHub Container Registry
-              uses: docker/login-action@v3
-              with:
-                  registry: ${{ env.REGISTRY }}
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
-
-            - name: Extract Docker metadata
+            - name: Extract metadata (tags, labels)
               id: meta
               uses: docker/metadata-action@v5
               with:
@@ -147,12 +66,14 @@ jobs:
                       type=sha,prefix=sha-,format=short
                       type=raw,value=latest,enable={{is_default_branch}}
 
-            - name: Create manifest list and push
-              working-directory: /tmp/digests
-              run: |
-                  docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-                    $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
-
-            - name: Inspect image
-              run: |
-                  docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+            - name: Build and push image
+              uses: docker/build-push-action@v6
+              with:
+                  context: ./web
+                  file: ./web/Dockerfile
+                  platforms: linux/amd64
+                  push: ${{ github.event_name != 'pull_request' }}
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha,scope=web-amd64
+                  cache-to: type=gha,mode=max,scope=web-amd64
