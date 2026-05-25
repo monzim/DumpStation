@@ -1,3 +1,13 @@
+# =============================================================================
+# Web Docker Build and Push to GHCR
+#
+# Single-platform (linux/amd64) build — the JS install + bundle step is heavy
+# enough that cross-compiling to arm64 via QEMU on a single runner was making
+# this workflow take ~7 minutes. amd64 covers the vast majority of self-hosting
+# targets; if arm64 is ever needed back, restore the matrix pattern used by
+# .github/workflows/docker-build-push.yml (server image) — it's the same shape.
+# =============================================================================
+
 name: Build and Push Web App to GHCR
 
 on:
@@ -22,7 +32,9 @@ env:
 
 jobs:
     build-and-push:
+        name: Build linux/amd64
         runs-on: ubuntu-latest
+        timeout-minutes: 15
         permissions:
             contents: read
             packages: write
@@ -54,17 +66,14 @@ jobs:
                       type=sha,prefix=sha-,format=short
                       type=raw,value=latest,enable={{is_default_branch}}
 
-            - name: Build and push Docker image
-              uses: docker/build-push-action@v5
+            - name: Build and push image
+              uses: docker/build-push-action@v6
               with:
                   context: ./web
                   file: ./web/Dockerfile
+                  platforms: linux/amd64
                   push: ${{ github.event_name != 'pull_request' }}
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha
-                  cache-to: type=gha,mode=max
-                  platforms: linux/amd64,linux/arm64
-
-            - name: Image digest
-              run: echo ${{ steps.meta.outputs.digest }}
+                  cache-from: type=gha,scope=web-amd64
+                  cache-to: type=gha,mode=max,scope=web-amd64
