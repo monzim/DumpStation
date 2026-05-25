@@ -188,24 +188,40 @@ func (h *Handler) RequestBackupDownloadOTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Pick the user's first available notification config. We use the
-	// "first" rule because a single-user deployment rarely has more than
-	// one channel set, and treating one config as canonical avoids
-	// confusing fan-out where the same OTP arrives in multiple chats.
-	configs, err := h.repo.ListNotificationConfigsByUser(*userID, isAdmin)
-	if err != nil || len(configs) == 0 {
-		writeError(w, http.StatusPreconditionFailed,
-			"configure at least one notification channel (Discord or Telegram) before downloading backups")
+	// Look up notification configs strictly owned by the requesting user.
+	// We deliberately ignore admin scope here: admins can *view* every
+	// user's configs (ListNotificationConfigsByUser with isAdmin=true
+	// returns them all), but a backup download OTP must go to a channel
+	// the caller themselves owns — anything else would deliver someone
+	// else's webhook credentials a code, and would surface seeded demo
+	// placeholder URLs to the real user.
+	_ = isAdmin
+	configs, err := h.repo.ListNotificationConfigsByUser(*userID, false)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load notification channels")
 		return
 	}
-	cfg := configs[0]
+
+	// Pick the first config that actually carries usable credentials.
+	// Skipping empty/placeholder rows (seeded demo data, half-edited
+	// rows) means a misconfigured row never silently consumes the OTP.
+	var cfg *models.NotificationConfig
+	var channels []string
+	for _, c := range configs {
+		n := notification.NotifierFromConfig(c)
+		ch := notification.Channels(n)
+		if len(ch) > 0 {
+			cfg = c
+			channels = ch
+			break
+		}
+	}
+	if cfg == nil {
+		writeError(w, http.StatusPreconditionFailed,
+			"configure a Discord webhook or Telegram bot in Notifications before downloading backups")
+		return
+	}
 	notifier := notification.NotifierFromConfig(cfg)
-	channels := notification.Channels(notifier)
-	if len(channels) == 0 {
-		writeError(w, http.StatusPreconditionFailed,
-			"selected notification channel has no usable destination")
-		return
-	}
 
 	code, err := auth.GenerateOTP()
 	if err != nil {
