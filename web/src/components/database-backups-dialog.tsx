@@ -29,24 +29,24 @@ export function DatabaseBackupsDialog({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "success":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+        return <CheckCircle2 className="h-4 w-4 text-success" />;
       case "failed":
-        return <XCircle className="h-4 w-4 text-destructive" />;
+        return <XCircle className="h-4 w-4 text-error" />;
       case "running":
-        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+        return <Loader2 className="h-4 w-4 text-link-blue-soft animate-spin" />;
       default:
-        return <Clock className="h-4 w-4 text-muted-foreground" />;
+        return <Clock className="h-4 w-4 text-mute" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "success":
-        return <Badge variant="default">Success</Badge>;
+        return <Badge variant="success">Success</Badge>;
       case "failed":
-        return <Badge variant="destructive">Failed</Badge>;
+        return <Badge variant="error">Failed</Badge>;
       case "running":
-        return <Badge variant="secondary">Running</Badge>;
+        return <Badge variant="info">Running</Badge>;
       default:
         return <Badge variant="outline">Pending</Badge>;
     }

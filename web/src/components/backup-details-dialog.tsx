@@ -43,25 +43,25 @@ const statusConfig = {
     label: "Success",
     variant: "default" as const,
     icon: CheckCircle2,
-    color: "text-green-600",
+    color: "text-success",
   },
   failed: {
     label: "Failed",
     variant: "destructive" as const,
     icon: AlertCircle,
-    color: "text-red-600",
+    color: "text-error",
   },
   running: {
     label: "Running",
     variant: "secondary" as const,
     icon: Loader2,
-    color: "text-blue-600",
+    color: "text-link-blue-soft",
   },
   pending: {
     label: "Pending",
     variant: "outline" as const,
     icon: Archive,
-    color: "text-yellow-600",
+    color: "text-amber-400",
   },
 };
 
@@ -105,8 +105,8 @@ export function BackupDetailsDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 p-2 rounded-lg">
-              <Archive className="h-6 w-6 text-primary" />
+            <div className="bg-canvas border border-hairline-soft p-2 rounded-app-sm">
+              <Archive className="h-6 w-6 text-on-primary" />
             </div>
             <div className="flex-1">
               <DialogTitle className="text-xl">{backup.name}</DialogTitle>

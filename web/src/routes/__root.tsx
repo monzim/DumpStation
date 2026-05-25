@@ -1,6 +1,5 @@
 import { AuthProvider } from "@/components/auth-provider";
 import { SessionGuard } from "@/components/session-guard";
-import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
@@ -18,19 +17,7 @@ const SITE_URL = "https://dumpstation.monzim.com";
 const SITE_NAME = "DumpStation";
 const DEFAULT_OG_IMAGE = `${SITE_URL}/images/og.webp`;
 
-// Cloudflare Web Analytics token
 const CF_BEACON_TOKEN = "e832e1329bb742ae9c1d0c07a7612b66";
-
-// Script to prevent FOUC (Flash of Unstyled Content)
-const themeScript = `
-  (function() {
-    const storageKey = 'dumpstation-theme';
-    const theme = localStorage.getItem(storageKey);
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const resolvedTheme = theme === 'system' || !theme ? systemTheme : theme;
-    document.documentElement.classList.add(resolvedTheme);
-  })();
-`;
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -47,13 +34,12 @@ export const Route = createRootRouteWithContext<{
       },
       {
         name: "theme-color",
-        content: "#000000",
+        content: "#0b0b0b",
       },
       {
         name: "robots",
         content: "index, follow",
       },
-      // Open Graph defaults
       {
         property: "og:type",
         content: "website",
@@ -78,7 +64,6 @@ export const Route = createRootRouteWithContext<{
         property: "og:image:type",
         content: "image/webp",
       },
-      // Twitter Card defaults
       {
         name: "twitter:card",
         content: "summary_large_image",
@@ -100,7 +85,7 @@ export const Route = createRootRouteWithContext<{
       },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap",
       },
       { rel: "stylesheet", href: appCss },
       {
@@ -141,13 +126,10 @@ function RootComponent() {
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        {/* Runtime configuration - can be modified after build */}
         <script src="/config.js" />
         <HeadContent />
-        {/* Cloudflare Web Analytics */}
         {!import.meta.env.DEV && CF_BEACON_TOKEN && (
           <script
             defer
@@ -157,13 +139,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         )}
       </head>
       <body>
-        <ThemeProvider defaultTheme="system" storageKey="dumpstation-theme">
-          <AuthProvider>
-            {children}
-            <SessionGuard />
-          </AuthProvider>
-          <Toaster />
-        </ThemeProvider>
+        <AuthProvider>
+          {children}
+          <SessionGuard />
+        </AuthProvider>
+        <Toaster />
         {import.meta.env.DEV && (
           <TanStackDevtools
             config={{
@@ -179,7 +159,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         )}
         <Scripts />
         {import.meta.env.DEV && (
-          <ReactQueryDevtools buttonPosition="bottom-left" />
+          <ReactQueryDevtools buttonPosition="bottom-right" />
         )}
       </body>
     </html>

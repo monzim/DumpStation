@@ -82,7 +82,7 @@ function DbServerDetailPage() {
         </Button>
 
         {/* Header card */}
-        <Card className="border-0 shadow-sm bg-linear-to-br from-primary/5 via-background to-background">
+        <Card variant="console">
           <CardContent className="p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
@@ -251,7 +251,7 @@ function DatabasesPanel({ serverId }: { serverId: string }) {
               className="group block"
             >
               <div className="flex items-center gap-3 p-3 rounded-xl border bg-card hover:bg-muted/40 hover:border-muted-foreground/20 transition-colors">
-                <div className="bg-muted text-muted-foreground p-2 rounded-lg shrink-0 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                <div className="bg-canvas border border-hairline-soft text-ash p-2 rounded-app-sm shrink-0 group-hover:bg-canvas-soft group-hover:text-on-primary transition-colors">
                   <DbIcon className="h-4 w-4" />
                 </div>
 
@@ -513,7 +513,7 @@ function EmptyPanel({
   return (
     <Card className="border-dashed">
       <CardContent className="py-12 flex flex-col items-center text-center gap-3">
-        <div className="bg-primary/10 text-primary p-3 rounded-2xl">
+        <div className="bg-canvas-soft border border-hairline-soft text-on-primary p-3 rounded-app-md">
           <Icon className="h-6 w-6" />
         </div>
         <div>

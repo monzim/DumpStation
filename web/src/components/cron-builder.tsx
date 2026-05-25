@@ -577,13 +577,11 @@ export function CronBuilder({ value, onChange, error }: CronBuilderProps) {
                 <Button
                   key={preset.value}
                   type="button"
-                  variant="outline"
+                  variant={value === preset.value ? "app-tab" : "secondary-dark"}
                   size="sm"
+                  data-active={value === preset.value || undefined}
                   onClick={() => handlePresetSelect(preset)}
-                  className={cn(
-                    "text-xs",
-                    value === preset.value && "border-primary bg-primary/5"
-                  )}
+                  className="text-xs"
                 >
                   {preset.label}
                 </Button>

@@ -253,8 +253,8 @@ export function DbServerDialog({
               )}
               {testState.kind === "ok" && (
                 <>
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  <span className="text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <span className="text-success">
                     Connected via {testState.sslMode}
                     {testState.latency ? ` in ${testState.latency}` : ""}
                   </span>

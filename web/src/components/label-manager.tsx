@@ -65,20 +65,19 @@ export function LabelManager() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">Labels</h3>
-          <p className="text-sm text-muted-foreground">
-            Organize your configurations with custom labels ({labelCount}/
-            {maxLabels})
-          </p>
-        </div>
+      {/* Action bar — route owns the editorial page header above */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-mono-caps text-mute uppercase">
+          {labelCount} of {maxLabels}
+        </p>
         <Button
+          variant="brand"
+          size="lg"
           onClick={handleCreate}
           disabled={isDemo || labelCount >= maxLabels}
         >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Label
+          <Plus className="size-4" />
+          Create label
         </Button>
       </div>
 
@@ -141,7 +140,7 @@ export function LabelManager() {
                   onClick={() => setDeletingLabel(label)}
                   disabled={isDemo}
                 >
-                  <Trash2 className="h-4 w-4 text-red-500" />
+                  <Trash2 className="h-4 w-4 text-error" />
                 </Button>
               </div>
             </div>
@@ -181,7 +180,7 @@ export function LabelManager() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-red-500 hover:bg-red-600"
+              className="bg-canvas-soft0 hover:bg-red-600"
             >
               Delete
             </AlertDialogAction>

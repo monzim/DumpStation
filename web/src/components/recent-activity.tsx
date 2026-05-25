@@ -27,23 +27,23 @@ interface RecentActivityProps {
 const levelConfig = {
   info: {
     icon: Info,
-    variant: "secondary" as const,
-    color: "text-blue-600",
+    variant: "info" as const,
+    color: "text-link-blue-soft",
   },
   success: {
     icon: CheckCircle2,
-    variant: "default" as const,
-    color: "text-green-600",
+    variant: "success" as const,
+    color: "text-success",
   },
   warning: {
     icon: AlertTriangle,
     variant: "outline" as const,
-    color: "text-yellow-600",
+    color: "text-amber-400",
   },
   error: {
     icon: AlertCircle,
     variant: "destructive" as const,
-    color: "text-red-600",
+    color: "text-error",
   },
 };
 

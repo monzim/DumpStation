@@ -9,6 +9,12 @@ interface LabelBadgeProps {
   className?: string;
 }
 
+/*
+ * LabelBadge preserves the user-supplied dynamic background color (labels are
+ * user data, not brand surface). Only the chrome around it adopts Saniti
+ * conventions: rounded-full pill, mono-micro caps for size sm, body caption
+ * for size md.
+ */
 export function LabelBadge({
   label,
   onRemove,
@@ -16,33 +22,33 @@ export function LabelBadge({
   className,
 }: LabelBadgeProps) {
   const sizeClasses = {
-    sm: "text-xs px-2 py-0.5",
-    md: "text-sm px-2.5 py-1",
+    sm: "text-mono-micro px-2 py-0.5 uppercase",
+    md: "text-caption px-2.5 py-1",
   };
 
-  // Determine if the background is dark to adjust text color
   const isDark = isColorDark(label.color);
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md font-medium",
+        "inline-flex items-center gap-1 rounded-full font-medium",
         sizeClasses[size],
-        isDark ? "text-white" : "text-gray-900",
-        className
+        isDark ? "text-on-primary" : "text-ink",
+        className,
       )}
       style={{ backgroundColor: label.color }}
     >
       {label.name}
       {onRemove && (
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
           }}
           className={cn(
             "ml-0.5 rounded hover:opacity-70",
-            isDark ? "text-white" : "text-gray-900"
+            isDark ? "text-on-primary" : "text-ink",
           )}
           aria-label={`Remove ${label.name} label`}
         >
@@ -53,19 +59,11 @@ export function LabelBadge({
   );
 }
 
-// Helper function to determine if a color is dark
 function isColorDark(hexColor: string): boolean {
-  // Remove # if present
   const hex = hexColor.replace("#", "");
-
-  // Convert to RGB
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
-
-  // Calculate perceived brightness
-  // Using the formula: (R * 299 + G * 587 + B * 114) / 1000
   const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-
   return brightness < 128;
 }

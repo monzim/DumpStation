@@ -120,7 +120,7 @@ export function ServerGrantDialog({
                 className={cn(
                   "w-full text-left rounded-lg border p-3 transition-colors",
                   preset === p.value
-                    ? "border-primary bg-primary/5"
+                    ? "border-on-primary bg-canvas-soft"
                     : "hover:bg-muted"
                 )}
               >

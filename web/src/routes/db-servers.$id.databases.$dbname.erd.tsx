@@ -9,8 +9,9 @@ import { useDbServer, useDbServerERD } from "@/lib/api/db-servers";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Network } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 // Lazy-loaded so mermaid (~1 MB raw) only ships when the ERD route is
 // actually opened — keeps it out of the Cloudflare Worker server bundle.
@@ -34,11 +35,11 @@ function ErdPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 animate-in fade-in duration-300 max-w-6xl mx-auto">
+      <div className="space-y-8">
         <Button
-          variant="ghost"
+          variant="ghost-dark"
           size="sm"
-          className="-ml-2 text-muted-foreground"
+          className="-ml-2"
           onClick={() =>
             navigate({
               to: "/db-servers/$id/databases/$dbname",
@@ -46,59 +47,54 @@ function ErdPage() {
             })
           }
         >
-          <ArrowLeft className="h-4 w-4 mr-1.5" />
+          <ArrowLeft className="size-4" />
           Back to {dbname}
         </Button>
 
-        <Card className="border-0 shadow-sm bg-linear-to-br from-primary/5 via-background to-background">
-          <CardContent className="p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="bg-primary text-primary-foreground p-3 rounded-2xl shadow-md shrink-0">
-                  <Network className="h-6 w-6" />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-2xl font-bold tracking-tight truncate">
-                    Schema diagram
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <Badge variant="secondary" className="font-mono">
-                      {dbname}
-                    </Badge>
-                    {server && (
-                      <Badge variant="outline" className="font-normal">
-                        on {server.name}
-                      </Badge>
-                    )}
-                    {data && (
-                      <>
-                        <Badge variant="secondary" className="font-normal">
-                          {data.tables.length} table
-                          {data.tables.length === 1 ? "" : "s"}
-                        </Badge>
-                        <Badge variant="secondary" className="font-normal">
-                          {data.relations.length} relation
-                          {data.relations.length === 1 ? "" : "s"}
-                        </Badge>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-3">
+          <Eyebrow>Schema diagram</Eyebrow>
+          <h1 className="text-display-sm text-on-primary">Entity relationships</h1>
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            <Badge variant="mono">{dbname}</Badge>
+            {server && <Badge variant="mono">on {server.name}</Badge>}
+            {data && (
+              <>
+                <Badge variant="mono">
+                  {data.tables.length} table
+                  {data.tables.length === 1 ? "" : "s"}
+                </Badge>
+                <Badge variant="mono">
+                  {data.relations.length} relation
+                  {data.relations.length === 1 ? "" : "s"}
+                </Badge>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
+      {/* The diagram bleeds out of the AppLayout container's horizontal
+          padding so it spans the entire working area edge-to-edge. The
+          inner component owns the dark canvas and tall viewport height. */}
+      <div className="-mx-6 lg:-mx-12 mt-8">
         {isLoading ? (
-          <Skeleton className="h-96 w-full" />
+          <Skeleton className="h-[calc(100vh-220px)] min-h-[520px] w-full rounded-none" />
         ) : isError ? (
-          <Card className="border-destructive/40">
-            <CardContent className="pt-6 text-sm text-destructive">
-              Failed to build the ERD: {(error as Error)?.message}
-            </CardContent>
-          </Card>
+          <div className="px-6 lg:px-12">
+            <Card variant="console">
+              <CardContent>
+                <p className="text-body-sm text-error">
+                  Failed to build the ERD: {(error as Error)?.message}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         ) : data ? (
-          <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+          <Suspense
+            fallback={
+              <Skeleton className="h-[calc(100vh-220px)] min-h-[520px] w-full rounded-none" />
+            }
+          >
             <DbServerERD schema={data} />
           </Suspense>
         ) : null}

@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { useBackups } from "@/lib/api/backups";
 import { useDatabases } from "@/lib/api/databases";
 import type { Backup } from "@/lib/types/api";
@@ -67,23 +68,23 @@ function saveSettings(settings: BackupListSettings): void {
 const statusConfig = {
   success: {
     label: "Success",
-    variant: "default" as const,
-    color: "text-green-600",
+    variant: "success" as const,
+    color: "text-success",
   },
   failed: {
     label: "Failed",
-    variant: "destructive" as const,
-    color: "text-red-600",
+    variant: "error" as const,
+    color: "text-error",
   },
   running: {
     label: "Running",
-    variant: "secondary" as const,
-    color: "text-blue-600",
+    variant: "info" as const,
+    color: "text-link-blue-soft",
   },
   pending: {
     label: "Pending",
-    variant: "outline" as const,
-    color: "text-yellow-600",
+    variant: "warning" as const,
+    color: "text-amber-400",
   },
 };
 
@@ -359,23 +360,14 @@ export function BackupList() {
 
   return (
     <div className="space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Backup History</h2>
-          <p className="text-muted-foreground">
-            View and manage all database backups
-          </p>
-        </div>
+      {/* Action bar — route owns the editorial page header above */}
+      <div className="flex items-center justify-end">
         <Button
           onClick={() => refetch()}
           disabled={isRefetching}
-          variant="outline"
-          size="sm"
+          variant="secondary-dark"
         >
-          <RefreshCw
-            className={`h-4 w-4 mr-2 ${isRefetching ? "animate-spin" : ""}`}
-          />
+          <RefreshCw className={cn("size-4", isRefetching && "animate-spin")} />
           Refresh
         </Button>
       </div>

@@ -1,4 +1,5 @@
 import { useAuth } from "@/components/auth-provider";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { apiClient } from "@/lib/api/client";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
@@ -40,20 +41,18 @@ function GitHubReturn() {
     }
     setIsAuthenticated(true);
 
-    // Scrub the token from history so a "back" navigation doesn't expose it.
     window.history.replaceState({}, "", "/auth/github/return");
 
-    toast.success("Signed in with GitHub", {
-      description: "Welcome back!",
-    });
+    toast.success("Signed in with GitHub");
     navigate({ to: "/dashboard" });
   }, [navigate, setIsAuthenticated, setIsDemo]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen bg-canvas text-on-primary flex items-center justify-center">
       <div className="text-center space-y-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
-        <p className="text-muted-foreground">Finishing sign-in…</p>
+        <Loader2 className="size-10 animate-spin text-on-primary mx-auto" />
+        <Eyebrow>Signing you in</Eyebrow>
+        <p className="text-subtitle text-ash">Finishing GitHub sign-in…</p>
       </div>
     </div>
   );

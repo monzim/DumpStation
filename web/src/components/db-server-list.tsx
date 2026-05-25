@@ -90,22 +90,18 @@ export function DbServerList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">DB Servers</h1>
-          <p className="text-sm text-muted-foreground">
-            Register PostgreSQL servers and administer their databases, tables,
-            and users without leaving DumpStation.
-          </p>
-        </div>
+      {/* Action bar — route owns the editorial page header above */}
+      <div className="flex items-center justify-end">
         <Button
+          variant="brand"
+          size="lg"
           onClick={() => {
             setEditing(null);
             setDialogOpen(true);
           }}
         >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Server
+          <Plus className="size-4" />
+          Add server
         </Button>
       </div>
 
@@ -215,7 +211,7 @@ function ServerCard({
       <CardHeader className="space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="bg-primary/10 text-primary p-2 rounded-lg shrink-0">
+            <div className="bg-canvas-soft border border-hairline-soft text-on-primary p-2 rounded-lg shrink-0">
               <Server className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -260,7 +256,7 @@ function ServerCard({
             ssl: {server.ssl_mode}
           </Badge>
           {status === "ok" && (
-            <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30">
+            <Badge className="bg-success/15 text-success hover:bg-success/20 border-success/40">
               <ShieldCheck className="h-3 w-3 mr-1" /> Healthy
             </Badge>
           )}
@@ -309,7 +305,7 @@ function EmptyState({
   return (
     <Card className="border-dashed">
       <CardContent className="pt-12 pb-12 flex flex-col items-center gap-3 text-center">
-        <div className="bg-primary/10 text-primary p-3 rounded-2xl">
+        <div className="bg-canvas-soft border border-hairline-soft text-on-primary p-3 rounded-2xl">
           <Server className="h-8 w-8" />
         </div>
         <h3 className="font-semibold text-base">No servers yet</h3>

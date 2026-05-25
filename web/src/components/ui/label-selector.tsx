@@ -55,15 +55,18 @@ export function LabelSelector({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
-            variant="outline"
+            type="button"
+            variant="secondary-dark"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between"
+            className="w-full justify-between h-11"
           >
-            {selectedLabels.length > 0
-              ? `${selectedLabels.length} label${selectedLabels.length !== 1 ? "s" : ""} selected`
-              : "Select labels..."}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <span>
+              {selectedLabels.length > 0
+                ? `${selectedLabels.length} label${selectedLabels.length !== 1 ? "s" : ""} selected`
+                : "Select labels..."}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-70" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[400px] p-0">
@@ -97,7 +100,7 @@ export function LabelSelector({
                     />
                     <LabelBadge label={label} size="sm" />
                     {label.description && (
-                      <span className="text-xs text-muted-foreground truncate flex-1">
+                      <span className="text-caption text-mute truncate flex-1">
                         {label.description}
                       </span>
                     )}
@@ -107,7 +110,7 @@ export function LabelSelector({
             </CommandGroup>
           </Command>
           {selectedLabelIds.length >= maxLabels && (
-            <div className="p-2 border-t text-xs text-muted-foreground text-center">
+            <div className="p-2 border-t border-hairline-soft text-mono-micro text-mute uppercase text-center">
               Maximum {maxLabels} labels per configuration
             </div>
           )}
