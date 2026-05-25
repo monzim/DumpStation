@@ -246,10 +246,10 @@ Keep these codes secure. Do not share them with anyone.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30">
+            <div className="p-4 rounded-lg bg-canvas-soft border border-hairline-soft">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-amber-400">
                   Your old backup codes will no longer work after regenerating.
                 </p>
               </div>
@@ -307,7 +307,7 @@ Keep these codes secure. Do not share them with anyone.
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-green-600" />
+                <ShieldCheck className="h-5 w-5 text-success" />
                 New Backup Codes
               </DialogTitle>
               <DialogDescription>
@@ -317,10 +317,10 @@ Keep these codes secure. Do not share them with anyone.
             </DialogHeader>
 
             <div className="space-y-4">
-              <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30">
+              <div className="p-4 rounded-lg bg-canvas-soft border border-hairline-soft">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-amber-400">
                     <strong>Important:</strong> These codes won't be shown
                     again!
                   </p>
@@ -345,7 +345,7 @@ Keep these codes secure. Do not share them with anyone.
                   className="flex-1"
                 >
                   {copiedCodes ? (
-                    <Check className="mr-2 h-4 w-4 text-green-600" />
+                    <Check className="mr-2 h-4 w-4 text-success" />
                   ) : (
                     <Copy className="mr-2 h-4 w-4" />
                   )}
@@ -417,12 +417,12 @@ export function TwoFactorSettings() {
               <div
                 className={`h-10 w-10 rounded-lg flex items-center justify-center ${
                   status?.enabled
-                    ? "bg-green-100 dark:bg-green-900/30"
+                    ? "bg-success/15"
                     : "bg-muted"
                 }`}
               >
                 {status?.enabled ? (
-                  <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <ShieldCheck className="h-5 w-5 text-success" />
                 ) : (
                   <Shield className="h-5 w-5 text-muted-foreground" />
                 )}
@@ -434,7 +434,7 @@ export function TwoFactorSettings() {
                     variant={status?.enabled ? "default" : "secondary"}
                     className={
                       status?.enabled
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100"
+                        ? "bg-success/15 text-success hover:bg-success/15"
                         : ""
                     }
                   >
@@ -453,15 +453,15 @@ export function TwoFactorSettings() {
         <CardContent className="space-y-6">
           {status?.enabled ? (
             <>
-              <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800/30">
+              <div className="p-4 rounded-lg bg-canvas-soft border border-hairline-soft">
                 <div className="flex items-center gap-3">
-                  <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <ShieldCheck className="h-5 w-5 text-success" />
                   <div>
-                    <p className="font-medium text-green-900 dark:text-green-200">
+                    <p className="font-medium text-success">
                       2FA is active
                     </p>
                     {status.verified_at && (
-                      <p className="text-sm text-green-700 dark:text-green-400">
+                      <p className="text-sm text-success">
                         Enabled{" "}
                         {formatDistanceToNow(new Date(status.verified_at), {
                           addSuffix: true,

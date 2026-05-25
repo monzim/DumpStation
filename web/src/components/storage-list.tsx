@@ -121,7 +121,7 @@ function StorageCard({
       {/* Active indicator line */}
       <div
         className={`absolute left-0 top-4 bottom-4 w-1 rounded-full transition-colors ${
-          isActive ? "bg-emerald-500" : "bg-muted"
+          isActive ? "bg-success" : "bg-muted"
         }`}
       />
 
@@ -140,7 +140,7 @@ function StorageCard({
             )}
           </div>
           {isActive && (
-            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-success border-2 border-background flex items-center justify-center">
               <Check className="h-2.5 w-2.5 text-white" />
             </div>
           )}
@@ -167,7 +167,7 @@ function StorageCard({
                 {isActive && (
                   <Badge
                     variant="default"
-                    className="text-[10px] px-1.5 py-0 h-5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    className="text-[10px] px-1.5 py-0 h-5 bg-success/10 text-success border-success/40"
                   >
                     Active
                   </Badge>
@@ -411,46 +411,22 @@ export function StorageList() {
 
   return (
     <div className="space-y-8 pb-8">
-      {/* Header */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-linear-to-br from-[#F6821F] to-[#FF9900] flex items-center justify-center shadow-lg shadow-[#F6821F]/20">
-              <HardDrive className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-                Storage
-              </h1>
-              <p className="text-sm text-muted-foreground hidden sm:block">
-                S3 and R2 storage backends
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleRefresh}
-              disabled={isRefetching}
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
-              />
-            </Button>
-            <Button
-              onClick={handleCreate}
-              size="sm"
-              className="gap-2"
-              disabled={isDemo}
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Add Storage</span>
-              <span className="sm:hidden">Add</span>
-            </Button>
-          </div>
-        </div>
+      {/* Action bar — route owns the editorial page header above */}
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          onClick={handleRefresh}
+          disabled={isRefetching}
+          variant="ghost-dark"
+          size="icon"
+          aria-label="Refresh"
+        >
+          <RefreshCw className={`size-4 ${isRefetching ? "animate-spin" : ""}`} />
+        </Button>
+        <Button variant="brand" size="lg" onClick={handleCreate} disabled={isDemo}>
+          <Plus className="size-4" />
+          <span className="hidden sm:inline">Add storage</span>
+          <span className="sm:hidden">Add</span>
+        </Button>
       </div>
 
       {/* Stats Grid */}
@@ -474,12 +450,12 @@ export function StorageList() {
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Active
             </span>
-            <Zap className="h-4 w-4 text-emerald-500" />
+            <Zap className="h-4 w-4 text-success" />
           </div>
           {isLoading ? (
             <Skeleton className="h-8 w-12" />
           ) : (
-            <p className="text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+            <p className="text-3xl font-bold tracking-tight text-success">
               {activeStorage}
             </p>
           )}
@@ -625,7 +601,7 @@ export function StorageList() {
             <AlertDialogDescription>
               Are you sure you want to delete "{storageToDelete?.name}"?
               {getLinkedDatabasesCount(storageToDelete?.id || "") > 0 && (
-                <span className="block mt-2 text-amber-600 dark:text-amber-400">
+                <span className="block mt-2 text-amber-400">
                   Warning: This storage is linked to{" "}
                   {getLinkedDatabasesCount(storageToDelete?.id || "")}{" "}
                   database(s). They will no longer have a backup destination.

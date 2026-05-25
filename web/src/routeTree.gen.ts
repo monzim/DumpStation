@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StorageRouteImport } from './routes/storage'
+import { Route as SituationRouteImport } from './routes/situation'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LoginRouteImport } from './routes/login'
@@ -31,6 +32,11 @@ import { Route as DbServersIdDatabasesDbnameTablesSchemaTableRouteImport } from 
 const StorageRoute = StorageRouteImport.update({
   id: '/storage',
   path: '/storage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SituationRoute = SituationRouteImport.update({
+  id: '/situation',
+  path: '/situation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
+  '/situation': typeof SituationRoute
   '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
+  '/situation': typeof SituationRoute
   '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
   '/dashboard': typeof DashboardIndexRoute
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
+  '/situation': typeof SituationRoute
   '/storage': typeof StorageRoute
   '/databases/$id': typeof DatabasesIdRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -193,6 +202,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/settings'
+    | '/situation'
     | '/storage'
     | '/databases/$id'
     | '/dashboard/'
@@ -212,6 +222,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/settings'
+    | '/situation'
     | '/storage'
     | '/databases/$id'
     | '/dashboard'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/notifications'
     | '/settings'
+    | '/situation'
     | '/storage'
     | '/databases/$id'
     | '/dashboard/'
@@ -253,6 +265,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
   SettingsRoute: typeof SettingsRoute
+  SituationRoute: typeof SituationRoute
   StorageRoute: typeof StorageRoute
   DatabasesIdRoute: typeof DatabasesIdRoute
   DatabasesIndexRoute: typeof DatabasesIndexRoute
@@ -271,6 +284,13 @@ declare module '@tanstack/react-router' {
       path: '/storage'
       fullPath: '/storage'
       preLoaderRoute: typeof StorageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/situation': {
+      id: '/situation'
+      path: '/situation'
+      fullPath: '/situation'
+      preLoaderRoute: typeof SituationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -416,6 +436,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
   SettingsRoute: SettingsRoute,
+  SituationRoute: SituationRoute,
   StorageRoute: StorageRoute,
   DatabasesIdRoute: DatabasesIdRoute,
   DatabasesIndexRoute: DatabasesIndexRoute,

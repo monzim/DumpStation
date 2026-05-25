@@ -1,84 +1,143 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+/*
+ * DumpStation — Saniti Design System
+ *
+ * Dark-only editorial system. There is no light/dark toggle: <html> always
+ * carries the `dark` class as a Tailwind selector reservoir. "Light" sections
+ * on marketing pages are section-scoped polarity flips (canvas-light surfaces),
+ * not a theme switch.
+ *
+ * Contrast guardrails on the dark canvas:
+ *   text-ash   (#b9b9b9) — AAA on canvas (~12.5:1). Default body text.
+ *   text-mute  (#797979) — AA only (~5.0:1). Reserve for mono-caps / meta
+ *                          fine-print only. Never primary body.
+ *   text-graphite (#353535) — text-forbidden on canvas. Surface/border only.
+ */
 
 :root {
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.15 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0 0);
-  /* Modern purple accent color */
-  --primary: oklch(0.55 0.22 275);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.96 0.01 275);
-  --secondary-foreground: oklch(0.15 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --accent: oklch(0.96 0.01 275);
-  --accent-foreground: oklch(0.15 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.93 0 0);
-  --input: oklch(0.93 0 0);
-  --ring: oklch(0.55 0.22 275);
-  --chart-1: oklch(0.55 0.22 275);
-  --chart-2: oklch(0.6 0.15 210);
-  --chart-3: oklch(0.65 0.2 150);
-  --chart-4: oklch(0.7 0.18 85);
-  --chart-5: oklch(0.6 0.2 340);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.99 0 0);
-  --sidebar-foreground: oklch(0.15 0 0);
-  --sidebar-primary: oklch(0.55 0.22 275);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.96 0.01 275);
-  --sidebar-accent-foreground: oklch(0.15 0 0);
-  --sidebar-border: oklch(0.93 0 0);
-  --sidebar-ring: oklch(0.55 0.22 275);
+  /* Saniti palette (hex from DESIGN.md). */
+  --canvas: #0b0b0b;
+  --canvas-soft: #212121;
+  --canvas-light: #ffffff;
+  --canvas-paper: #ededed;
+  --on-primary: #ffffff;
+  --ink: #0b0b0b;
+  --ink-soft: #212121;
+  --on-canvas-light: #0b0b0b;
+  --graphite: #353535;
+  --slate: #3c4758;
+  --slate-soft: #505b6c;
+  --mute: #797979;
+  --ash: #b9b9b9;
+  --hairline: #ededed;
+  --hairline-soft: #353535;
+  --brand: #f36458;
+  --brand-deep: #dd0000;
+  --link-blue: #0052ef;
+  --link-blue-soft: #55beff;
+  --surface-blue-bg: #afe3ff;
+  --success: #37cd84;
+  --error: #dd0000;
+
+  /* Shadcn legacy aliases — map onto Saniti so existing class strings
+     (bg-background, text-muted-foreground, border-border, etc.) silently
+     resolve to the new palette and don't have to be hand-rewritten. */
+  --background: var(--canvas);
+  --foreground: var(--on-primary);
+  --card: var(--canvas-soft);
+  --card-foreground: var(--on-primary);
+  --popover: var(--canvas-soft);
+  --popover-foreground: var(--on-primary);
+  --primary: var(--on-primary);
+  --primary-foreground: var(--ink);
+  --secondary: var(--canvas-soft);
+  --secondary-foreground: var(--ash);
+  --muted: var(--canvas-soft);
+  --muted-foreground: var(--ash);
+  --accent: var(--canvas-soft);
+  --accent-foreground: var(--on-primary);
+  --destructive: var(--brand-deep);
+  --destructive-foreground: var(--on-primary);
+  --border: var(--hairline-soft);
+  --input: var(--hairline-soft);
+  --ring: var(--link-blue-soft);
+  --chart-1: var(--brand);
+  --chart-2: var(--link-blue-soft);
+  --chart-3: var(--success);
+  --chart-4: var(--ash);
+  --chart-5: var(--mute);
+  --sidebar: var(--canvas);
+  --sidebar-foreground: var(--on-primary);
+  --sidebar-primary: var(--on-primary);
+  --sidebar-primary-foreground: var(--ink);
+  --sidebar-accent: var(--canvas-soft);
+  --sidebar-accent-foreground: var(--on-primary);
+  --sidebar-border: var(--hairline-soft);
+  --sidebar-ring: var(--link-blue-soft);
+
+  --radius: 6px;
 }
 
+/* Keep the .dark selector identical to :root so any leftover `dark:` class
+   strings still resolve to the same Saniti tokens during the transition. */
 .dark {
-  --background: oklch(0.12 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.16 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.16 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.65 0.22 275);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.22 0.01 275);
-  --secondary-foreground: oklch(0.97 0 0);
-  --muted: oklch(0.22 0 0);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(0.22 0.01 275);
-  --accent-foreground: oklch(0.97 0 0);
-  --destructive: oklch(0.55 0.25 27);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.22 0 0);
-  --input: oklch(0.22 0 0);
-  --ring: oklch(0.65 0.22 275);
-  --chart-1: oklch(0.65 0.22 275);
-  --chart-2: oklch(0.65 0.15 210);
-  --chart-3: oklch(0.7 0.2 150);
-  --chart-4: oklch(0.75 0.18 85);
-  --chart-5: oklch(0.65 0.2 340);
-  --sidebar: oklch(0.16 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary: oklch(0.65 0.22 275);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.22 0.01 275);
-  --sidebar-accent-foreground: oklch(0.97 0 0);
-  --sidebar-border: oklch(0.22 0 0);
-  --sidebar-ring: oklch(0.65 0.22 275);
+  --background: var(--canvas);
+  --foreground: var(--on-primary);
+  --card: var(--canvas-soft);
+  --card-foreground: var(--on-primary);
+  --popover: var(--canvas-soft);
+  --popover-foreground: var(--on-primary);
+  --primary: var(--on-primary);
+  --primary-foreground: var(--ink);
+  --secondary: var(--canvas-soft);
+  --secondary-foreground: var(--ash);
+  --muted: var(--canvas-soft);
+  --muted-foreground: var(--ash);
+  --accent: var(--canvas-soft);
+  --accent-foreground: var(--on-primary);
+  --destructive: var(--brand-deep);
+  --destructive-foreground: var(--on-primary);
+  --border: var(--hairline-soft);
+  --input: var(--hairline-soft);
+  --ring: var(--link-blue-soft);
+  --sidebar: var(--canvas);
+  --sidebar-foreground: var(--on-primary);
+  --sidebar-primary: var(--on-primary);
+  --sidebar-primary-foreground: var(--ink);
+  --sidebar-accent: var(--canvas-soft);
+  --sidebar-accent-foreground: var(--on-primary);
+  --sidebar-border: var(--hairline-soft);
+  --sidebar-ring: var(--link-blue-soft);
 }
 
 @theme inline {
-  /* Using Quicksand font */
-  --font-sans: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+  /* Saniti color utilities — produce bg-canvas, text-ash, border-hairline-soft, etc. */
+  --color-canvas: var(--canvas);
+  --color-canvas-soft: var(--canvas-soft);
+  --color-canvas-light: var(--canvas-light);
+  --color-canvas-paper: var(--canvas-paper);
+  --color-on-primary: var(--on-primary);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-on-canvas-light: var(--on-canvas-light);
+  --color-graphite: var(--graphite);
+  --color-slate: var(--slate);
+  --color-slate-soft: var(--slate-soft);
+  --color-mute: var(--mute);
+  --color-ash: var(--ash);
+  --color-hairline: var(--hairline);
+  --color-hairline-soft: var(--hairline-soft);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-link-blue: var(--link-blue);
+  --color-link-blue-soft: var(--link-blue-soft);
+  --color-surface-blue-bg: var(--surface-blue-bg);
+  --color-success: var(--success);
+  --color-error: var(--error);
+
+  /* Shadcn legacy color utilities (kept so existing classes compile). */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -103,10 +162,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -115,15 +170,246 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Radii — Saniti's two corner languages.
+     app-* (3-6px) → in-product Studio surfaces.
+     marketing (12px) → landing/auth marketing cards.
+     full → marketing CTAs and tag chips. */
+  --radius-none: 0px;
+  --radius-app-xs: 3px;
+  --radius-app-sm: 4px;
+  --radius-app-md: 5px;
+  --radius-app-lg: 6px;
+  --radius-marketing: 12px;
+  --radius-full: 99999px;
+
+  /* Legacy shadcn radii — point at app-* so generic rounded-sm/md/lg/xl
+     usage degrades to flat console radii instead of marketing 12px. */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+
+  /* Section rhythm tokens — produces py-section / py-section-lg utilities. */
+  --spacing-section: 64px;
+  --spacing-section-lg: 96px;
+
+  /* Fonts. Inter as the Waldenburg substitute per DESIGN.md note. */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-display: var(--font-sans);
+
+  /* Saniti responsive breakpoints — xxs/xxxs are custom additions. */
+  --breakpoint-xxxs: 376px;
+  --breakpoint-xxs: 480px;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+    background: var(--canvas);
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
+    background: var(--canvas);
+    color: var(--on-primary);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Inter's ss01 enables single-storey g/a — the closest match to
+       Waldenburg's cv01/ss07 alternates. */
+    font-feature-settings: 'ss01' on;
+  }
+
+  /* Respect reduced-motion across all primitive animations. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/*
+ * Saniti type utilities. Every display size carries Inter's compensated
+ * tracking (DESIGN.md says pull -0.5px tighter at display sizes). Body sizes
+ * use the spec's tracking unchanged. mono-* utilities switch to IBM Plex Mono.
+ */
+@layer utilities {
+  .text-display-mega {
+    font-family: var(--font-sans);
+    font-size: 112px;
+    font-weight: 400;
+    line-height: 1.0;
+    letter-spacing: -5.0px;
+  }
+  .text-display-xl {
+    font-family: var(--font-sans);
+    font-size: 72px;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -3.4px;
+  }
+  .text-display-lg {
+    font-family: var(--font-sans);
+    font-size: 60px;
+    font-weight: 400;
+    line-height: 0.92;
+    letter-spacing: -2.4px;
+  }
+  .text-display-md {
+    font-family: var(--font-sans);
+    font-size: 48px;
+    font-weight: 400;
+    line-height: 1.08;
+    letter-spacing: -2.2px;
+  }
+  .text-display-sm {
+    font-family: var(--font-sans);
+    font-size: 38px;
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -1.65px;
+  }
+  .text-heading-md {
+    font-family: var(--font-sans);
+    font-size: 32px;
+    font-weight: 500;
+    line-height: 1.13;
+    letter-spacing: -0.6px;
+  }
+  .text-heading-sm {
+    font-family: var(--font-sans);
+    font-size: 24px;
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -0.4px;
+  }
+  .text-subtitle {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: -0.18px;
+  }
+  .text-body {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0;
+  }
+  .text-body-sm {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: -0.15px;
+  }
+  .text-caption {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0;
+  }
+  .text-caption-tight {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: -0.13px;
+  }
+  .text-meta {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: -0.12px;
+  }
+  .text-mono-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+    font-feature-settings: 'ss01' off, 'liga' off;
+  }
+  .text-mono-caps {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+    font-feature-settings: 'ss01' off, 'liga' off;
+  }
+  .text-mono-micro {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.3;
+    letter-spacing: 0.04em;
+    font-feature-settings: 'ss01' off, 'liga' off;
+  }
+  .text-button-lg {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: 0;
+  }
+  .text-button-sm {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: -0.13px;
+  }
+  .text-button-uppercase {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
+/* Responsive scale-down at the Saniti xxs breakpoint (480px). The hero
+   display-mega drops to 64px, tracking relaxes to -2.0px per DESIGN.md. */
+@media (max-width: 480px) {
+  .text-display-mega {
+    font-size: 64px;
+    letter-spacing: -2.0px;
+  }
+  .text-display-xl {
+    font-size: 48px;
+    letter-spacing: -1.6px;
+  }
+  .text-display-lg {
+    font-size: 42px;
+    letter-spacing: -1.4px;
+  }
+  .text-display-md {
+    font-size: 34px;
+    letter-spacing: -1.2px;
+  }
+  .text-display-sm {
+    font-size: 28px;
+    letter-spacing: -0.9px;
+  }
+  .text-heading-md {
+    font-size: 24px;
+    letter-spacing: -0.4px;
   }
 }

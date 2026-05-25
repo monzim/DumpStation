@@ -1,5 +1,6 @@
 import { useAuth } from "@/components/auth-provider";
-import { DashboardNav } from "@/components/dashboard-nav";
+import { AppLayout } from "@/components/app-layout";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -137,29 +138,29 @@ const statusConfig: Record<
     label: "Success",
     variant: "default",
     icon: CheckCircle,
-    bgColor: "bg-emerald-500/10",
-    textColor: "text-emerald-500",
+    bgColor: "bg-canvas border border-hairline-soft",
+    textColor: "text-success",
   },
   failed: {
     label: "Failed",
     variant: "destructive",
     icon: XCircle,
-    bgColor: "bg-red-500/10",
-    textColor: "text-red-500",
+    bgColor: "bg-canvas border border-hairline-soft",
+    textColor: "text-error",
   },
   running: {
     label: "Running",
     variant: "secondary",
     icon: Loader2,
-    bgColor: "bg-blue-500/10",
-    textColor: "text-blue-500",
+    bgColor: "bg-canvas border border-hairline-soft",
+    textColor: "text-link-blue-soft",
   },
   pending: {
     label: "Pending",
     variant: "outline",
     icon: Clock,
-    bgColor: "bg-amber-500/10",
-    textColor: "text-amber-500",
+    bgColor: "bg-canvas border border-hairline-soft",
+    textColor: "text-amber-400",
   },
 };
 
@@ -284,34 +285,18 @@ function RouteComponent() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    toast.info("Logged out successfully");
-  };
-
   const handleRefresh = () => {
     refetchDatabase();
     refetchBackups();
     toast.success("Data refreshed");
   };
 
-  const handleTabChange = (_tab: string) => {
-    // Navigation is handled by DashboardNav
-  };
-
   // Loading skeleton
   if (isDatabaseLoading) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20">
-        <Header
-          currentTab={currentTab}
-          onTabChange={handleTabChange}
-          onRefresh={handleRefresh}
-          onLogout={handleLogout}
-        />
-        <main className="container mx-auto px-4 py-6 lg:py-8 max-w-7xl">
-          <div className="space-y-6">
-            {/* Header skeleton */}
+      <AppLayout>
+        <div className="space-y-6">
+          {/* Header skeleton */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-center gap-4">
                 <Skeleton className="h-10 w-10 rounded-lg" />
@@ -336,47 +321,37 @@ function RouteComponent() {
             {/* Content skeleton */}
             <div className="grid gap-6 lg:grid-cols-3">
               <div className="lg:col-span-2 space-y-6">
-                <Skeleton className="h-80 rounded-xl" />
-                <Skeleton className="h-96 rounded-xl" />
+                <Skeleton className="h-80 rounded-app-lg" />
+                <Skeleton className="h-96 rounded-app-lg" />
               </div>
               <div className="space-y-6">
-                <Skeleton className="h-48 rounded-xl" />
-                <Skeleton className="h-48 rounded-xl" />
+                <Skeleton className="h-48 rounded-app-lg" />
+                <Skeleton className="h-48 rounded-app-lg" />
               </div>
             </div>
-          </div>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     );
   }
 
   // Not found state
   if (!database) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20">
-        <Header
-          currentTab={currentTab}
-          onTabChange={handleTabChange}
-          onRefresh={handleRefresh}
-          onLogout={handleLogout}
-        />
-        <main className="container mx-auto px-4 py-6 lg:py-8 max-w-7xl">
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="rounded-full bg-muted p-6 mb-6">
-              <Database className="h-12 w-12 text-muted-foreground" />
-            </div>
-            <h3 className="text-2xl font-semibold mb-2">Database Not Found</h3>
-            <p className="text-muted-foreground text-center mb-6 max-w-md">
-              The database configuration you're looking for doesn't exist or may
-              have been deleted.
-            </p>
-            <Button onClick={() => navigator({ to: "/databases" })} size="lg">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Databases
-            </Button>
-          </div>
-        </main>
-      </div>
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+          <Database className="h-12 w-12 text-ash mx-auto" />
+          <Eyebrow>Not found</Eyebrow>
+          <h3 className="text-heading-md text-on-primary">Database not found</h3>
+          <p className="text-body text-ash max-w-md">
+            The database configuration you're looking for doesn't exist or may
+            have been deleted.
+          </p>
+          <Button onClick={() => navigator({ to: "/databases" })} variant="secondary-dark" size="lg">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Databases
+          </Button>
+        </div>
+      </AppLayout>
     );
   }
 
@@ -391,15 +366,7 @@ function RouteComponent() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20">
-      <Header
-        currentTab={currentTab}
-        onTabChange={handleTabChange}
-        onRefresh={handleRefresh}
-        onLogout={handleLogout}
-      />
-
-      <main className="container mx-auto px-4 py-6 lg:py-8 max-w-7xl">
+    <AppLayout>
         <div className="space-y-6">
           {/* Page Header */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -420,24 +387,18 @@ function RouteComponent() {
                   </h1>
                   <div className="flex items-center gap-2">
                     {database.paused ? (
-                      <Badge
-                        variant="secondary"
-                        className="bg-amber-500/10 text-amber-600 border-amber-500/20"
-                      >
+                      <Badge variant="warning">
                         <PauseCircle className="h-3 w-3 mr-1" />
                         Paused
                       </Badge>
                     ) : (
-                      <Badge
-                        variant="default"
-                        className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                      >
+                      <Badge variant="success">
                         <Zap className="h-3 w-3 mr-1" />
                         Active
                       </Badge>
                     )}
                     {database.enabled && (
-                      <Badge variant="outline" className="hidden sm:flex">
+                      <Badge variant="mono" className="hidden sm:flex">
                         <Shield className="h-3 w-3 mr-1" />
                         Enabled
                       </Badge>
@@ -490,7 +451,7 @@ function RouteComponent() {
                 Backup Now
               </Button>
               <Button
-                variant="default"
+                variant="brand"
                 size="sm"
                 onClick={handleOpenEditDialog}
                 className="flex-1 sm:flex-none"
@@ -508,32 +469,32 @@ function RouteComponent() {
               label="Total Backups"
               value={backups?.length || 0}
               subtext="All time"
-              iconColor="text-blue-500"
-              iconBg="bg-blue-500/10"
+              iconColor="text-link-blue-soft"
+              iconBg="bg-canvas border border-hairline-soft"
             />
             <StatsCard
               icon={CheckCircle}
               label="Success Rate"
               value={`${successRate}%`}
               subtext={`${successCount} successful`}
-              iconColor="text-emerald-500"
-              iconBg="bg-emerald-500/10"
+              iconColor="text-success"
+              iconBg="bg-canvas border border-hairline-soft"
             />
             <StatsCard
               icon={XCircle}
               label="Failed"
               value={failedCount}
               subtext="Requires attention"
-              iconColor="text-red-500"
-              iconBg="bg-red-500/10"
+              iconColor="text-error"
+              iconBg="bg-canvas border border-hairline-soft"
             />
             <StatsCard
               icon={HardDrive}
               label="Storage Used"
               value={formatBytes(totalSize)}
               subtext="Total backup size"
-              iconColor="text-purple-500"
-              iconBg="bg-purple-500/10"
+              iconColor="text-ash"
+              iconBg="bg-canvas border border-hairline-soft"
             />
           </div>
 
@@ -543,11 +504,11 @@ function RouteComponent() {
             <div className="lg:col-span-2 space-y-6">
               {/* Configuration Card */}
               <Card className="pt-0">
-                <CardHeader className="bg-linear-to-r from-primary/5 to-transparent py-4 rounded-t-xl">
+                <CardHeader className="py-4 border-b border-hairline-soft">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <Server className="h-5 w-5 text-primary" />
+                      <div className="p-2 rounded-app-sm bg-canvas border border-hairline-soft">
+                        <Server className="h-5 w-5 text-on-primary" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">
@@ -647,11 +608,11 @@ function RouteComponent() {
 
               {/* Backup History */}
               <Card className="pt-0">
-                <CardHeader className="bg-linear-to-r from-primary/5 to-transparent py-4 rounded-t-xl">
+                <CardHeader className="py-4 border-b border-hairline-soft">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <Activity className="h-5 w-5 text-primary" />
+                      <div className="p-2 rounded-app-sm bg-canvas border border-hairline-soft">
+                        <Activity className="h-5 w-5 text-on-primary" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">
@@ -781,8 +742,8 @@ function RouteComponent() {
               <Card className="pt-0">
                 <CardHeader className="bg-linear-to-r from-purple-500/5 to-transparent  py-4 rounded-t-xl">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-purple-500/10">
-                      <HardDrive className="h-5 w-5 text-purple-500" />
+                    <div className="p-2 rounded-app-sm bg-canvas border border-hairline-soft">
+                      <HardDrive className="h-5 w-5 text-ash" />
                     </div>
                     <div>
                       <CardTitle className="text-base">Storage</CardTitle>
@@ -839,8 +800,8 @@ function RouteComponent() {
               <Card className="pt-0">
                 <CardHeader className="bg-linear-to-r from-amber-500/5 to-transparent py-4 rounded-t-xl">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-amber-500/10">
-                      <Bell className="h-5 w-5 text-amber-500" />
+                    <div className="p-2 rounded-app-sm bg-canvas border border-hairline-soft">
+                      <Bell className="h-5 w-5 text-amber-400" />
                     </div>
                     <div>
                       <CardTitle className="text-base">Notifications</CardTitle>
@@ -906,8 +867,6 @@ function RouteComponent() {
             </div>
           </div>
         </div>
-      </main>
-
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1134,50 +1093,7 @@ function RouteComponent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// Header Component
-function Header({
-  currentTab,
-  onTabChange,
-  onRefresh,
-  onLogout,
-}: {
-  currentTab: string;
-  onTabChange: (tab: string) => void;
-  onRefresh: () => void;
-  onLogout: () => void;
-}) {
-  return (
-    <header className="border-b bg-background/80 backdrop-blur-lg sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-3 max-w-7xl">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-linear-to-br from-primary to-primary/80 text-primary-foreground p-2 rounded-xl shadow-lg shadow-primary/20">
-              <Database className="h-5 w-5 sm:h-6 sm:w-6" />
-            </div>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-bold bg-linear-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                DumpStation
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                PostgreSQL Backup Service
-              </p>
-            </div>
-          </div>
-
-          <DashboardNav
-            currentTab={currentTab}
-            onTabChange={onTabChange}
-            onRefresh={onRefresh}
-            onLogout={onLogout}
-            isRefreshing={false}
-          />
-        </div>
-      </div>
-    </header>
+    </AppLayout>
   );
 }
 
@@ -1246,7 +1162,7 @@ function InfoField({
             onClick={onCopy}
           >
             {isCopied ? (
-              <Check className="h-3 w-3 text-emerald-500" />
+              <Check className="h-3 w-3 text-success" />
             ) : (
               <Copy className="h-3 w-3" />
             )}

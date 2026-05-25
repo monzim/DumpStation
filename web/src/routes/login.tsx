@@ -1,7 +1,10 @@
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { Wordmark } from "@/components/ui/wordmark";
 import {
   startGitHubLogin,
   useAuthConfig,
@@ -14,15 +17,11 @@ import { apiClient } from "@/lib/api/client";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
-  Database,
   Github,
-  KeyRound,
   Loader2,
   MessageCircle,
   Play,
   Shield,
-  Smartphone,
-  User,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -38,66 +37,47 @@ export const Route = createFileRoute("/login")({
         content:
           "Sign in to DumpStation to manage your PostgreSQL database backups. Secure Discord-based OTP authentication.",
       },
-      {
-        name: "robots",
-        content: "noindex, nofollow",
-      },
-      // Open Graph
-      {
-        property: "og:title",
-        content: "Sign In - DumpStation",
-      },
+      { name: "robots", content: "noindex, nofollow" },
+      { property: "og:title", content: "Sign In - DumpStation" },
       {
         property: "og:description",
-        content:
-          "Access your DumpStation dashboard to manage PostgreSQL backups.",
+        content: "Access your DumpStation dashboard to manage PostgreSQL backups.",
       },
       {
         property: "og:url",
         content: "https://dumpstation.monzim.com/login",
       },
-      // Twitter Card
-      {
-        name: "twitter:title",
-        content: "Sign In - DumpStation",
-      },
+      { name: "twitter:title", content: "Sign In - DumpStation" },
       {
         name: "twitter:description",
-        content:
-          "Access your DumpStation dashboard to manage PostgreSQL backups.",
+        content: "Access your DumpStation dashboard to manage PostgreSQL backups.",
       },
     ],
     links: [
-      {
-        rel: "canonical",
-        href: "https://dumpstation.monzim.com/login",
-      },
+      { rel: "canonical", href: "https://dumpstation.monzim.com/login" },
     ],
   }),
 });
 
 type LoginStep = "login" | "verify" | "2fa";
 
-// Runtime configuration helper
-// Priority: window.APP_CONFIG (runtime) → import.meta.env (build-time) → fallback
+// Runtime configuration helper — runtime APP_CONFIG (Docker) takes
+// precedence over build-time env (Cloudflare).
 const getConfig = (
   key: string,
   envValue: string | undefined,
-  fallback: string
+  fallback: string,
 ): string => {
-  // Check runtime config first (Docker)
   if (typeof window !== "undefined" && (window as any).APP_CONFIG?.[key]) {
     return (window as any).APP_CONFIG[key];
   }
-  // Fall back to build-time env (Cloudflare) or default
   return envValue || fallback;
 };
 
-// Get Turnstile site key from runtime config or environment variable
 const TURNSTILE_SITE_KEY = getConfig(
   "TURNSTILE_SITE_KEY",
   import.meta.env.VITE_TURNSTILE_SITE_KEY,
-  ""
+  "",
 );
 const TURNSTILE_ENABLED = TURNSTILE_SITE_KEY !== "";
 
@@ -116,8 +96,6 @@ function LoginPage() {
   const authConfig = useAuthConfig();
 
   // GitHub OAuth callback bounces failures back here with ?github_error=...
-  // Surface a readable message and strip the query string so a refresh
-  // doesn't re-trigger the toast.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -137,7 +115,9 @@ function LoginPage() {
       description: human[err] ?? err,
     });
     params.delete("github_error");
-    const next = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+    const next =
+      window.location.pathname +
+      (params.toString() ? "?" + params.toString() : "");
     window.history.replaceState({}, "", next);
   }, []);
 
@@ -151,7 +131,6 @@ function LoginPage() {
       return;
     }
 
-    // Check Turnstile verification if enabled
     if (TURNSTILE_ENABLED && !turnstileToken) {
       toast.error("Security verification required", {
         description: "Please complete the security challenge",
@@ -164,48 +143,39 @@ function LoginPage() {
         username: username.trim(),
         turnstile_token: turnstileToken || undefined,
       });
-      toast.success("OTP sent successfully", {
-        description: "Check your Discord for the verification code.",
+      toast.success("OTP sent", {
+        description: "Check Discord for the 6-digit code.",
       });
       setStep("verify");
     } catch {
       // Auth endpoints intentionally use a single generic message: echoing
-      // the API error (e.g. "user not found" vs "invalid credentials")
-      // would let an attacker enumerate valid usernames or differentiate
-      // rate-limit responses from credential errors.
+      // the API error would let an attacker enumerate valid usernames.
       toast.error("Login failed", {
         description: "Unable to start login. Check your details and try again.",
       });
-      // Reset Turnstile on error
       setTurnstileToken("");
     }
   };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       const response = await verifyMutation.mutateAsync({
         username: username.trim(),
         otp,
       });
-
-      // Check if 2FA is required
       if (response.requires_2fa) {
-        setOtp(""); // Clear OTP field
+        setOtp("");
         setStep("2fa");
-        toast.info("Two-factor authentication required", {
-          description: "Please enter your authenticator code.",
+        toast.info("Two-factor required", {
+          description: "Enter your authenticator code.",
         });
       } else {
-        toast.success("Login successful", {
-          description: "Welcome to the PostgreSQL Backup Service.",
-        });
+        toast.success("Signed in");
         setIsAuthenticated(true);
         navigate({ to: "/dashboard" });
       }
     } catch {
-      // Generic message — see handleLogin for rationale.
       toast.error("Verification failed", {
         description: "Invalid or expired code. Please try again.",
       });
@@ -214,17 +184,13 @@ function LoginPage() {
 
   const handleVerify2FA = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       await verify2FAMutation.mutateAsync({ code: twoFactorCode });
-      toast.success("Login successful", {
-        description: "Welcome to the PostgreSQL Backup Service.",
-      });
+      toast.success("Signed in");
       setIsAuthenticated(true);
       navigate({ to: "/dashboard" });
     } catch {
-      // Generic message — see handleLogin for rationale.
-      toast.error("2FA verification failed", {
+      toast.error("2FA failed", {
         description: "Invalid code. Please try again.",
       });
       setTwoFactorCode("");
@@ -247,9 +213,7 @@ function LoginPage() {
         username: username.trim(),
         turnstile_token: turnstileToken || undefined,
       });
-      toast.success("OTP resent", {
-        description: "Check your Discord for the new verification code.",
-      });
+      toast.success("OTP resent");
     } catch (error: unknown) {
       const apiError = error as { message?: string };
       toast.error("Failed to resend OTP", {
@@ -261,8 +225,8 @@ function LoginPage() {
   const handleDemoLogin = async () => {
     try {
       const response = await demoLoginMutation.mutateAsync();
-      toast.success("Demo login successful", {
-        description: response.message || "Welcome to the demo!",
+      toast.success("Demo workspace ready", {
+        description: response.message || "Read-only access enabled.",
       });
       setIsAuthenticated(true);
       setIsDemo(true);
@@ -276,436 +240,318 @@ function LoginPage() {
     }
   };
 
+  const eyebrowLabel =
+    step === "login"
+      ? "Authentication"
+      : step === "verify"
+        ? "OTP Verification"
+        : "Two-Factor Authentication";
+
+  const titleText =
+    step === "login"
+      ? "Sign in to DumpStation."
+      : step === "verify"
+        ? "Enter your code."
+        : "Two-factor authentication.";
+
+  const subtitleText =
+    step === "login"
+      ? "Use your Discord username or email. We'll send a 6-digit code."
+      : step === "verify"
+        ? "We've sent a 6-digit code to your Discord."
+        : "Enter the code from your authenticator app, or a backup code.";
+
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Left Panel - Branding (hidden on mobile, visible on lg+) */}
-      <div className="hidden lg:flex lg:w-1/2 xl:w-2/5 bg-linear-to-br from-primary via-primary/90 to-primary/80 relative overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-white rounded-full blur-3xl" />
-        </div>
-
-        <div className="relative z-10 flex flex-col justify-between p-12 text-primary-foreground w-full">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl group-hover:bg-white/30 transition-colors">
-              <Database className="h-7 w-7" />
-            </div>
-            <span className="text-2xl font-bold">DumpStation</span>
-          </Link>
-
-          {/* Hero Content */}
-          <div className="space-y-8">
-            <div className="space-y-4">
-              <h1 className="text-4xl xl:text-5xl font-bold leading-tight">
-                Secure PostgreSQL Backup Management
-              </h1>
-              <p className="text-lg text-primary-foreground/80 leading-relaxed max-w-md">
-                Automate your database backups with cloud storage, smart
-                scheduling, and real-time notifications.
-              </p>
-            </div>
-
-            {/* Features */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center">
-                  <Shield className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="font-medium">Enterprise Security</p>
-                  <p className="text-sm text-primary-foreground/70">
-                    JWT authentication & encrypted backups
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center">
-                  <MessageCircle className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="font-medium">Discord Integration</p>
-                  <p className="text-sm text-primary-foreground/70">
-                    OTP verification & instant alerts
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <p className="text-sm text-primary-foreground/60">
-            © {new Date().getFullYear()} monzim.com. All rights reserved.
-          </p>
-        </div>
-      </div>
-
-      {/* Right Panel - Login Form */}
-      <div className="flex-1 flex flex-col min-h-screen bg-background">
-        {/* Mobile Header */}
-        <header className="lg:hidden border-b bg-background/80 backdrop-blur-md sticky top-0 z-50">
-          <div className="flex items-center justify-between px-4 py-4">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="bg-primary text-primary-foreground p-2 rounded-xl">
-                <Database className="h-5 w-5" />
-              </div>
-              <span className="font-bold text-lg bg-linear-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                DumpStation
-              </span>
+    <div className="min-h-screen bg-canvas text-on-primary flex flex-col">
+      <header className="bg-canvas">
+        <div className="container mx-auto max-w-[1640px] px-6 lg:px-12 h-16 flex items-center justify-between">
+          <Wordmark size="md" to="/" />
+          <Button variant="ghost-dark" asChild>
+            <Link to="/">
+              <ArrowLeft className="size-4" />
+              Back home
             </Link>
+          </Button>
+        </div>
+      </header>
+
+      <main className="flex-1 flex items-center justify-center px-6 py-16">
+        <div className="w-full max-w-md space-y-10">
+          <div className="space-y-4">
+            <Eyebrow>{eyebrowLabel}</Eyebrow>
+            <h1 className="text-display-sm text-on-primary">{titleText}</h1>
+            <p className="text-subtitle text-ash">{subtitleText}</p>
           </div>
-        </header>
 
-        {/* Form Container */}
-        <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-12">
-          <div className="w-full max-w-sm space-y-8">
-            {/* Form Header */}
-            <div className="text-center space-y-2">
-              <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-4">
-                {step === "login" ? (
-                  <User className="h-8 w-8 text-primary" />
-                ) : step === "verify" ? (
-                  <KeyRound className="h-8 w-8 text-primary" />
-                ) : (
-                  <Smartphone className="h-8 w-8 text-primary" />
-                )}
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                {step === "login"
-                  ? "Welcome back"
-                  : step === "verify"
-                    ? "Enter verification code"
-                    : "Two-factor authentication"}
-              </h2>
-              <p className="text-muted-foreground">
-                {step === "login"
-                  ? "Enter your username or email to sign in"
-                  : step === "verify"
-                    ? "We've sent a code to your Discord"
-                    : "Enter the code from your authenticator app"}
-              </p>
-            </div>
+          {step === "login" && (
+            <form onSubmit={handleLogin} className="space-y-6">
+              {authConfig.data?.github_enabled && (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary-dark"
+                    size="lg"
+                    onClick={() => startGitHubLogin()}
+                    className="w-full"
+                  >
+                    <Github className="size-4" />
+                    Continue with GitHub
+                  </Button>
+                  <MonoDivider label="Or with Discord" />
+                </>
+              )}
 
-            {/* Login Step */}
-            {step === "login" ? (
-              <form onSubmit={handleLogin} className="space-y-6">
-                {authConfig.data?.github_enabled && (
-                  <>
-                    <Button
-                      type="button"
-                      onClick={() => startGitHubLogin()}
-                      className="w-full h-12 text-base bg-black text-white hover:bg-zinc-900"
-                      size="lg"
-                    >
-                      <Github className="mr-2 h-5 w-5" />
-                      Sign in with GitHub
-                    </Button>
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">
-                          Or with Discord
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="space-y-3">
-                  <Label htmlFor="username" className="text-sm font-medium">
-                    Username or Email
-                  </Label>
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder="Enter your username or email"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    disabled={
-                      loginMutation.isPending || demoLoginMutation.isPending
-                    }
-                    required
-                    autoFocus
-                    autoComplete="username"
-                    className="h-12"
-                  />
-                </div>
-
-                {/* Cloudflare Turnstile Widget */}
-                {TURNSTILE_ENABLED && (
-                  <div className="flex justify-center">
-                    <Turnstile
-                      siteKey={TURNSTILE_SITE_KEY}
-                      onSuccess={(token) => setTurnstileToken(token)}
-                      onError={() => {
-                        setTurnstileToken("");
-                        toast.error("Security verification failed", {
-                          description: "Please try again",
-                        });
-                      }}
-                      onExpire={() => {
-                        setTurnstileToken("");
-                        toast.warning("Security verification expired", {
-                          description: "Please verify again",
-                        });
-                      }}
-                      options={{
-                        theme: "auto",
-                        size: "normal",
-                      }}
-                    />
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  disabled={
-                    loginMutation.isPending ||
-                    demoLoginMutation.isPending ||
-                    !username.trim() ||
-                    (TURNSTILE_ENABLED && !turnstileToken)
-                  }
-                  className="w-full h-12 text-base"
-                  size="lg"
-                >
-                  {loginMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Sending OTP...
-                    </>
-                  ) : (
-                    <>
-                      <MessageCircle className="mr-2 h-5 w-5" />
-                      Continue with Discord
-                    </>
-                  )}
-                </Button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Or try it out
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleDemoLogin}
+              <div className="space-y-2">
+                <Label htmlFor="username">Username or email</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="discord-handle or email"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   disabled={
                     loginMutation.isPending || demoLoginMutation.isPending
                   }
-                  className="w-full h-12 text-base border-primary/20 hover:bg-primary/5"
-                  size="lg"
-                >
-                  {demoLoginMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Loading demo...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-5 w-5" />
-                      Try Demo Account
-                    </>
-                  )}
-                </Button>
+                  required
+                  autoFocus
+                  autoComplete="username"
+                />
+              </div>
 
-                <p className="text-center text-sm text-muted-foreground">
-                  Demo account has read-only access to explore the system.
-                </p>
-              </form>
-            ) : step === "verify" ? (
-              /* Verify Step */
-              <form onSubmit={handleVerify} className="space-y-6">
-                <div className="space-y-3">
-                  <Label htmlFor="otp" className="text-sm font-medium">
-                    Verification Code
-                  </Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="000000"
-                    value={otp}
-                    onChange={(e) =>
-                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    disabled={verifyMutation.isPending}
-                    maxLength={6}
-                    required
-                    autoFocus
-                    className="h-14 text-center text-2xl font-mono tracking-[0.5em] placeholder:tracking-[0.5em]"
+              {TURNSTILE_ENABLED && (
+                <div className="flex justify-center">
+                  <Turnstile
+                    siteKey={TURNSTILE_SITE_KEY}
+                    onSuccess={(token) => setTurnstileToken(token)}
+                    onError={() => {
+                      setTurnstileToken("");
+                      toast.error("Security verification failed");
+                    }}
+                    onExpire={() => {
+                      setTurnstileToken("");
+                      toast.warning("Security verification expired");
+                    }}
+                    options={{ theme: "dark", size: "normal" }}
                   />
-                  <p className="text-xs text-muted-foreground text-center">
-                    Enter the 6-digit code from Discord
-                  </p>
                 </div>
+              )}
 
-                <div className="space-y-3">
-                  <Button
-                    type="submit"
-                    className="w-full h-12 text-base"
-                    size="lg"
-                    disabled={verifyMutation.isPending || otp.length !== 6}
-                  >
-                    {verifyMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Verifying...
-                      </>
-                    ) : (
-                      "Verify & Continue"
-                    )}
-                  </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className="w-full"
+                disabled={
+                  loginMutation.isPending ||
+                  demoLoginMutation.isPending ||
+                  !username.trim() ||
+                  (TURNSTILE_ENABLED && !turnstileToken)
+                }
+              >
+                {loginMutation.isPending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Sending OTP…
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="size-4" />
+                    Continue with Discord
+                  </>
+                )}
+              </Button>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleBack}
-                    disabled={verifyMutation.isPending}
-                    className="w-full"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to login
-                  </Button>
-                </div>
+              <MonoDivider label="Or just look around" />
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">
-                      Didn't receive it?
-                    </span>
-                  </div>
-                </div>
+              <Button
+                type="button"
+                variant="ghost-dark"
+                size="lg"
+                onClick={handleDemoLogin}
+                disabled={
+                  loginMutation.isPending || demoLoginMutation.isPending
+                }
+                className="w-full"
+              >
+                {demoLoginMutation.isPending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Loading demo…
+                  </>
+                ) : (
+                  <>
+                    <Play className="size-4" />
+                    Try the demo workspace
+                  </>
+                )}
+              </Button>
 
+              <p className="text-caption text-mute text-center">
+                Demo accounts have read-only access to a sample workspace.
+              </p>
+            </form>
+          )}
+
+          {step === "verify" && (
+            <form onSubmit={handleVerify} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="otp">6-digit code</Label>
+                <Input
+                  id="otp"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000000"
+                  value={otp}
+                  onChange={(e) =>
+                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  disabled={verifyMutation.isPending}
+                  maxLength={6}
+                  required
+                  autoFocus
+                  className="h-14 text-center font-mono text-heading-md tracking-[0.4em] placeholder:tracking-[0.4em] placeholder:text-mute"
+                />
+                <p className="text-caption text-mute text-center">
+                  Posted to your Discord just now.
+                </p>
+              </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className="w-full"
+                disabled={verifyMutation.isPending || otp.length !== 6}
+              >
+                {verifyMutation.isPending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Verifying…
+                  </>
+                ) : (
+                  "Verify and continue"
+                )}
+              </Button>
+
+              <div className="flex items-center justify-between">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost-dark"
+                  onClick={handleBack}
+                  disabled={verifyMutation.isPending}
+                >
+                  <ArrowLeft className="size-4" />
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost-dark"
                   onClick={handleResendOTP}
                   disabled={loginMutation.isPending}
-                  className="w-full"
                 >
-                  {loginMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Resending...
-                    </>
-                  ) : (
-                    "Resend code"
-                  )}
+                  {loginMutation.isPending ? "Resending…" : "Resend code"}
                 </Button>
-              </form>
-            ) : (
-              /* 2FA Step */
-              <form onSubmit={handleVerify2FA} className="space-y-6">
-                <div className="space-y-3">
-                  <Label htmlFor="2fa-code" className="text-sm font-medium">
-                    Authenticator Code
-                  </Label>
-                  <Input
-                    id="2fa-code"
-                    type="text"
-                    placeholder="00000000 or XXXX-XXXX-XXXX"
-                    value={twoFactorCode}
-                    onChange={(e) => {
-                      // Allow digits for TOTP or alphanumeric with dashes for backup codes
-                      const value = e.target.value.toUpperCase();
-                      // Remove any character that's not alphanumeric or dash
-                      const cleaned = value.replace(/[^A-Z0-9-]/g, "");
-                      setTwoFactorCode(cleaned.slice(0, 14));
-                    }}
-                    disabled={verify2FAMutation.isPending}
-                    maxLength={14}
-                    required
-                    autoFocus
-                    className="h-14 text-center text-xl font-mono tracking-widest placeholder:tracking-normal placeholder:text-base"
-                  />
-                  <p className="text-xs text-muted-foreground text-center">
-                    Enter your 8-digit TOTP code or backup code (XXXX-XXXX-XXXX)
-                  </p>
-                </div>
+              </div>
+            </form>
+          )}
 
-                <div className="p-4 rounded-lg bg-muted/50 border border-border/50">
-                  <div className="flex gap-3">
-                    <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">
-                        Using a backup code?
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Enter one of your backup codes (e.g., 7DOK-EE4H-P54Q) if
-                        you've lost access to your authenticator.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+          {step === "2fa" && (
+            <form onSubmit={handleVerify2FA} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="2fa-code">Authenticator code</Label>
+                <Input
+                  id="2fa-code"
+                  type="text"
+                  placeholder="00000000"
+                  value={twoFactorCode}
+                  onChange={(e) => {
+                    const value = e.target.value.toUpperCase();
+                    const cleaned = value.replace(/[^A-Z0-9-]/g, "");
+                    setTwoFactorCode(cleaned.slice(0, 14));
+                  }}
+                  disabled={verify2FAMutation.isPending}
+                  maxLength={14}
+                  required
+                  autoFocus
+                  className="h-14 text-center font-mono text-heading-sm tracking-[0.2em] placeholder:tracking-[0.2em] placeholder:text-mute"
+                />
+              </div>
 
-                <div className="space-y-3">
-                  <Button
-                    type="submit"
-                    className="w-full h-12 text-base"
-                    size="lg"
-                    disabled={
-                      verify2FAMutation.isPending || twoFactorCode.length < 8
-                    }
-                  >
-                    {verify2FAMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Verifying...
-                      </>
-                    ) : (
-                      "Verify & Sign In"
-                    )}
-                  </Button>
+              <AlertBanner
+                tone="info"
+                icon={<Shield className="size-4" />}
+                title="Lost your authenticator?"
+              >
+                Enter one of your backup codes (e.g., 7DOK-EE4H-P54Q) instead.
+              </AlertBanner>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleBack}
-                    disabled={verify2FAMutation.isPending}
-                    className="w-full"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to OTP verification
-                  </Button>
-                </div>
-              </form>
-            )}
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className="w-full"
+                disabled={
+                  verify2FAMutation.isPending || twoFactorCode.length < 8
+                }
+              >
+                {verify2FAMutation.isPending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Verifying…
+                  </>
+                ) : (
+                  "Verify and sign in"
+                )}
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost-dark"
+                onClick={handleBack}
+                disabled={verify2FAMutation.isPending}
+                className="w-full"
+              >
+                <ArrowLeft className="size-4" />
+                Back to OTP
+              </Button>
+            </form>
+          )}
+        </div>
+      </main>
+
+      <footer className="bg-canvas border-t border-hairline-soft">
+        <div className="container mx-auto max-w-[1640px] px-6 lg:px-12 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <p className="text-mono-caps text-mute uppercase">
+            DumpStation · PostgreSQL backup service
+          </p>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/"
+              className="text-mono-eyebrow text-ash uppercase hover:text-on-primary transition-colors"
+            >
+              Home
+            </Link>
+            <a
+              href="https://github.com/monzim/DumpStation"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-mono-eyebrow text-ash uppercase hover:text-on-primary transition-colors"
+            >
+              GitHub
+            </a>
           </div>
         </div>
+      </footer>
+    </div>
+  );
+}
 
-        {/* Desktop Footer */}
-        <footer className="hidden lg:block border-t py-6 px-12">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <p>PostgreSQL Backup Service</p>
-            <div className="flex items-center gap-4">
-              <Link to="/" className="hover:text-foreground transition-colors">
-                Home
-              </Link>
-              <a
-                href="https://github.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
-              >
-                GitHub
-              </a>
-            </div>
-          </div>
-        </footer>
-      </div>
+function MonoDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-px flex-1 bg-hairline-soft" />
+      <span className="text-mono-caps text-mute uppercase">{label}</span>
+      <div className="h-px flex-1 bg-hairline-soft" />
     </div>
   );
 }

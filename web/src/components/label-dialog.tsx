@@ -138,7 +138,7 @@ export function LabelDialog({ open, onOpenChange, label }: LabelDialogProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <LabelComponent htmlFor="name">
-              Name <span className="text-red-500">*</span>
+              Name <span className="text-error">*</span>
             </LabelComponent>
             <Input
               id="name"
@@ -152,13 +152,13 @@ export function LabelDialog({ open, onOpenChange, label }: LabelDialogProps) {
               placeholder="Production"
             />
             {errors.name && (
-              <p className="text-sm text-red-500">{errors.name.message}</p>
+              <p className="text-sm text-error">{errors.name.message}</p>
             )}
           </div>
 
           <div className="space-y-2">
             <LabelComponent>
-              Color <span className="text-red-500">*</span>
+              Color <span className="text-error">*</span>
             </LabelComponent>
             <div className="flex flex-wrap gap-2">
               {PRESET_COLORS.map((color) => (
@@ -168,7 +168,7 @@ export function LabelDialog({ open, onOpenChange, label }: LabelDialogProps) {
                   onClick={() => setSelectedColor(color)}
                   className={`h-8 w-8 rounded-md border-2 transition-all hover:scale-110 ${
                     selectedColor === color
-                      ? "border-gray-900 dark:border-gray-100 ring-2 ring-offset-2"
+                      ? "border-gray-900 ring-2 ring-offset-2"
                       : "border-transparent"
                   }`}
                   style={{ backgroundColor: color }}
@@ -209,15 +209,15 @@ export function LabelDialog({ open, onOpenChange, label }: LabelDialogProps) {
               rows={3}
             />
             {errors.description && (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-error">
                 {errors.description.message}
               </p>
             )}
           </div>
 
           {/* Preview */}
-          <div className="rounded-md border border-gray-200 dark:border-gray-700 p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+          <div className="rounded-md border border-gray-200 p-4">
+            <p className="text-sm text-gray-600 mb-2">
               Preview:
             </p>
             <div className="flex items-center gap-2">

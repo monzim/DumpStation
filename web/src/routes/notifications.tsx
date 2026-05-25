@@ -123,7 +123,7 @@ function NotificationCard({
       {/* Active indicator line */}
       <div
         className={`absolute left-0 top-4 bottom-4 w-1 rounded-full transition-colors ${
-          isActive ? "bg-emerald-500" : "bg-muted"
+          isActive ? "bg-success" : "bg-muted"
         }`}
       />
 
@@ -140,7 +140,7 @@ function NotificationCard({
             </svg>
           </div>
           {isActive && (
-            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
+            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-success border-2 border-background flex items-center justify-center">
               <Check className="h-2.5 w-2.5 text-white" />
             </div>
           )}
@@ -158,7 +158,7 @@ function NotificationCard({
                   variant={isActive ? "default" : "secondary"}
                   className={`text-[10px] px-1.5 py-0 h-5 ${
                     isActive
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      ? "bg-success/10 text-success border-success/20"
                       : ""
                   }`}
                 >
@@ -434,12 +434,12 @@ function NotificationsPage() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 Active
               </span>
-              <Zap className="h-4 w-4 text-emerald-500" />
+              <Zap className="h-4 w-4 text-success" />
             </div>
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <p className="text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+              <p className="text-3xl font-bold tracking-tight text-success">
                 {activeWebhooks}
               </p>
             )}
@@ -450,12 +450,12 @@ function NotificationsPage() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 With Alerts
               </span>
-              <Database className="h-4 w-4 text-blue-500" />
+              <Database className="h-4 w-4 text-link-blue-soft" />
             </div>
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <p className="text-3xl font-bold tracking-tight text-blue-600 dark:text-blue-400">
+              <p className="text-3xl font-bold tracking-tight text-link-blue-soft">
                 {dbsWithAlerts}
               </p>
             )}
@@ -466,12 +466,12 @@ function NotificationsPage() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 No Alerts
               </span>
-              <BellOff className="h-4 w-4 text-amber-500" />
+              <BellOff className="h-4 w-4 text-amber-400" />
             </div>
             {isLoading ? (
               <Skeleton className="h-8 w-12" />
             ) : (
-              <p className="text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
+              <p className="text-3xl font-bold tracking-tight text-amber-400">
                 {dbsWithoutAlerts}
               </p>
             )}
@@ -581,7 +581,7 @@ function NotificationsPage() {
             <AlertDialogDescription>
               Are you sure you want to delete "{notificationToDelete?.name}"?
               {getLinkedDatabasesCount(notificationToDelete?.id || "") > 0 && (
-                <span className="block mt-2 text-amber-600 dark:text-amber-400">
+                <span className="block mt-2 text-amber-400">
                   Warning: This webhook is linked to{" "}
                   {getLinkedDatabasesCount(notificationToDelete?.id || "")}{" "}
                   database(s). They will no longer receive notifications.

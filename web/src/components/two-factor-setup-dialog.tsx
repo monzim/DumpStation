@@ -227,13 +227,13 @@ Keep these codes secure. Do not share them with anyone.
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30">
-                <AlertCircle className="h-6 w-6 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="flex items-start gap-4 p-4 rounded-lg bg-canvas-soft border border-hairline-soft">
+                <AlertCircle className="h-6 w-6 text-amber-400 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="font-medium text-amber-900 dark:text-amber-200">
+                  <p className="font-medium text-amber-900">
                     Save your backup codes
                   </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                  <p className="text-sm text-amber-400">
                     You'll receive backup codes in case you lose access to your
                     authenticator app.
                   </p>
@@ -295,7 +295,7 @@ Keep these codes secure. Do not share them with anyone.
                     className="shrink-0"
                   >
                     {copiedSecret ? (
-                      <Check className="h-4 w-4 text-green-600" />
+                      <Check className="h-4 w-4 text-success" />
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
@@ -383,7 +383,7 @@ Keep these codes secure. Do not share them with anyone.
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <CheckCircle2 className="h-5 w-5 text-success" />
                 Save Your Backup Codes
               </DialogTitle>
               <DialogDescription>
@@ -395,10 +395,10 @@ Keep these codes secure. Do not share them with anyone.
             {renderStepIndicator()}
 
             <div className="space-y-4 py-4">
-              <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30">
+              <div className="p-4 rounded-lg bg-canvas-soft border border-hairline-soft">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                  <p className="text-sm text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-amber-400">
                     <strong>Important:</strong> These codes won't be shown
                     again. Save them now!
                   </p>
@@ -423,7 +423,7 @@ Keep these codes secure. Do not share them with anyone.
                   className="flex-1"
                 >
                   {copiedCodes ? (
-                    <Check className="mr-2 h-4 w-4 text-green-600" />
+                    <Check className="mr-2 h-4 w-4 text-success" />
                   ) : (
                     <Copy className="mr-2 h-4 w-4" />
                   )}
@@ -450,8 +450,8 @@ Keep these codes secure. Do not share them with anyone.
 
         {step === "complete" && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-6">
-              <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+            <div className="h-16 w-16 rounded-full bg-success/15 flex items-center justify-center mb-6">
+              <CheckCircle2 className="h-8 w-8 text-success" />
             </div>
             <h3 className="text-xl font-semibold mb-2">Setup Complete!</h3>
             <p className="text-muted-foreground">

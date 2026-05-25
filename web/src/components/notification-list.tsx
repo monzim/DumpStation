@@ -136,16 +136,11 @@ export function NotificationList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Notifications</h2>
-          <p className="text-muted-foreground">
-            Manage Discord webhook notifications
-          </p>
-        </div>
-        <Button onClick={handleCreate} disabled={isDemo}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Notification
+      {/* Action bar — route owns the editorial page header above */}
+      <div className="flex items-center justify-end">
+        <Button variant="brand" size="lg" onClick={handleCreate} disabled={isDemo}>
+          <Plus className="size-4" />
+          Add notification
         </Button>
       </div>
 
@@ -172,7 +167,7 @@ export function NotificationList() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="bg-primary/10 text-primary p-2 rounded-lg">
+                    <div className="bg-canvas-soft border border-hairline-soft text-on-primary p-2 rounded-lg">
                       <Bell className="h-5 w-5" />
                     </div>
                     <div>

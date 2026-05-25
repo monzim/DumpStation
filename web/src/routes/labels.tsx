@@ -1,7 +1,7 @@
 import { AppLayout } from "@/components/app-layout";
 import { LabelManager } from "@/components/label-manager";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { createFileRoute } from "@tanstack/react-router";
-import { Tags } from "lucide-react";
 
 export const Route = createFileRoute("/labels")({
   component: LabelsPage,
@@ -50,26 +50,15 @@ export const Route = createFileRoute("/labels")({
 function LabelsPage() {
   return (
     <AppLayout>
-      <div className="animate-in fade-in duration-300 space-y-8">
-        {/* Page Header */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Tags className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                Labels
-              </h1>
-              <p className="text-muted-foreground">
-                Create and manage labels to organize your databases, storage,
-                and notifications
-              </p>
-            </div>
-          </div>
+      <div className="space-y-8">
+        <div className="space-y-3">
+          <Eyebrow>Labels</Eyebrow>
+          <h1 className="text-display-sm text-on-primary">Tags</h1>
+          <p className="text-body text-ash max-w-2xl">
+            Create and manage labels to organize your databases, storage, and
+            notifications. Label colors are user-set and preserved as-is.
+          </p>
         </div>
-
-        {/* Label Manager Component */}
         <LabelManager />
       </div>
     </AppLayout>

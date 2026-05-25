@@ -43,33 +43,33 @@ const levelConfig = {
     label: "Info",
     variant: "secondary" as const,
     icon: Info,
-    bgColor: "bg-blue-50 dark:bg-blue-950/30",
-    textColor: "text-blue-600 dark:text-blue-400",
-    borderColor: "border-blue-200 dark:border-blue-800",
+    bgColor: "bg-canvas-soft",
+    textColor: "text-link-blue-soft",
+    borderColor: "border-hairline-soft",
   },
   success: {
     label: "Success",
     variant: "default" as const,
     icon: CheckCircle2,
-    bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
-    textColor: "text-emerald-600 dark:text-emerald-400",
-    borderColor: "border-emerald-200 dark:border-emerald-800",
+    bgColor: "bg-canvas-soft",
+    textColor: "text-success",
+    borderColor: "border-hairline-soft",
   },
   warning: {
     label: "Warning",
     variant: "outline" as const,
     icon: AlertTriangle,
-    bgColor: "bg-amber-50 dark:bg-amber-950/30",
-    textColor: "text-amber-600 dark:text-amber-400",
-    borderColor: "border-amber-200 dark:border-amber-800",
+    bgColor: "bg-canvas-soft",
+    textColor: "text-amber-400",
+    borderColor: "border-hairline-soft",
   },
   error: {
     label: "Error",
     variant: "destructive" as const,
     icon: AlertCircle,
-    bgColor: "bg-red-50 dark:bg-red-950/30",
-    textColor: "text-red-600 dark:text-red-400",
-    borderColor: "border-red-200 dark:border-red-800",
+    bgColor: "bg-canvas-soft",
+    textColor: "text-error",
+    borderColor: "border-hairline-soft",
   },
 };
 
@@ -269,16 +269,11 @@ export function ActivityLogList() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">
-            Activity Logs
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {data?.total || 0} total events
-          </p>
-        </div>
+      {/* Action bar — route owns the editorial page header above */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-mono-caps text-mute uppercase">
+          {data?.total || 0} total events
+        </p>
         <div className="flex items-center gap-2">
           <Button
             onClick={() => setShowFilters(!showFilters)}
@@ -363,25 +358,25 @@ export function ActivityLogList() {
                       <SelectItem value="all">All Levels</SelectItem>
                       <SelectItem value="info">
                         <span className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-blue-500" />
+                          <span className="h-2 w-2 rounded-full bg-canvas-soft0" />
                           Info
                         </span>
                       </SelectItem>
                       <SelectItem value="success">
                         <span className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                          <span className="h-2 w-2 rounded-full bg-success" />
                           Success
                         </span>
                       </SelectItem>
                       <SelectItem value="warning">
                         <span className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                          <span className="h-2 w-2 rounded-full bg-amber-400" />
                           Warning
                         </span>
                       </SelectItem>
                       <SelectItem value="error">
                         <span className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-red-500" />
+                          <span className="h-2 w-2 rounded-full bg-canvas-soft0" />
                           Error
                         </span>
                       </SelectItem>

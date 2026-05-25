@@ -15,7 +15,7 @@ interface Props {
   schema: ServerERDSchema;
 }
 
-const ZOOM_MIN = 0.25;
+const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.2;
 
@@ -45,6 +45,7 @@ export function DbServerERD({ schema }: Props) {
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [rendered, setRendered] = useState(false);
+  const [didAutoFit, setDidAutoFit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
   // Render Mermaid → SVG, mount via innerHTML.
@@ -54,11 +55,42 @@ export function DbServerERD({ schema }: Props) {
     (async () => {
       try {
         const { default: mermaid } = await import("mermaid");
+        // Saniti-themed dark ERD. Mermaid's "dark" base + targeted theme
+        // vars map onto canvas-soft / hairline / ash so the diagram reads
+        // as part of the Studio surface rather than a stock mermaid block.
         mermaid.initialize({
           startOnLoad: false,
-          theme: "default",
+          theme: "dark",
           securityLevel: "strict",
-          er: { useMaxWidth: false },
+          fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
+          themeVariables: {
+            background: "#212121",
+            mainBkg: "#212121",
+            primaryColor: "#212121",
+            primaryTextColor: "#ffffff",
+            primaryBorderColor: "#353535",
+            secondaryColor: "#0b0b0b",
+            tertiaryColor: "#0b0b0b",
+            lineColor: "#797979",
+            textColor: "#b9b9b9",
+            attributeBackgroundColorOdd: "#212121",
+            attributeBackgroundColorEven: "#1a1a1a",
+            nodeBorder: "#353535",
+            relationLabelColor: "#b9b9b9",
+            relationLabelBackground: "#0b0b0b",
+          },
+          // Tighten entity geometry: default entityPadding (15) plus the
+          // minEntityWidth (100) leave huge whitespace inside each table.
+          // 8/80/11 pulls columns flush so the diagram doesn't waste space
+          // and large schemas read at higher zoom levels.
+          er: {
+            useMaxWidth: false,
+            diagramPadding: 16,
+            entityPadding: 8,
+            minEntityWidth: 80,
+            minEntityHeight: 40,
+            fontSize: 11,
+          },
         });
         const { svg } = await mermaid.render(`erd-${diagramId}`, source);
         if (cancelled) return;
@@ -68,6 +100,7 @@ export function DbServerERD({ schema }: Props) {
         setRendered(true);
         setError(null);
         setZoom(1);
+        setDidAutoFit(false);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
@@ -157,36 +190,64 @@ export function DbServerERD({ schema }: Props) {
     }
   }, []);
 
+  /*
+   * Fit the SVG into the viewport (with padding) and center it. Reads the
+   * SVG's intrinsic size (Mermaid emits width/height attrs when
+   * useMaxWidth:false) rather than its current client rect, so the result
+   * is independent of the live zoom — fit() is idempotent.
+   */
   const fit = useCallback(() => {
     const viewport = viewportRef.current;
-    const svg = containerRef.current?.querySelector("svg");
+    const svg = containerRef.current?.querySelector("svg") as
+      | SVGSVGElement
+      | null;
     if (!viewport || !svg) return;
-    // The SVG's intrinsic size (before our scale) is in its width/height
-    // attributes when Mermaid uses useMaxWidth:false. Fall back to bbox.
-    const naturalWidth =
-      svg.getAttribute("width") && parseFloat(svg.getAttribute("width") || "0");
-    const naturalHeight =
-      svg.getAttribute("height") &&
-      parseFloat(svg.getAttribute("height") || "0");
-    const w = naturalWidth || svg.getBoundingClientRect().width / zoom;
-    const h = naturalHeight || svg.getBoundingClientRect().height / zoom;
+
+    let w = parseFloat(svg.getAttribute("width") || "0");
+    let h = parseFloat(svg.getAttribute("height") || "0");
+    if ((!w || !h) && typeof svg.getBBox === "function") {
+      try {
+        const bb = svg.getBBox();
+        w = bb.width;
+        h = bb.height;
+      } catch {
+        // getBBox can throw before layout settles.
+      }
+    }
     if (!w || !h) return;
 
-    const padding = 32; // breathing room inside the viewport
+    const padding = 48;
     const scaleX = (viewport.clientWidth - padding) / w;
     const scaleY = (viewport.clientHeight - padding) / h;
     const next = clamp(Math.min(scaleX, scaleY), ZOOM_MIN, ZOOM_MAX);
     setZoom(next);
+
+    // After zoom relayout, scroll to the midpoint so the diagram is
+    // centered. The flex wrapper visually centers anything smaller than
+    // the viewport; this scroll handles the >viewport case.
     requestAnimationFrame(() => {
-      if (viewportRef.current) {
-        viewportRef.current.scrollTo({ left: 0, top: 0 });
-      }
+      const v = viewportRef.current;
+      if (!v) return;
+      const cx = Math.max(0, (v.scrollWidth - v.clientWidth) / 2);
+      const cy = Math.max(0, (v.scrollHeight - v.clientHeight) / 2);
+      v.scrollTo({ left: cx, top: cy });
     });
-  }, [zoom]);
+  }, []);
+
+  // Auto-fit once on first render so large schemas don't open at 100%
+  // tucked into a corner with mostly-empty canvas.
+  useEffect(() => {
+    if (!rendered || didAutoFit) return;
+    const t = window.setTimeout(() => {
+      fit();
+      setDidAutoFit(true);
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [rendered, didAutoFit, fit]);
 
   if (schema.tables.length === 0) {
     return (
-      <div className="text-sm text-muted-foreground">
+      <div className="text-body-sm text-mute">
         No tables in this database to diagram.
       </div>
     );
@@ -195,10 +256,10 @@ export function DbServerERD({ schema }: Props) {
   if (error) {
     return (
       <div className="space-y-3">
-        <div className="text-sm text-destructive">
+        <div className="text-body-sm text-error">
           Failed to render the ERD: {error}
         </div>
-        <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto">
+        <pre className="text-mono-eyebrow bg-canvas-soft text-ash p-4 rounded-app-lg border border-hairline-soft overflow-x-auto">
           {source}
         </pre>
       </div>
@@ -208,99 +269,103 @@ export function DbServerERD({ schema }: Props) {
   return (
     <div className="relative">
       {/* Floating toolbar */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-full border bg-background/95 backdrop-blur shadow-sm p-1">
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1 rounded-full border border-hairline-soft bg-canvas-soft/95 backdrop-blur p-1">
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-full"
+          variant="ghost-dark"
+          size="icon-sm"
           onClick={zoomOut}
           disabled={zoom <= ZOOM_MIN || !rendered}
           aria-label="Zoom out"
           title="Zoom out"
         >
-          <Minus className="h-4 w-4" />
+          <Minus className="size-4" />
         </Button>
         <button
           type="button"
           onClick={reset}
           disabled={!rendered}
-          className="min-w-14 px-2 text-xs font-medium tabular-nums text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          className="min-w-14 px-2 text-mono-caps text-ash hover:text-on-primary uppercase tabular-nums transition-colors disabled:opacity-50"
           title="Reset to 100%"
           aria-label={`Current zoom ${Math.round(zoom * 100)}%, click to reset`}
         >
           {Math.round(zoom * 100)}%
         </button>
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-full"
+          variant="ghost-dark"
+          size="icon-sm"
           onClick={zoomIn}
           disabled={zoom >= ZOOM_MAX || !rendered}
           aria-label="Zoom in"
           title="Zoom in"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="size-4" />
         </Button>
-        <div className="w-px h-5 bg-border mx-0.5" />
+        <div className="w-px h-5 bg-hairline-soft mx-0.5" />
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-full"
+          variant="ghost-dark"
+          size="icon-sm"
           onClick={fit}
           disabled={!rendered}
           aria-label="Fit to viewport"
           title="Fit to viewport"
         >
-          <Maximize2 className="h-4 w-4" />
+          <Maximize2 className="size-4" />
         </Button>
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-full"
+          variant="ghost-dark"
+          size="icon-sm"
           onClick={reset}
           disabled={!rendered}
           aria-label="Reset view"
           title="Reset view"
         >
-          <RotateCcw className="h-4 w-4" />
+          <RotateCcw className="size-4" />
         </Button>
       </div>
 
       {/* Subtle hint, only while idle */}
       {rendered && (
-        <div className="absolute bottom-3 left-3 z-10 text-[10px] text-muted-foreground bg-background/80 backdrop-blur px-2 py-1 rounded-md border pointer-events-none">
-          Cmd/Ctrl + scroll to zoom · click + drag to pan
+        <div className="absolute bottom-3 left-3 z-10 text-mono-caps text-mute uppercase bg-canvas-soft/90 backdrop-blur px-3 py-1.5 rounded-app-sm border border-hairline-soft pointer-events-none">
+          Cmd/Ctrl + scroll to zoom · drag to pan
         </div>
       )}
 
       {!rendered && (
-        <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
+        <div className="rounded-app-lg border border-hairline-soft bg-canvas-soft p-6 text-body-sm text-ash">
           Rendering diagram…
         </div>
       )}
 
       {/* Viewport — the ref'd container inside has zero React children so
-          React never reconciles across the injected SVG. */}
+          React never reconciles across the injected SVG. The flex wrapper
+          centers the scaled diagram when it's smaller than the viewport;
+          when larger, it falls back to natural overflow + scroll.
+
+          No bordered card — the diagram is the page. The route bleeds this
+          div out of the AppLayout container padding so it spans the full
+          working area. Height fills the remaining viewport. */}
       <div
         ref={viewportRef}
         className={cn(
-          "overflow-auto rounded-xl border bg-card h-[75vh] min-h-[400px]",
+          "overflow-auto bg-canvas border-y border-hairline-soft h-[calc(100vh-220px)] min-h-[520px]",
           isDragging ? "cursor-grabbing" : "cursor-grab",
           !rendered && "hidden"
         )}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
       >
-        <div
-          className="origin-top-left p-6 select-none"
-          style={{
-            // `zoom` is more reliable than `transform: scale` here because
-            // it affects layout — scrollbars adjust naturally as we scale.
-            // Supported in all evergreen browsers.
-            zoom,
-          }}
-        >
-          <div ref={containerRef} />
+        <div className="min-h-full min-w-full flex items-center justify-center p-6">
+          <div
+            className="origin-center select-none"
+            style={{
+              // `zoom` is more reliable than `transform: scale` here because
+              // it affects layout — scrollbars adjust naturally as we scale.
+              // Supported in all evergreen browsers.
+              zoom,
+            }}
+          >
+            <div ref={containerRef} />
+          </div>
         </div>
       </div>
     </div>
