@@ -91,22 +91,32 @@ func (r *Repository) GetUserByDiscordID(discordUserID string) (*models.User, err
 }
 
 // UpsertGitHubUser finds or creates the local user row that backs a
-// successful GitHub OAuth login. We look up by github_user_id (numeric,
-// stable, never recycled) first; if not found we fall back to github_login
-// for users created before the id was captured; otherwise we create.
+// successful GitHub OAuth login. Lookup falls through three keys, in
+// order of trust:
 //
-// On every successful lookup we refresh the cached login + email + avatar
-// in case the user renamed themselves on GitHub since the last sign-in.
+//  1. github_user_id — numeric, stable, never recycled. The authoritative
+//     identity once a row has been GitHub-linked at least once.
+//  2. github_login — covers rows created before the id was captured (e.g.
+//     hand-imported), and rows linked to the same login via an older
+//     deployment.
+//  3. email — covers the common upgrade case where a deployment is
+//     introducing GitHub OAuth on top of an already-seeded system admin
+//     row. Without this fallback the CREATE step would collide with the
+//     UNIQUE(email) constraint and the user could never sign in.
 //
-// The created user is granted admin rights — this is a single-user
-// deployment by design, and the allow-list check happens at the OAuth
-// callback layer so anyone with a row in this table is already trusted.
+// On any successful match we refresh the cached identity fields so the
+// row keeps up with GitHub-side renames / avatar changes.
+//
+// A freshly created row is granted admin rights — single-user deployment
+// by design, with the allow-list check at the OAuth callback layer.
 func (r *Repository) UpsertGitHubUser(githubID int64, login, email, avatarURL string) (*models.User, error) {
 	var user models.User
 	err := r.db.Where("github_user_id = ?", githubID).First(&user).Error
 	if err == gorm.ErrRecordNotFound {
-		// Try by login as a fallback for users created without an id.
 		err = r.db.Where("github_login = ?", login).First(&user).Error
+	}
+	if err == gorm.ErrRecordNotFound && email != "" {
+		err = r.db.Where("email = ?", email).First(&user).Error
 	}
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, fmt.Errorf("lookup github user: %w", err)
@@ -126,12 +136,16 @@ func (r *Repository) UpsertGitHubUser(githubID int64, login, email, avatarURL st
 		return &user, nil
 	}
 
-	// Refresh changeable fields.
+	// Refresh changeable fields. Promote to admin if the row wasn't
+	// already privileged — the allow-list already vouched for this login.
 	updates := map[string]any{
 		"github_login":   login,
 		"github_user_id": githubID,
+		"is_admin":       true,
 	}
-	if email != "" {
+	if email != "" && user.Email == "" {
+		// Only fill email if blank; never overwrite a user's existing
+		// email with a different one without explicit intent.
 		updates["email"] = email
 	}
 	if avatarURL != "" {
@@ -141,7 +155,6 @@ func (r *Repository) UpsertGitHubUser(githubID int64, login, email, avatarURL st
 		return nil, fmt.Errorf("refresh github user: %w", err)
 	}
 
-	// Re-read so the caller sees the merged state.
 	if err := r.db.First(&user, "id = ?", user.ID).Error; err != nil {
 		return nil, fmt.Errorf("reload github user: %w", err)
 	}
