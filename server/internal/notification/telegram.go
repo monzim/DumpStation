@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -104,20 +105,23 @@ func (tn *TelegramNotifier) postOnce(endpoint string, payload []byte) (time.Dura
 	if err != nil {
 		return 0, transientErrorf("network: %w", err)
 	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
+
+	// Telegram returns JSON like {"ok":false,"error_code":400,"description":"..."}
+	// on failure. Capture the body so the description reaches our logs.
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	_, _ = io.Copy(io.Discard, resp.Body)
+	body := strings.TrimSpace(string(bodyBytes))
 
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		return 0, nil
 	case resp.StatusCode == http.StatusTooManyRequests:
-		return parseRetryAfter(resp.Header.Get("Retry-After")), transientErrorf("rate limited (429)")
+		return parseRetryAfter(resp.Header.Get("Retry-After")), transientErrorf("rate limited (429): %s", body)
 	case resp.StatusCode >= 500:
-		return 0, transientErrorf("server error %d", resp.StatusCode)
+		return 0, transientErrorf("server error %d: %s", resp.StatusCode, body)
 	default:
-		return 0, fmt.Errorf("Telegram API rejected request with status %d", resp.StatusCode)
+		return 0, fmt.Errorf("Telegram API rejected request with status %d: %s", resp.StatusCode, body)
 	}
 }
 

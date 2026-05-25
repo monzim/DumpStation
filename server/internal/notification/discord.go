@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -109,20 +110,25 @@ func (dn *DiscordNotifier) postOnce(payload []byte) (time.Duration, error) {
 	if err != nil {
 		return 0, transientErrorf("network: %w", err)
 	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
+
+	// Read up to 1 KB of the response body so non-2xx errors can include
+	// Discord's reason (e.g. `{"code":50006,"message":"Cannot send an
+	// empty message"}`). Without this, every failure looked like a bare
+	// "rejected with status 400" and was impossible to diagnose.
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	_, _ = io.Copy(io.Discard, resp.Body)
+	body := strings.TrimSpace(string(bodyBytes))
 
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		return 0, nil
 	case resp.StatusCode == http.StatusTooManyRequests:
-		return parseRetryAfter(resp.Header.Get("Retry-After")), transientErrorf("rate limited (429)")
+		return parseRetryAfter(resp.Header.Get("Retry-After")), transientErrorf("rate limited (429): %s", body)
 	case resp.StatusCode >= 500:
-		return 0, transientErrorf("server error %d", resp.StatusCode)
+		return 0, transientErrorf("server error %d: %s", resp.StatusCode, body)
 	default:
-		return 0, fmt.Errorf("Discord webhook rejected request with status %d", resp.StatusCode)
+		return 0, fmt.Errorf("Discord webhook rejected request with status %d: %s", resp.StatusCode, body)
 	}
 }
 
