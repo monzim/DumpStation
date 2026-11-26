@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -224,7 +225,14 @@ func (h *Handler) UpdateDatabaseV2(w http.ResponseWriter, r *http.Request) {
 	if !h.decodeBody(w, r, &in, true) {
 		return
 	}
-	needPassword := d.Password == "" && in.Password == ""
+	// Keeping the stored password is only allowed when the connection target
+	// is unchanged; otherwise the secret could be redirected to another host.
+	needPassword := in.Password == "" && (d.Password == "" || !sameTarget(d, in.Host, in.Port, in.DBName, in.Username))
+	if in.Password == "" && d.Password != "" && !sameTarget(d, in.Host, in.Port, in.DBName, in.Username) &&
+		!(in.ExecutionMode == models.ExecutionAgent && in.AgentConnection != "") {
+		writeError(w, http.StatusBadRequest, "re-enter the password when changing the host, port, database or user")
+		return
+	}
 	if err := in.ValidateConnection(needPassword); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -386,9 +394,17 @@ type ConnectionTestResponse struct {
 
 func (h *Handler) runConnectionTest(w http.ResponseWriter, r *http.Request, c *reqCtx, req ConnectionTestRequest) {
 	if req.DatabaseID != nil && req.Password == "" {
-		if d, _ := h.repo.GetDatabaseConfigByUser(*req.DatabaseID, c.UserID, c.IsAdmin); d != nil {
-			req.Password = d.Password
+		d, _ := h.repo.GetDatabaseConfigByUser(*req.DatabaseID, c.UserID, c.IsAdmin)
+		if d == nil {
+			writeError(w, http.StatusNotFound, "database not found")
+			return
 		}
+		// A stored password is only ever offered to the server it belongs to.
+		if !sameTarget(d, req.Host, req.Port, req.DBName, req.Username) {
+			writeError(w, http.StatusBadRequest, "re-enter the password when changing the host, port, database or user")
+			return
+		}
+		req.Password = d.Password
 	}
 	conn := pgexec.Conn{Host: req.Host, Port: req.Port, Database: req.DBName, User: req.Username, Password: req.Password}
 	if conn.Port == 0 {
@@ -526,4 +542,12 @@ func (h *Handler) GetDatabaseConnection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, DatabaseConnectionView{Host: d.Host, Port: d.Port, DBName: d.DBName, Username: d.Username, HasPassword: d.Password != ""})
+}
+
+// sameTarget reports whether connection fields match the stored database.
+func sameTarget(d *models.DatabaseConfig, host string, port int, dbname, user string) bool {
+	if port == 0 {
+		port = 5432
+	}
+	return strings.EqualFold(strings.TrimSpace(host), d.Host) && port == d.Port && dbname == d.DBName && user == d.Username
 }
