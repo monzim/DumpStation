@@ -265,7 +265,7 @@ func (c *Client) PutPart(ctx context.Context, url string, body io.ReadSeeker, si
 	}
 	etag := resp.Header.Get("ETag")
 	if etag == "" {
-		return "", errors.New("storage response is missing the ETag header (check bucket CORS/expose headers)")
+		return "", errors.New("storage response is missing the ETag header; the storage service may not support presigned multipart uploads (set DUMPSTATION_TRANSFER_MODE=proxy)")
 	}
 	return etag, nil
 }

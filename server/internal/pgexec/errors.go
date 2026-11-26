@@ -30,7 +30,6 @@ const (
 	CodeRestoreFailed    = "restore_failed"
 	CodeDumpFailed       = "dump_failed"
 	CodeInterrupted      = "interrupted"
-	CodeExpired          = "expired"
 	CodeUnknown          = "unknown"
 )
 

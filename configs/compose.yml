@@ -3,7 +3,7 @@
 # deployed separately next to those databases; see deploy/agent/.
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:${POSTGRES_IMAGE_TAG:-15-alpine}  # keep the major version your data volume was created with
     container_name: dumpstation_postgres
     restart: unless-stopped
     environment:
@@ -58,6 +58,8 @@ services:
       TURNSTILE_ENABLED: ${TURNSTILE_ENABLED:-false}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      TURNSTILE_TIMEOUT: ${TURNSTILE_TIMEOUT:-5}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       APP_ENV: ${APP_ENV:-production}
       DEMO_ENABLED: ${DEMO_ENABLED:-false}
 

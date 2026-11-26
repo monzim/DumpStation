@@ -37,7 +37,6 @@ type Config struct {
 	CAFile          string
 	InsecureTLS     bool
 	ShutdownGrace   time.Duration
-	Labels          []string
 }
 
 func env(k, d string) string {
@@ -214,18 +213,40 @@ func LoadConnections(path string) (*Connections, []string, error) {
 	} else if !os.IsNotExist(err) {
 		return nil, nil, fmt.Errorf("read %s: %w", path, err)
 	}
+	// Collect base variable names: DUMPSTATION_CONN_<NAME>, optionally with
+	// _FILE (URL read from a file) and _PASSWORD_FILE (password override).
+	bases := map[string]bool{}
 	for _, kv := range os.Environ() {
-		k, v, _ := strings.Cut(kv, "=")
-		if !strings.HasPrefix(k, "DUMPSTATION_CONN_") || strings.HasSuffix(k, "_PASSWORD_FILE") || strings.HasSuffix(k, "_FILE") {
+		k, _, _ := strings.Cut(kv, "=")
+		if !strings.HasPrefix(k, "DUMPSTATION_CONN_") {
 			continue
 		}
+		switch {
+		case strings.HasSuffix(k, "_PASSWORD_FILE"):
+			k = strings.TrimSuffix(k, "_PASSWORD_FILE")
+		case strings.HasSuffix(k, "_FILE"):
+			k = strings.TrimSuffix(k, "_FILE")
+		}
+		if k != "DUMPSTATION_CONN_" {
+			bases[k] = true
+		}
+	}
+	for k := range bases {
 		name := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(k, "DUMPSTATION_CONN_"), "_", "-"))
+		v := os.Getenv(k)
 		if v == "" {
 			if f := os.Getenv(k + "_FILE"); f != "" {
-				if b, err := os.ReadFile(f); err == nil {
-					v = strings.TrimSpace(string(b))
+				b, err := os.ReadFile(f)
+				if err != nil {
+					warnings = append(warnings, fmt.Sprintf("%s_FILE: %v", k, err))
+					continue
 				}
+				v = strings.TrimSpace(string(b))
 			}
+		}
+		if v == "" {
+			warnings = append(warnings, fmt.Sprintf("%s: no connection URL (set %s or %s_FILE)", k, k, k))
+			continue
 		}
 		c, err := pgexec.ParseURL(v)
 		if err != nil {

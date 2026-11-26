@@ -10,9 +10,8 @@ import "net/http"
 // Notes:
 //   - HSTS is only meaningful over HTTPS; the header is harmless over HTTP
 //     during local development and required in production.
-//   - CSP is intentionally NOT set here because it depends on whether the
-//     same origin serves a UI bundle. The web frontend (Cloudflare Worker)
-//     sets CSP for its own asset responses.
+//   - CSP is set by the web UI handler (handlers/web.go) for UI responses;
+//     JSON API responses do not need one.
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()

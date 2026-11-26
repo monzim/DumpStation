@@ -2,20 +2,17 @@
 
 ## Environment Variables
 
-### Backend (Required)
+### Server (the only place to configure it)
 
 ```bash
 TURNSTILE_ENABLED=true
 TURNSTILE_SITE_KEY=1x00000000000000000000AA
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
-TURNSTILE_TIMEOUT=10
+TURNSTILE_TIMEOUT=5   # seconds, default 5
 ```
 
-### Frontend (Required)
-
-```bash
-VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA
-```
+The UI receives the site key at runtime from `/config.js`; there is no
+frontend variable.
 
 ## Test Keys
 
@@ -30,26 +27,21 @@ VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA
 ### Development Setup
 
 ```bash
-# Backend
+# Server (see server/QUICKSTART.md)
 cd server
-cp .env.example .env
-docker-compose up -d
+set -a && . ./.env && set +a   # with the TURNSTILE_* values above
+go run ./cmd/server
 
-# Frontend
+# UI with hot reload (proxies /api and /config.js to the server)
 cd web
-cp .env.example .env
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ### Disable Turnstile
 
 ```bash
-# Backend
 TURNSTILE_ENABLED=false
-
-# Frontend
-# Remove VITE_TURNSTILE_SITE_KEY from .env
 ```
 
 ### Get Production Keys
@@ -69,14 +61,13 @@ Visit: https://dash.cloudflare.com/?to=/:account/turnstile
 
 | Issue              | Solution                               |
 | ------------------ | -------------------------------------- |
-| Widget not showing | Check `VITE_TURNSTILE_SITE_KEY` is set |
+| Widget not showing | Check `TURNSTILE_ENABLED=true` and that `/config.js` contains the site key |
 | Always fails       | Verify secret key matches site key     |
 | Token expired      | Widget auto-resets, user can retry     |
 
 ## Documentation
 
-📖 Full Guide: `docs/TURNSTILE_INTEGRATION.md`  
-📋 Summary: `docs/IMPLEMENTATION_SUMMARY.md`
+Full guide: `docs/TURNSTILE_INTEGRATION.md`
 
 ## Resources
 

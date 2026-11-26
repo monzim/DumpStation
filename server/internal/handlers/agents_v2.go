@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/lib/pq"
 	"net/http"
@@ -131,12 +132,16 @@ func (h *Handler) publicURL(r *http.Request) string {
 	if h.cfg != nil && h.cfg.PublicURL != "" {
 		return strings.TrimRight(h.cfg.PublicURL, "/")
 	}
+	// Forwarded headers are client-controlled unless a trusted proxy sets
+	// them, so honour them only when TRUST_PROXY_HEADERS=true. Set
+	// PUBLIC_URL in production to avoid relying on request headers at all.
+	trust := os.Getenv("TRUST_PROXY_HEADERS") == "true"
 	scheme := "http"
-	if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+	if r.TLS != nil || (trust && strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")) {
 		scheme = "https"
 	}
 	host := r.Host
-	if fh := r.Header.Get("X-Forwarded-Host"); fh != "" {
+	if fh := r.Header.Get("X-Forwarded-Host"); trust && fh != "" {
 		host = fh
 	}
 	return scheme + "://" + host

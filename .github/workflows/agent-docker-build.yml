@@ -156,8 +156,8 @@ jobs:
                       type=sha,prefix=sha-,format=short
                       type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
                   labels: |
-                      org.opencontainers.image.title=DumpStation
-                      org.opencontainers.image.description=Database backup service with multi-version PostgreSQL support
+                      org.opencontainers.image.title=DumpStation Agent
+                      org.opencontainers.image.description=DumpStation Agent - outbound-only PostgreSQL backup worker
                       org.opencontainers.image.vendor=monzim
 
             - name: Create manifest list and push

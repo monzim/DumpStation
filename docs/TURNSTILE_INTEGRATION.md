@@ -36,18 +36,19 @@ TURNSTILE_TIMEOUT=10
 | `TURNSTILE_ENABLED`    | Enable/disable Turnstile verification | `false` | No               |
 | `TURNSTILE_SITE_KEY`   | Public site key for frontend          | -       | Yes (if enabled) |
 | `TURNSTILE_SECRET_KEY` | Secret key for backend verification   | -       | Yes (if enabled) |
-| `TURNSTILE_TIMEOUT`    | API verification timeout in seconds   | `10`    | No               |
+| `TURNSTILE_TIMEOUT`    | API verification timeout in seconds   | `5`     | No               |
 
 ### Frontend Configuration
 
-Add the Turnstile site key to your frontend `.env` file:
+None. Since v2 the web UI is served by the DumpStation server, which publishes
+`TURNSTILE_SITE_KEY` to the browser through `/config.js`
+(`window.APP_CONFIG.TURNSTILE_SITE_KEY`) when `TURNSTILE_ENABLED=true`. The
+login page renders the widget only when that key is present. The old
+`VITE_TURNSTILE_SITE_KEY` variable is no longer used.
 
-```bash
-# Cloudflare Turnstile Site Key
-VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA
-```
-
-**Note:** The frontend automatically detects if Turnstile is enabled based on whether `VITE_TURNSTILE_SITE_KEY` is set.
+With `configs/compose.yml`, `TURNSTILE_ENABLED`, `TURNSTILE_SITE_KEY` and
+`TURNSTILE_SECRET_KEY` are passed through; add `TURNSTILE_TIMEOUT` to the
+`dumpstation` service's `environment:` block if you want to change it.
 
 ## Cloudflare Turnstile Keys
 
@@ -73,7 +74,7 @@ To get production keys:
 2. Create a new Turnstile site
 3. Configure your domain
 4. Copy the **Site Key** (public) and **Secret Key** (private)
-5. Update environment variables in both backend and frontend
+5. Set `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` on the server and restart it
 
 ## Implementation Details
 
@@ -84,7 +85,7 @@ To get production keys:
 3. **Login Verification** - Before generating OTP:
    - Check if `TURNSTILE_ENABLED=true`
    - Verify `turnstile_token` from request using Cloudflare API
-   - Extract client IP from `X-Forwarded-For`, `X-Real-IP`, or `RemoteAddr`
+   - Use the client IP from `RemoteAddr`, or from `X-Forwarded-For` / `X-Real-IP` when `TRUST_PROXY_HEADERS=true`
    - Call `https://challenges.cloudflare.com/turnstile/v0/siteverify`
    - Return error if verification fails
 4. **Demo Bypass** - Demo login handler does not require Turnstile verification
@@ -97,7 +98,7 @@ To get production keys:
 
 ### Frontend Flow
 
-1. **Environment Detection** - Check if `VITE_TURNSTILE_SITE_KEY` is set
+1. **Runtime config** - Read `window.APP_CONFIG.TURNSTILE_SITE_KEY` from `/config.js`
 2. **Widget Rendering** - Display Turnstile widget on login page
 3. **Token Capture** - Capture token on successful verification
 4. **Login Submission** - Include `turnstile_token` in login request
@@ -106,7 +107,7 @@ To get production keys:
 **Key Files:**
 
 - [`web/src/routes/login.tsx`](../web/src/routes/login.tsx) - Login page with Turnstile widget
-- [`web/src/lib/types/api.ts`](../web/src/lib/types/api.ts) - TypeScript type definitions
+- [`server/internal/handlers/web.go`](../server/internal/handlers/web.go) - `/config.js` and the CSP that allows `challenges.cloudflare.com`
 
 ## Security Considerations
 
@@ -121,7 +122,7 @@ This prevents attackers from understanding the verification process.
 
 ### Verification Timeout
 
-The default timeout is **10 seconds** to prevent long waits during login attempts. This can be adjusted via `TURNSTILE_TIMEOUT` environment variable.
+The default timeout is **5 seconds** to prevent long waits during login attempts. This can be adjusted via `TURNSTILE_TIMEOUT` environment variable.
 
 ### Feature Flag Behavior
 
@@ -183,8 +184,8 @@ Or use the "Always Passes" test keys.
 
 **Solutions:**
 
-1. Check that `VITE_TURNSTILE_SITE_KEY` is set in frontend `.env`
-2. Verify the site key is correct
+1. Check that `TURNSTILE_ENABLED=true` and `TURNSTILE_SITE_KEY` are set on the server, then open `/config.js` and confirm the key appears
+2. Verify the site key is correct and allowed for your hostname
 3. Check browser console for JavaScript errors
 4. Ensure `@marsidev/react-turnstile` package is installed
 
@@ -198,7 +199,7 @@ Or use the "Always Passes" test keys.
 2. Check that keys are not expired (production keys)
 3. Ensure backend can reach `https://challenges.cloudflare.com`
 4. Check logs for specific error codes from Cloudflare API
-5. Verify timeout setting is reasonable (default: 10s)
+5. Verify timeout setting is reasonable (default: 5s)
 
 ### Token Expired
 
@@ -210,15 +211,14 @@ Or use the "Always Passes" test keys.
 2. Token automatically resets on error - user can try again
 3. Widget will automatically request new token
 
-### CORS Issues
+### Widget blocked by the browser
 
-**Problem:** Turnstile API calls blocked by CORS
+**Problem:** The widget iframe or script is blocked (console shows a CSP error)
 
 **Solutions:**
 
-1. Turnstile widget handles CORS automatically
-2. Ensure frontend is served from allowed origin
-3. Check CORS configuration in backend
+1. The server's CSP allows `https://challenges.cloudflare.com` for scripts and frames; if a reverse proxy adds its own `Content-Security-Policy`, allow the same origin there
+2. Browser extensions that block third-party scripts can also hide the widget
 
 ## API Reference
 
@@ -273,47 +273,22 @@ func VerifyTurnstileToken(secretKey, token, remoteIP string, timeout int) error
 
 To add Turnstile to an existing deployment:
 
-1. **Update Backend:**
+1. Set on the server (in `.env` with `configs/compose.yml`):
 
    ```bash
-   # Pull latest code
-   git pull origin main
-
-   # Add Turnstile config to .env
-   echo "TURNSTILE_ENABLED=true" >> .env
-   echo "TURNSTILE_SITE_KEY=1x00000000000000000000AA" >> .env
-   echo "TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA" >> .env
-
-   # Rebuild and restart
-   docker-compose down
-   docker-compose up -d --build
+   TURNSTILE_ENABLED=true
+   TURNSTILE_SITE_KEY=<site key>
+   TURNSTILE_SECRET_KEY=<secret key>
    ```
 
-2. **Update Frontend:**
-
-   ```bash
-   # Add Turnstile site key to .env
-   echo "VITE_TURNSTILE_SITE_KEY=1x00000000000000000000AA" >> .env
-
-   # Rebuild
-   npm run build
-   npm run deploy
-   ```
-
-3. **Test Integration:**
-   - Verify widget appears on login page
-   - Test login flow end-to-end
-   - Check backend logs for verification success
+2. Recreate the container: `docker compose up -d`.
+3. Test: the widget appears on the login page, a code request succeeds, and
+   the server log shows a successful verification.
 
 ### Rollback Plan
 
-To disable Turnstile:
-
-1. Set `TURNSTILE_ENABLED=false` in backend `.env`
-2. Remove `VITE_TURNSTILE_SITE_KEY` from frontend `.env`
-3. Restart services
-
-**Note:** No code changes needed - feature flag controls everything.
+Set `TURNSTILE_ENABLED=false` and recreate the container. The UI stops
+rendering the widget because `/config.js` no longer carries a site key.
 
 ## References
 

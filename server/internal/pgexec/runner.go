@@ -422,9 +422,8 @@ type RestoreOptions struct {
 // (unknown session settings such as transaction_timeout) are tolerated;
 // any other error fails the restore.
 //
-// Plain-format dumps (legacy v1 backups of PostgreSQL < 13) need psql. They
-// are streamed through a filter that rejects every backslash meta-command
-// outside COPY data, and psql runs with ON_ERROR_STOP.
+// Plain-format dumps (legacy v1 backups) are replayed over the wire protocol
+// by restorePlain; backslash meta-command lines are skipped, never executed.
 func (r *Runner) Restore(ctx context.Context, c Conn, path string, opts RestoreOptions) error {
 	c, err := r.prepare(c)
 	if err != nil {
@@ -437,7 +436,11 @@ func (r *Runner) Restore(ctx context.Context, c Conn, path string, opts RestoreO
 	major := MajorFromNum(num)
 	if opts.Format != "custom" {
 		// Plain SQL is replayed over the wire protocol: no psql, so no
-		// backslash meta-command can ever be interpreted.
+		// backslash meta-command can ever be interpreted. Plain dumps carry
+		// no object list to drop, so --clean cannot be honoured.
+		if opts.Clean {
+			return Errorf(CodeConfigError, "Dropping existing objects (--clean) is not supported for legacy plain-format backups; restore into an empty database instead")
+		}
 		return restorePlain(ctx, c, path, major)
 	}
 	pass, err := r.writePassfile(c)

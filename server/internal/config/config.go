@@ -283,5 +283,11 @@ func getEnvAsSlice(key string, defaultValue []string) []string {
 
 // isProduction mirrors the demo-seed rule: APP_ENV or GO_ENV = production.
 func isProduction() bool {
-	return strings.EqualFold(os.Getenv("APP_ENV"), "production") || strings.EqualFold(os.Getenv("GO_ENV"), "production")
+	for _, k := range []string{"APP_ENV", "GO_ENV"} {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv(k))) {
+		case "production", "prod":
+			return true
+		}
+	}
+	return false
 }

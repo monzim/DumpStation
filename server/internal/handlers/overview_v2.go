@@ -145,7 +145,10 @@ func (h *Handler) GetOverview(w http.ResponseWriter, r *http.Request) {
 	for i, b := range failed {
 		out.RecentFailed[i] = h.backupView(b, nc)
 	}
-	out.Daily, _ = h.repo.GetDailyBackupCounts(c.UserID, c.IsAdmin, 14)
+	var derr error
+	if out.Daily, derr = h.repo.GetDailyBackupCounts(c.UserID, c.IsAdmin, 14); derr != nil {
+		logError("overview daily counts", derr)
+	}
 	if out.Daily == nil {
 		out.Daily = []repository.DailyCount{}
 	}

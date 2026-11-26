@@ -64,7 +64,8 @@ func (r *Repository) ListAgentsByUser(userID uuid.UUID, isAdmin bool) ([]*models
 // ListAllAgents lists every agent (maintenance loop).
 func (r *Repository) ListAllAgents() ([]*models.Agent, error) {
 	var out []*models.Agent
-	return out, r.db.Find(&out).Error
+	err := r.db.Find(&out).Error
+	return out, err
 }
 
 // GetAgentByTokenHash resolves an agent credential.
@@ -708,7 +709,8 @@ func (r *Repository) GetDailyBackupCounts(userID uuid.UUID, isAdmin bool, days i
 		Where("backups.started_at > ?", time.Now().AddDate(0, 0, -days)).
 		Group("1").Order("1")
 	q = scopeUser(q, "database_configs.user_id", userID, isAdmin)
-	return out, q.Scan(&out).Error
+	err := q.Scan(&out).Error
+	return out, err
 }
 
 // ---------------------------------------------------------------- users
@@ -716,7 +718,8 @@ func (r *Repository) GetDailyBackupCounts(userID uuid.UUID, isAdmin bool, days i
 // ListUsers lists all users (admin).
 func (r *Repository) ListUsers() ([]*models.User, error) {
 	var out []*models.User
-	return out, r.db.Order("created_at ASC").Find(&out).Error
+	err := r.db.Order("created_at ASC").Find(&out).Error
+	return out, err
 }
 
 // SetUserAdmin changes a user's admin flag.
@@ -727,5 +730,6 @@ func (r *Repository) SetUserAdmin(id uuid.UUID, isAdmin bool) error {
 // CountAdmins counts admin users.
 func (r *Repository) CountAdmins() (int64, error) {
 	var n int64
-	return n, r.db.Model(&models.User{}).Where("is_admin = ?", true).Count(&n).Error
+	err := r.db.Model(&models.User{}).Where("is_admin = ?", true).Count(&n).Error
+	return n, err
 }
