@@ -178,6 +178,7 @@ jobs:
     # Discord Notifications
     # =========================================================================
     notify:
+        permissions: {}
         name: Send Notifications
         runs-on: ubuntu-latest
         needs: [build, merge]
@@ -185,7 +186,7 @@ jobs:
         steps:
             - name: Send Discord Success Notification
               if: needs.merge.result == 'success'
-              uses: tsickert/discord-webhook@v6.0.0
+              uses: tsickert/discord-webhook@86dc739f3f165f16dadc5666051c367efa1692f4 # v6.0.0
               with:
                   webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
                   embed-title: "✅ DumpStation Docker Build Successful"
@@ -201,7 +202,7 @@ jobs:
 
             - name: Send Discord Failure Notification
               if: needs.build.result == 'failure' || needs.merge.result == 'failure'
-              uses: tsickert/discord-webhook@v6.0.0
+              uses: tsickert/discord-webhook@86dc739f3f165f16dadc5666051c367efa1692f4 # v6.0.0
               with:
                   webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
                   embed-title: "❌ DumpStation Docker Build Failed"
