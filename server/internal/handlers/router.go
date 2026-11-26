@@ -160,6 +160,7 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 	write.HandleFunc("/server-connections/test", h.TestServerConnectionAdHoc).Methods("POST", "OPTIONS")
 	read.HandleFunc("/server-connections", h.ListServerConnections).Methods("GET", "OPTIONS")
 	read.HandleFunc("/server-connections/{id}", h.GetServerConnection).Methods("GET", "OPTIONS")
+	read.HandleFunc("/server-connections/{id}/connection", h.GetServerConnectionForEdit).Methods("GET", "OPTIONS")
 	read.HandleFunc("/server-connections/{id}/databases", h.ListServerDatabases).Methods("GET", "OPTIONS")
 	read.HandleFunc("/server-connections/{id}/databases/{dbname}/tables", h.ListServerTables).Methods("GET", "OPTIONS")
 	read.HandleFunc("/server-connections/{id}/databases/{dbname}/tables/{schema}/{table}/rows", h.BrowseServerTable).Methods("GET", "OPTIONS")

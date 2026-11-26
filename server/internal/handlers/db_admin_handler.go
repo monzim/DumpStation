@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"strconv"
 	"time"
 
@@ -180,6 +181,24 @@ func (h *Handler) UpdateServerConnection(w http.ResponseWriter, r *http.Request)
 		}
 		writeError(w, http.StatusInternalServerError, "validation error")
 		return
+	}
+
+	// Masked values ("***") must never be written back over real ones, and
+	// the stored password may only be kept when the target is unchanged.
+	if strings.Contains(input.Host, "***") || strings.Contains(input.Username, "***") {
+		writeError(w, http.StatusBadRequest, "host and user must be the real values, not the masked display values")
+		return
+	}
+	if input.Password == "" {
+		existing, err := h.repo.GetServerConnectionByUser(id, *userID, getIsAdminFromContext(r))
+		if err != nil || existing == nil {
+			writeError(w, http.StatusNotFound, "server connection not found")
+			return
+		}
+		if !strings.EqualFold(existing.Host, strings.TrimSpace(input.Host)) || existing.Port != input.Port || existing.Username != input.Username {
+			writeError(w, http.StatusBadRequest, "re-enter the password when changing the host, port or user")
+			return
+		}
 	}
 
 	var ciphertext string

@@ -95,3 +95,31 @@ func (h *Handler) TestNotificationConfig(w http.ResponseWriter, r *http.Request)
 		fmt.Sprintf("Test notification sent to %q", n.Name), "", c.IP)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Test message delivered"})
 }
+
+// ServerConnectionEditView returns the editable, non-secret fields of an
+// explorer connection (the regular response masks host and user).
+type ServerConnectionEditView struct {
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	Username    string `json:"user"`
+	SSLMode     string `json:"ssl_mode"`
+	HasPassword bool   `json:"has_password"`
+}
+
+// GetServerConnectionForEdit handles GET /server-connections/{id}/connection.
+func (h *Handler) GetServerConnectionForEdit(w http.ResponseWriter, r *http.Request) {
+	c, ok := writer(w, r)
+	if !ok {
+		return
+	}
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	sc, err := h.repo.GetServerConnectionByUser(id, c.UserID, c.IsAdmin)
+	if err != nil || sc == nil {
+		writeError(w, http.StatusNotFound, "server connection not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, ServerConnectionEditView{Host: sc.Host, Port: sc.Port, Username: sc.Username, SSLMode: sc.SSLMode, HasPassword: sc.Password != ""})
+}

@@ -37,14 +37,14 @@ type User struct {
 	TwoFactorSecret        string         `gorm:"type:text;serializer:secret" json:"-"`                   // Encrypted TOTP secret (active once 2FA enabled)
 	TwoFactorEnabled       bool           `gorm:"default:false" json:"two_factor_enabled"`                // Whether 2FA is enabled
 	TwoFactorBackupCodes   pq.StringArray `gorm:"type:text[]" json:"-"`                                   // Hashed backup recovery codes
-	TwoFactorVerifiedAt    *time.Time     `gorm:"type:timestamp" json:"two_factor_verified_at,omitempty"` // When 2FA was verified during setup
+	TwoFactorVerifiedAt    *time.Time     `gorm:"type:timestamptz" json:"two_factor_verified_at,omitempty"` // When 2FA was verified during setup
 	// PendingTwoFactorSecret holds an unverified TOTP secret produced by
 	// Setup2FA. It is promoted to TwoFactorSecret only after the user proves
 	// possession via VerifySetup2FA. Keeping it separate prevents an
 	// attacker who calls Setup2FA repeatedly from clobbering the active
 	// secret on a 2FA-enrolled account.
 	PendingTwoFactorSecret    string     `gorm:"type:text;serializer:secret" json:"-"`
-	PendingTwoFactorExpiresAt *time.Time `gorm:"type:timestamp" json:"-"`
+	PendingTwoFactorExpiresAt *time.Time `gorm:"type:timestamptz" json:"-"`
 	CreatedAt                 time.Time  `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt                 time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -122,7 +122,7 @@ type OTPToken struct {
 	ExpiresAt      time.Time  `gorm:"index;not null" json:"expires_at"`
 	Used           bool       `gorm:"default:false" json:"used"`
 	FailedAttempts int        `gorm:"not null;default:0" json:"-"`
-	LockedUntil    *time.Time `gorm:"type:timestamp" json:"-"`
+	LockedUntil    *time.Time `gorm:"type:timestamptz" json:"-"`
 	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
@@ -390,7 +390,7 @@ type DatabaseConfig struct {
 	RotationPolicyType  RotationPolicyType  `gorm:"type:varchar(20);not null;check:rotation_policy_type IN ('count','days')" json:"-"`
 	RotationPolicyValue int                 `gorm:"not null" json:"-"`
 	PostgresVersion     string              `gorm:"type:varchar(20);default:'latest'" json:"postgres_version"`
-	VersionLastChecked  *time.Time          `gorm:"type:timestamp" json:"version_last_checked,omitempty"`
+	VersionLastChecked  *time.Time          `gorm:"type:timestamptz" json:"version_last_checked,omitempty"`
 	// ExecutionMode selects who runs pg_dump: the DumpStation server itself
 	// ("direct", the v1 behaviour and the default for upgraded rows) or a
 	// remote DumpStation Agent ("agent").
@@ -1155,7 +1155,7 @@ type ServerConnection struct {
 	// JSON-excluded; the response DTO never returns it.
 	Password        string     `gorm:"type:text;not null" json:"-"`
 	SSLMode         string     `gorm:"type:varchar(20);default:'prefer'" json:"ssl_mode"`
-	LastTestedAt    *time.Time `gorm:"type:timestamp" json:"last_tested_at,omitempty"`
+	LastTestedAt    *time.Time `gorm:"type:timestamptz" json:"last_tested_at,omitempty"`
 	LastTestStatus  string     `gorm:"type:varchar(20)" json:"last_test_status,omitempty"`
 	LastTestError   string     `gorm:"type:text" json:"last_test_error,omitempty"`
 	LastTestSSLMode string     `gorm:"type:varchar(20)" json:"last_test_ssl_mode,omitempty"`

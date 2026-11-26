@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/monzim/db_proxy/v1/internal/models"
 	"gorm.io/driver/postgres"
@@ -59,6 +60,8 @@ func (db *DB) AutoMigrate() error {
 			log.Printf("warning: pre-migration step failed (%s): %v", stmt, err)
 		}
 	}
+
+	convertNaiveTimestamps(db.DB)
 
 	err := db.DB.AutoMigrate(
 		&models.User{},
@@ -143,4 +146,31 @@ func (db *DB) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+// convertNaiveTimestamps turns legacy "timestamp without time zone" columns
+// into timestamptz. Their values were written as the server's local wall
+// clock, so they are interpreted with the server's current UTC offset (UTC
+// in the official image). Idempotent: converted columns are skipped.
+func convertNaiveTimestamps(db *gorm.DB) {
+	_, offset := time.Now().Zone()
+	interval := fmt.Sprintf("%d seconds", offset)
+	cols := [][2]string{
+		{"users", "two_factor_verified_at"},
+		{"users", "pending_two_factor_expires_at"},
+		{"otp_tokens", "locked_until"},
+		{"database_configs", "version_last_checked"},
+		{"server_connections", "last_tested_at"},
+	}
+	for _, c := range cols {
+		var dataType string
+		db.Raw(`SELECT data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?`, c[0], c[1]).Scan(&dataType)
+		if dataType != "timestamp without time zone" {
+			continue
+		}
+		stmt := fmt.Sprintf(`ALTER TABLE %q ALTER COLUMN %q TYPE timestamptz USING %q AT TIME ZONE INTERVAL '%s'`, c[0], c[1], c[1], interval)
+		if err := db.Exec(stmt).Error; err != nil {
+			log.Printf("warning: converting %s.%s to timestamptz failed: %v", c[0], c[1], err)
+		}
+	}
 }
