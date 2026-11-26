@@ -197,8 +197,8 @@ DUMPSTATION_CONN_ORDERS_PASSWORD_FILE=/run/secrets/orders_password
 - `DUMPSTATION_CONN_<NAME>_PASSWORD_FILE` reads the password from a file and
   overrides any password in the URL. Use it with Docker or Kubernetes
   secrets.
-- To keep the whole URL in a file, set `DUMPSTATION_CONN_<NAME>_FILE` and
-  define `DUMPSTATION_CONN_<NAME>` as an empty variable.
+- To keep the whole URL (including its password) in a file, set
+  `DUMPSTATION_CONN_<NAME>_FILE` instead of `DUMPSTATION_CONN_<NAME>`.
 
 ### Connections file
 
@@ -354,7 +354,7 @@ Notes:
 | `DUMPSTATION_CONNECTIONS_FILE` | `/etc/dumpstation-agent/connections.yaml` | Named connections (YAML/JSON). Missing file is fine |
 | `DUMPSTATION_CONN_<NAME>` | | Connection URL; name lower-cased, `_` → `-` |
 | `DUMPSTATION_CONN_<NAME>_PASSWORD_FILE` | | Password file for that connection |
-| `DUMPSTATION_CONN_<NAME>_FILE` | | File containing the URL (when `DUMPSTATION_CONN_<NAME>` is set but empty) |
+| `DUMPSTATION_CONN_<NAME>_FILE` | | File containing the connection URL (alternative to `DUMPSTATION_CONN_<NAME>`) |
 | `DUMPSTATION_ALLOW_RESTORE` | `false` | Agent-side restore switch |
 | `DUMPSTATION_MAX_CONCURRENCY` | `1` | Concurrent jobs, clamped to 1–16 |
 | `DUMPSTATION_TRANSFER_MODE` | `auto` | `auto`, `direct` or `proxy` |
