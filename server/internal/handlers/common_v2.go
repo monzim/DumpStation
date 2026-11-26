@@ -94,3 +94,12 @@ type Page[T any] struct {
 }
 
 func jsonUnmarshal(s string, v any) error { return json.Unmarshal([]byte(s), v) }
+
+// userFlags reads the caller's current role flags (see AuthMiddlewareWithLookup).
+func (h *Handler) userFlags(id uuid.UUID) (bool, bool, bool) {
+	u, err := h.repo.GetUserByID(id)
+	if err != nil || u == nil {
+		return false, false, false
+	}
+	return u.IsAdmin, u.IsDemo, true
+}

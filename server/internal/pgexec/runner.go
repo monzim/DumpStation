@@ -43,6 +43,15 @@ func (c Conn) Validate() error {
 			return Errorf(CodeConfigError, "connection fields must not start with '-' or contain control characters")
 		}
 	}
+	// libpq treats a dbname containing '=' or a URI scheme as a full
+	// connection string, which could redirect the connection.
+	if strings.Contains(c.Database, "=") || strings.Contains(c.Database, "://") {
+		return Errorf(CodeConfigError, "database name must be a plain name")
+	}
+	// Host must be a network host, not a Unix socket directory or a list.
+	if strings.HasPrefix(c.Host, "/") || strings.HasPrefix(c.Host, "@") || strings.ContainsAny(c.Host, ", ") {
+		return Errorf(CodeConfigError, "host must be a single hostname or IP address")
+	}
 	if c.Port < 0 || c.Port > 65535 {
 		return Errorf(CodeConfigError, "port out of range")
 	}
@@ -92,6 +101,9 @@ func ParseURL(raw string) (Conn, error) {
 type Runner struct {
 	Tools   *Toolset
 	TempDir string
+	// HostPolicy, when set, is consulted before every connection. The
+	// server uses it to restrict direct connections to allowed networks.
+	HostPolicy func(host string) error
 }
 
 // NewRunner discovers installed tools. tempDir "" uses os.TempDir().
@@ -121,9 +133,9 @@ func (r *Runner) writePassfile(c Conn) (string, error) {
 		s = strings.ReplaceAll(s, `\`, `\\`)
 		return strings.ReplaceAll(s, `:`, `\:`)
 	}
-	// Wildcard host/port/db so the entry applies even if libpq normalises
-	// the host (e.g. unix socket paths).
-	line := fmt.Sprintf("*:*:*:%s:%s\n", esc(c.User), esc(c.Password))
+	// Exact host/port/database entry: the password is only ever offered to
+	// the server it belongs to.
+	line := fmt.Sprintf("%s:%d:%s:%s:%s\n", esc(c.Host), c.port(), esc(c.Database), esc(c.User), esc(c.Password))
 	if _, err := f.WriteString(line); err != nil {
 		_ = os.Remove(f.Name())
 		return "", AsError(err)
@@ -166,6 +178,11 @@ func connArgs(c Conn) []string {
 func (r *Runner) ServerVersion(ctx context.Context, c Conn) (int, string, error) {
 	if err := c.Validate(); err != nil {
 		return 0, "", err
+	}
+	if r.HostPolicy != nil {
+		if err := r.HostPolicy(c.Host); err != nil {
+			return 0, "", &Error{Code: CodeConfigError, Message: err.Error()}
+		}
 	}
 	psql, _, err := r.Tools.Pick("psql", 0)
 	if err != nil {
@@ -375,11 +392,16 @@ type RestoreOptions struct {
 
 // Restore applies the dump at path to the target connection.
 //
-// Both formats are replayed through psql with ON_ERROR_STOP, so a broken
-// restore is never reported as successful. Custom archives are converted to
-// SQL by pg_restore and streamed (never buffered) into psql through a
-// version-aware filter that drops settings the target server does not know
-// (e.g. pg_dump 17+ emits SET transaction_timeout, unknown before PG 17).
+// Custom-format archives are restored with pg_restore --dbname, which sends
+// SQL over libpq and never interprets psql meta-commands, so a tampered
+// artifact cannot execute programs on the restoring host. Benign errors
+// caused by restoring an archive from a newer pg_dump into an older server
+// (unknown session settings such as transaction_timeout) are tolerated;
+// any other error fails the restore.
+//
+// Plain-format dumps (legacy v1 backups of PostgreSQL < 13) need psql. They
+// are streamed through a filter that rejects every backslash meta-command
+// outside COPY data, and psql runs with ON_ERROR_STOP.
 func (r *Runner) Restore(ctx context.Context, c Conn, path string, opts RestoreOptions) error {
 	if err := c.Validate(); err != nil {
 		return err
@@ -395,6 +417,32 @@ func (r *Runner) Restore(ctx context.Context, c Conn, path string, opts RestoreO
 	}
 	defer os.Remove(pass)
 
+	if opts.Format == "custom" {
+		bin, _, perr := r.Tools.Pick("pg_restore", 0)
+		if perr != nil {
+			return perr
+		}
+		args := append(connArgs(c), "--dbname", c.Database, "--no-owner", "--no-privileges")
+		if opts.Clean {
+			args = append(args, "--clean", "--if-exists")
+		}
+		args = append(args, "--", path)
+		cmd := r.command(ctx, bin, c, pass, args...)
+		stderr := newRing(256 << 10)
+		cmd.Stderr = stderr
+		cmd.Stdout = io.Discard
+		if err := cmd.Run(); err != nil {
+			if ctx.Err() != nil {
+				return AsError(ctx.Err())
+			}
+			if onlyBenignRestoreErrors(stderr.String(), major) {
+				return nil
+			}
+			return Classify(stderr.String(), CodeRestoreFailed, "Restore failed")
+		}
+		return nil
+	}
+
 	psqlBin, _, perr := r.Tools.Pick("psql", 0)
 	if perr != nil {
 		return perr
@@ -408,69 +456,52 @@ func (r *Runner) Restore(ctx context.Context, c Conn, path string, opts RestoreO
 	if err != nil {
 		return AsError(err)
 	}
-
-	var src io.ReadCloser
-	var producer *exec.Cmd
-	prodErr := newRing(32 << 10)
-	if opts.Format == "custom" {
-		// The newest pg_restore reads archives from every older pg_dump.
-		bin, _, perr := r.Tools.Pick("pg_restore", 0)
-		if perr != nil {
-			return perr
-		}
-		args := []string{"--no-owner", "--no-privileges", "-f", "-"}
-		if opts.Clean {
-			args = append(args, "--clean", "--if-exists")
-		}
-		args = append(args, "--", path)
-		producer = exec.CommandContext(ctx, bin, args...)
-		bindToParent(producer)
-		producer.Stderr = prodErr
-		out, err := producer.StdoutPipe()
-		if err != nil {
-			return AsError(err)
-		}
-		src = out
-	} else {
-		f, err := os.Open(path)
-		if err != nil {
-			return AsError(err)
-		}
-		src = f
-	}
-
-	if err := psql.Start(); err != nil {
-		src.Close()
+	src, err := os.Open(path)
+	if err != nil {
 		return AsError(err)
 	}
-	if producer != nil {
-		if err := producer.Start(); err != nil {
-			stdin.Close()
-			_ = psql.Wait()
-			return AsError(err)
-		}
+	defer src.Close()
+	if err := psql.Start(); err != nil {
+		return AsError(err)
 	}
 	copyErr := filterSQL(src, stdin, major)
-	stdin.Close()
-	src.Close()
-	var prodRunErr error
-	if producer != nil {
-		prodRunErr = producer.Wait()
+	if copyErr != nil {
+		// Abort psql before it executes anything further.
+		_ = psql.Process.Kill()
 	}
+	stdin.Close()
 	psqlRunErr := psql.Wait()
 	if ctx.Err() != nil {
 		return AsError(ctx.Err())
 	}
+	var unsafe *Error
+	if errors.As(copyErr, &unsafe) {
+		return unsafe
+	}
 	if psqlRunErr != nil {
 		return Classify(psqlErr.String(), CodeRestoreFailed, "Restore failed")
-	}
-	if prodRunErr != nil {
-		return Classify(prodErr.String(), CodeRestoreFailed, "Could not read the backup archive")
 	}
 	if copyErr != nil && !errors.Is(copyErr, io.ErrClosedPipe) {
 		return AsError(copyErr)
 	}
 	return nil
+}
+
+// onlyBenignRestoreErrors reports whether every error pg_restore printed is
+// an unknown-setting error expected when restoring into an older server.
+func onlyBenignRestoreErrors(stderr string, targetMajor int) bool {
+	errs := 0
+	for _, line := range strings.Split(stderr, "\n") {
+		if !strings.Contains(line, "ERROR:") {
+			continue
+		}
+		errs++
+		if targetMajor < 17 && strings.Contains(line, `unrecognized configuration parameter "transaction_timeout"`) {
+			continue
+		}
+		return false
+	}
+	return errs > 0
 }
 
 // filterSQL streams SQL from src to dst, dropping session settings that the
@@ -495,6 +526,14 @@ func filterSQL(src io.Reader, dst io.Writer, targetMajor int) error {
 			}
 		} else if len(line) > 0 {
 			drop := false
+			if !inCopy && len(line) > 0 && line[0] == '\\' {
+				// psql meta-command (\!, \o, \copy, \i, ...). pg_dump only emits
+				// \restrict / \unrestrict, which tighten psql; anything else
+				// means the artifact was tampered with.
+				if !bytes.HasPrefix(line, []byte("\\restrict ")) && !bytes.HasPrefix(line, []byte("\\unrestrict ")) {
+					return &Error{Code: CodeVerifyFailed, Message: "Refusing to restore: the dump contains psql meta-commands that pg_dump never produces"}
+				}
+			}
 			if !inCopy {
 				if targetMajor > 0 && targetMajor < 17 && bytes.HasPrefix(line, []byte("SET transaction_timeout")) {
 					drop = true

@@ -37,6 +37,9 @@ type JobsConfig struct {
 	MaxAttempts       int
 	TempDir           string
 	MinFreeMB         int
+	// AllowedCIDRs restricts direct (server-side) database connections to
+	// these networks. Empty allows any host.
+	AllowedCIDRs string
 }
 
 // ServerConfig holds server-related configuration
@@ -169,6 +172,7 @@ func Load() (*Config, error) {
 			MaxAttempts:       getEnvAsInt("AGENT_JOB_MAX_ATTEMPTS", 3),
 			TempDir:           getEnv("BACKUP_TEMP_DIR", ""),
 			MinFreeMB:         getEnvAsInt("BACKUP_MIN_FREE_MB", 0),
+			AllowedCIDRs:      getEnv("DIRECT_ALLOWED_CIDRS", ""),
 		},
 	}
 

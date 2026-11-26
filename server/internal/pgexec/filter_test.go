@@ -58,3 +58,39 @@ func TestParseURL(t *testing.T) {
 		t.Fatal("option-like values must be rejected")
 	}
 }
+
+func TestFilterSQLRejectsMetaCommands(t *testing.T) {
+	var out bytes.Buffer
+	err := filterSQL(strings.NewReader("SELECT 1;\n\\! touch /tmp/pwned\n"), &out, 16)
+	if e, ok := err.(*Error); !ok || e.Code != CodeVerifyFailed {
+		t.Fatalf("expected meta-command rejection, got %v", err)
+	}
+	out.Reset()
+	in := "\\restrict abc\nCOPY t (a) FROM stdin;\n\\N\n\\.\n\\unrestrict abc\n"
+	if err := filterSQL(strings.NewReader(in), &out, 16); err != nil {
+		t.Fatalf("pg_dump's own restrict lines and COPY data must pass: %v", err)
+	}
+}
+
+func TestConnRejectsConninfoInjection(t *testing.T) {
+	for _, c := range []Conn{
+		{Host: "h", Database: "host=evil dbname=x", User: "u"},
+		{Host: "h", Database: "postgres://evil/x", User: "u"},
+		{Host: "/var/run/postgresql", Database: "d", User: "u"},
+		{Host: "a,b", Database: "d", User: "u"},
+	} {
+		if c.Validate() == nil {
+			t.Fatalf("expected rejection for %+v", c)
+		}
+	}
+}
+
+func TestBenignRestoreErrors(t *testing.T) {
+	ok := "pg_restore: error: could not execute query: ERROR:  unrecognized configuration parameter \"transaction_timeout\"\n"
+	if !onlyBenignRestoreErrors(ok, 16) {
+		t.Fatal("transaction_timeout on PG16 is benign")
+	}
+	if onlyBenignRestoreErrors(ok+"pg_restore: error: ERROR:  relation \"x\" already exists\n", 16) {
+		t.Fatal("other errors are not benign")
+	}
+}

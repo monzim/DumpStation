@@ -94,6 +94,12 @@ func main() {
 
 	// Job orchestrator (direct + agent execution)
 	runner := pgexec.NewRunner(cfg.Jobs.TempDir)
+	if policy, err := pgexec.CIDRPolicy(cfg.Jobs.AllowedCIDRs); err != nil {
+		log.Fatalf("DIRECT_ALLOWED_CIDRS: %v", err)
+	} else if policy != nil {
+		runner.HostPolicy = policy
+		log.Printf("Direct database connections restricted to: %s", cfg.Jobs.AllowedCIDRs)
+	}
 	log.Printf("PostgreSQL client tools available: %v", runner.Tools.Majors())
 	orch := jobs.New(repo, runner, jobs.Config{
 		DirectConcurrency: cfg.Jobs.DirectConcurrency,

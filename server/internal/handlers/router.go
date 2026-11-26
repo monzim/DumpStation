@@ -48,14 +48,14 @@ func SetupRoutesWithTOTP(h *Handler, jwtMgr *auth.JWTManager, cfg *config.Config
 
 	// Read routes: any fully authenticated user, including the demo account.
 	read := api.PathPrefix("").Subrouter()
-	read.Use(middleware.AuthMiddleware(jwtMgr))
+	read.Use(middleware.AuthMiddlewareWithLookup(jwtMgr, h.userFlags))
 	// Write routes: demo account rejected.
 	write := api.PathPrefix("").Subrouter()
-	write.Use(middleware.AuthMiddleware(jwtMgr))
+	write.Use(middleware.AuthMiddlewareWithLookup(jwtMgr, h.userFlags))
 	write.Use(middleware.DemoRestrictionMiddleware)
 	// Fully blocked for demo (2FA management).
 	blocked := api.PathPrefix("").Subrouter()
-	blocked.Use(middleware.AuthMiddleware(jwtMgr))
+	blocked.Use(middleware.AuthMiddlewareWithLookup(jwtMgr, h.userFlags))
 	blocked.Use(middleware.DemoBlockMiddleware)
 
 	// Overview & system
