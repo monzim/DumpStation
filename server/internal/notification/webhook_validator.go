@@ -33,7 +33,6 @@ var blockedCIDRs = mustParseCIDRs(
 	"::1/128",
 	"fc00::/7",
 	"fe80::/10",
-	"::ffff:0:0/96",
 )
 
 // ValidateDiscordWebhookURL checks that the URL points at a Discord webhook
@@ -95,8 +94,20 @@ func hostMatchesAllowList(host string) bool {
 }
 
 func isBlocked(ip net.IP) bool {
+	// Normalise IPv4-mapped IPv6 (::ffff:a.b.c.d) to plain IPv4 and match it
+	// against IPv4 ranges only. Go's IPNet.Contains treats every IPv4
+	// address as inside ::ffff:0:0/96, which previously blocked all public
+	// IPv4 webhook hosts (including discord.com).
+	if v4 := ip.To4(); v4 != nil {
+		for _, n := range blockedCIDRs {
+			if len(n.IP) == net.IPv4len && n.Contains(v4) {
+				return true
+			}
+		}
+		return false
+	}
 	for _, n := range blockedCIDRs {
-		if n.Contains(ip) {
+		if len(n.IP) == net.IPv6len && n.IP.To4() == nil && n.Contains(ip) {
 			return true
 		}
 	}
