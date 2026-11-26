@@ -313,7 +313,7 @@ func (h *Handler) VerifyBackupDownloadOTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if !result.OK {
-		writeError(w, http.StatusUnauthorized, "invalid or expired OTP")
+		writeError(w, http.StatusBadRequest, "invalid or expired code")
 		return
 	}
 
