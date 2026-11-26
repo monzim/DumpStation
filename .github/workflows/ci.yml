@@ -1,0 +1,56 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+jobs:
+    server:
+        name: Server (Go)
+        runs-on: ubuntu-latest
+        services:
+            postgres:
+                image: postgres:16-alpine
+                env:
+                    POSTGRES_PASSWORD: ci
+                ports: ["5432:5432"]
+                options: >-
+                    --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: server/go.mod
+                  cache-dependency-path: server/go.sum
+            - name: Install PostgreSQL client
+              run: sudo apt-get update && sudo apt-get install -y postgresql-client
+            - name: Vet
+              working-directory: server
+              run: go vet ./...
+            - name: Test
+              working-directory: server
+              env:
+                  TEST_PG_URL: postgres://postgres:ci@localhost:5432/postgres?sslmode=disable
+              run: go test ./...
+            - name: Build agent
+              working-directory: server
+              run: CGO_ENABLED=0 go build -o /tmp/dumpstation-agent ./cmd/agent
+
+    web:
+        name: Web (TypeScript)
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+              with:
+                  version: 11
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: pnpm
+                  cache-dependency-path: web/pnpm-lock.yaml
+            - run: pnpm install --frozen-lockfile
+              working-directory: web
+            - run: pnpm build
+              working-directory: web

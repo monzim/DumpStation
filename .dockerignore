@@ -1,0 +1,12 @@
+.git
+.github
+**/node_modules
+web/dist
+web/.tanstack
+server/tmp
+**/.env
+**/.env.*
+!**/.env.example
+docs/screenshots
+*.md
+!server/README.md

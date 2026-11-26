@@ -3,7 +3,7 @@
 # Builds platforms in parallel for faster builds and lower CI costs
 # =============================================================================
 
-name: Build and Push Docker Image
+name: Build and Push Server Image
 
 on:
     push:
@@ -12,6 +12,8 @@ on:
             - master
         paths:
             - "server/**"
+            - "web/**"
+            - "Dockerfile"
             - ".github/workflows/docker-build-push.yml"
         tags:
             - "v*.*.*"
@@ -21,6 +23,8 @@ on:
             - master
         paths:
             - "server/**"
+            - "web/**"
+            - "Dockerfile"
     workflow_dispatch:
         inputs:
             tag:
@@ -39,7 +43,7 @@ jobs:
     build:
         name: Build ${{ matrix.platform }}
         runs-on: ubuntu-latest
-        timeout-minutes: 15
+        timeout-minutes: 30
         permissions:
             contents: read
             packages: write
@@ -82,8 +86,10 @@ jobs:
               id: build
               uses: docker/build-push-action@v6
               with:
-                  context: ./server
-                  file: ./server/Dockerfile
+                  context: .
+                  file: ./Dockerfile
+                  build-args: |
+                      VERSION=${{ github.ref_name }}
                   platforms: ${{ matrix.platform }}
                   push: ${{ github.event_name != 'pull_request' }}
                   labels: ${{ steps.meta.outputs.labels }}

@@ -219,7 +219,7 @@ cmd_health() {
     fi
     
     # Check Web
-    if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+    if curl -sf http://localhost:${DUMPSTATION_PORT:-8080}/ > /dev/null 2>&1; then
         print_success "Web Frontend: Healthy"
     else
         print_error "Web Frontend: Unhealthy"

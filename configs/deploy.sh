@@ -78,7 +78,7 @@ check_env_file() {
             print_warning "Required values:"
             echo "   - POSTGRES_PASSWORD"
             echo "   - JWT_SECRET"
-            echo "   - DISCORD_WEBHOOK_URL"
+            echo "   - DUMPSTATION_SECRET_KEY"
             echo ""
             read -p "Press Enter when you've configured the .env file..."
         else
@@ -110,9 +110,9 @@ validate_env() {
         errors=$((errors + 1))
     fi
     
-    # Check DISCORD_WEBHOOK_URL
-    if [ -z "$DISCORD_WEBHOOK_URL" ] || [[ "$DISCORD_WEBHOOK_URL" =~ "YOUR_WEBHOOK" ]]; then
-        print_error "DISCORD_WEBHOOK_URL is not set or using placeholder value"
+    # Check DUMPSTATION_SECRET_KEY
+    if [ -z "$DUMPSTATION_SECRET_KEY" ] || [[ "$DUMPSTATION_SECRET_KEY" =~ "CHANGE_ME" ]]; then
+        print_error "DUMPSTATION_SECRET_KEY is not set (openssl rand -base64 32)"
         errors=$((errors + 1))
     fi
     
@@ -176,7 +176,7 @@ show_access_info() {
     source "$ENV_FILE"
     
     BACKEND_PORT=${BACKEND_PORT:-8080}
-    WEB_PORT=${WEB_PORT:-3000}
+    WEB_PORT=${DUMPSTATION_PORT:-8080}
     
     echo ""
     echo "============================================"

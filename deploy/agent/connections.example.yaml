@@ -1,0 +1,13 @@
+# Mount as /etc/dumpstation-agent/connections.yaml (or set
+# DUMPSTATION_CONNECTIONS_FILE). Credentials never leave the agent.
+connections:
+  orders:
+    url: postgres://backup_user@orders-db.internal:5432/orders?sslmode=require
+    password_file: /run/secrets/orders_password
+  analytics:
+    host: 10.20.0.15
+    port: 5432
+    database: analytics
+    user: backup
+    password_env: ANALYTICS_DB_PASSWORD
+    sslmode: prefer

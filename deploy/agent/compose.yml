@@ -1,0 +1,41 @@
+# DumpStation Agent — standalone (Docker Compose).
+#
+# Runs inside the network that can reach your PostgreSQL databases. It only
+# makes outbound HTTPS connections to your DumpStation server: no published
+# ports, no inbound firewall rules, no VPN.
+#
+# 1. In DumpStation: Backup Agents → Add agent → copy the enrollment token.
+# 2. Put it in .env as DUMPSTATION_ENROLLMENT_TOKEN (single use, short-lived).
+# 3. Define the databases this agent may back up (credentials stay here).
+# 4. docker compose up -d
+services:
+  dumpstation-agent:
+    image: ghcr.io/monzim/dumpstation-agent:${AGENT_VERSION:-latest}
+    container_name: dumpstation-agent
+    restart: unless-stopped
+    environment:
+      DUMPSTATION_SERVER_URL: ${DUMPSTATION_SERVER_URL:?e.g. https://dumpstation.example.com}
+      DUMPSTATION_ENROLLMENT_TOKEN: ${DUMPSTATION_ENROLLMENT_TOKEN:-}
+      # Named connections. The name ("orders") is what you select in the UI.
+      DUMPSTATION_CONN_ORDERS: postgres://backup_user@db.internal:5432/orders?sslmode=prefer
+      DUMPSTATION_CONN_ORDERS_PASSWORD_FILE: /run/secrets/orders_password
+      # Restores are opt-in on the agent AND in DumpStation.
+      DUMPSTATION_ALLOW_RESTORE: "false"
+      DUMPSTATION_MAX_CONCURRENCY: "1"
+      # auto: upload directly to object storage, fall back to the server.
+      DUMPSTATION_TRANSFER_MODE: auto
+    secrets:
+      - orders_password
+    volumes:
+      # Holds the agent credential issued at enrollment. Must persist.
+      - agent_state:/var/lib/dumpstation-agent
+      # Temporary dump files (size it for your largest database).
+      - agent_tmp:/tmp/dumpstation
+
+secrets:
+  orders_password:
+    file: ./orders_password.txt
+
+volumes:
+  agent_state:
+  agent_tmp:

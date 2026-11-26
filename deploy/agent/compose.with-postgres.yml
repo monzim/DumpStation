@@ -1,0 +1,43 @@
+# DumpStation Agent running alongside a PostgreSQL container.
+# The database is never published to the host or the internet; the agent
+# reaches it over the private compose network and uploads backups outbound.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks: [private]
+
+  dumpstation-agent:
+    image: ghcr.io/monzim/dumpstation-agent:${AGENT_VERSION:-latest}
+    restart: unless-stopped
+    depends_on: [postgres]
+    environment:
+      DUMPSTATION_SERVER_URL: ${DUMPSTATION_SERVER_URL:?e.g. https://dumpstation.example.com}
+      DUMPSTATION_ENROLLMENT_TOKEN: ${DUMPSTATION_ENROLLMENT_TOKEN:-}
+      DUMPSTATION_CONN_APP: postgres://app@postgres:5432/app?sslmode=disable
+      DUMPSTATION_CONN_APP_PASSWORD_FILE: /run/secrets/db_password
+      DUMPSTATION_ALLOW_RESTORE: "true"
+    secrets: [db_password]
+    volumes:
+      - agent_state:/var/lib/dumpstation-agent
+    networks: [private, egress]
+
+secrets:
+  db_password:
+    file: ./db_password.txt
+
+networks:
+  private:
+    internal: true # no route to the internet for the database
+  egress: {}       # the agent's outbound HTTPS
+
+volumes:
+  pg_data:
+  agent_state:

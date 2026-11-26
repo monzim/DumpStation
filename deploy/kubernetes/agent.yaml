@@ -1,0 +1,67 @@
+# DumpStation Agent on Kubernetes.
+#   kubectl create namespace dumpstation
+#   kubectl -n dumpstation create secret generic dumpstation-agent \
+#     --from-literal=enrollment-token=dse_... \
+#     --from-literal=orders-password=...
+#   kubectl -n dumpstation apply -f agent.yaml
+# The agent only needs egress to the DumpStation server (and, for direct
+# uploads, the object storage endpoint). No Service or Ingress is required.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dumpstation-agent
+  namespace: dumpstation
+spec:
+  serviceName: dumpstation-agent
+  replicas: 1
+  selector:
+    matchLabels: { app: dumpstation-agent }
+  template:
+    metadata:
+      labels: { app: dumpstation-agent }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: agent
+          image: ghcr.io/monzim/dumpstation-agent:latest
+          args: ["run"]
+          env:
+            - name: DUMPSTATION_SERVER_URL
+              value: https://dumpstation.example.com
+            - name: DUMPSTATION_ENROLLMENT_TOKEN
+              valueFrom: { secretKeyRef: { name: dumpstation-agent, key: enrollment-token } }
+            - name: DUMPSTATION_CONN_ORDERS
+              value: postgres://backup_user@orders-postgres.databases.svc:5432/orders?sslmode=prefer
+            - name: DUMPSTATION_CONN_ORDERS_PASSWORD_FILE
+              value: /secrets/orders-password
+            - name: DUMPSTATION_ALLOW_RESTORE
+              value: "false"
+          volumeMounts:
+            - { name: state, mountPath: /var/lib/dumpstation-agent }
+            - { name: tmp, mountPath: /tmp/dumpstation }
+            - { name: secrets, mountPath: /secrets, readOnly: true }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            exec: { command: ["dumpstation-agent", "healthcheck"] }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: secrets
+          secret: { secretName: dumpstation-agent }
+        - name: tmp
+          emptyDir: { sizeLimit: 20Gi }
+  volumeClaimTemplates:
+    - metadata: { name: state }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 64Mi } }
