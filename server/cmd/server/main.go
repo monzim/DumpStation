@@ -229,7 +229,7 @@ func ensureSystemUser(repo *repository.Repository) error {
 
 	if user != nil {
 		log.Printf("[AUTH] ✅ System user exists: %s (%s)", user.DiscordUsername, user.Email)
-		return nil
+		return ensureAdministrator(repo, systemUsername)
 	}
 
 	// Create the system user using raw SQL since CreateUser is disabled
@@ -239,5 +239,21 @@ func ensureSystemUser(repo *repository.Repository) error {
 	}
 
 	log.Printf("[AUTH] ✅ System user created successfully")
-	return nil
+	return ensureAdministrator(repo, systemUsername)
+}
+
+// ensureAdministrator guarantees at least one administrator exists: when
+// none does (Discord-OTP-only installs), the configured system user is
+// promoted so user management stays reachable.
+func ensureAdministrator(repo *repository.Repository, systemUsername string) error {
+	n, err := repo.CountAdmins()
+	if err != nil || n > 0 {
+		return err
+	}
+	u, err := repo.GetUserByUsernameOrEmail(systemUsername)
+	if err != nil || u == nil || u.IsDemo {
+		return err
+	}
+	log.Printf("[AUTH] Promoting system user %q to administrator (no administrator existed)", systemUsername)
+	return repo.SetUserAdmin(u.ID, true)
 }

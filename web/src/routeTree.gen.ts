@@ -9,44 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as StorageRouteImport } from './routes/storage'
-import { Route as SituationRouteImport } from './routes/situation'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as LabelsRouteImport } from './routes/labels'
-import { Route as BackupsRouteImport } from './routes/backups'
-import { Route as ActivityRouteImport } from './routes/activity'
-import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as DbServersIndexRouteImport } from './routes/db-servers.index'
-import { Route as DatabasesIndexRouteImport } from './routes/databases.index'
-import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as DatabasesIdRouteImport } from './routes/databases.$id'
-import { Route as DbServersIdIndexRouteImport } from './routes/db-servers.$id.index'
+import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppActivityRouteImport } from './routes/_app/activity'
+import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
+import { Route as AppSchedulesRouteImport } from './routes/_app/schedules'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppStorageRouteImport } from './routes/_app/storage'
+import { Route as AppSystemRouteImport } from './routes/_app/system'
+import { Route as AppUsersRouteImport } from './routes/_app/users'
+import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents.index'
+import { Route as AppBackupsIndexRouteImport } from './routes/_app/backups.index'
+import { Route as AppDatabasesIndexRouteImport } from './routes/_app/databases.index'
+import { Route as AppExplorerIndexRouteImport } from './routes/_app/explorer.index'
 import { Route as AuthGithubReturnRouteImport } from './routes/auth.github.return'
-import { Route as DbServersIdDatabasesDbnameIndexRouteImport } from './routes/db-servers.$id.databases.$dbname.index'
-import { Route as DbServersIdDatabasesDbnameErdRouteImport } from './routes/db-servers.$id.databases.$dbname.erd'
-import { Route as DbServersIdDatabasesDbnameTablesSchemaTableRouteImport } from './routes/db-servers.$id.databases.$dbname.tables.$schema.$table'
 
-const StorageRoute = StorageRouteImport.update({
-  id: '/storage',
-  path: '/storage',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SituationRoute = SituationRouteImport.update({
-  id: '/situation',
-  path: '/situation',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NotificationsRoute = NotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -54,257 +34,187 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LabelsRoute = LabelsRouteImport.update({
-  id: '/labels',
-  path: '/labels',
-  getParentRoute: () => rootRouteImport,
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
 } as any)
-const BackupsRoute = BackupsRouteImport.update({
-  id: '/backups',
-  path: '/backups',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ActivityRoute = ActivityRouteImport.update({
+const AppActivityRoute = AppActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
 } as any)
-const DashboardRouteRoute = DashboardRouteRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
+const AppNotificationsRoute = AppNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AppRoute,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
+const AppSchedulesRoute = AppSchedulesRouteImport.update({
+  id: '/schedules',
+  path: '/schedules',
+  getParentRoute: () => AppRoute,
 } as any)
-const DbServersIndexRoute = DbServersIndexRouteImport.update({
-  id: '/db-servers/',
-  path: '/db-servers/',
-  getParentRoute: () => rootRouteImport,
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
 } as any)
-const DatabasesIndexRoute = DatabasesIndexRouteImport.update({
+const AppStorageRoute = AppStorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSystemRoute = AppSystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersRoute = AppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
+  id: '/agents/',
+  path: '/agents/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBackupsIndexRoute = AppBackupsIndexRouteImport.update({
+  id: '/backups/',
+  path: '/backups/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDatabasesIndexRoute = AppDatabasesIndexRouteImport.update({
   id: '/databases/',
   path: '/databases/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
 } as any)
-const DashboardIndexRoute = DashboardIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DashboardRouteRoute,
-} as any)
-const DatabasesIdRoute = DatabasesIdRouteImport.update({
-  id: '/databases/$id',
-  path: '/databases/$id',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DbServersIdIndexRoute = DbServersIdIndexRouteImport.update({
-  id: '/db-servers/$id/',
-  path: '/db-servers/$id/',
-  getParentRoute: () => rootRouteImport,
+const AppExplorerIndexRoute = AppExplorerIndexRouteImport.update({
+  id: '/explorer/',
+  path: '/explorer/',
+  getParentRoute: () => AppRoute,
 } as any)
 const AuthGithubReturnRoute = AuthGithubReturnRouteImport.update({
   id: '/auth/github/return',
   path: '/auth/github/return',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DbServersIdDatabasesDbnameIndexRoute =
-  DbServersIdDatabasesDbnameIndexRouteImport.update({
-    id: '/db-servers/$id/databases/$dbname/',
-    path: '/db-servers/$id/databases/$dbname/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const DbServersIdDatabasesDbnameErdRoute =
-  DbServersIdDatabasesDbnameErdRouteImport.update({
-    id: '/db-servers/$id/databases/$dbname/erd',
-    path: '/db-servers/$id/databases/$dbname/erd',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const DbServersIdDatabasesDbnameTablesSchemaTableRoute =
-  DbServersIdDatabasesDbnameTablesSchemaTableRouteImport.update({
-    id: '/db-servers/$id/databases/$dbname/tables/$schema/$table',
-    path: '/db-servers/$id/databases/$dbname/tables/$schema/$table',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRouteRouteWithChildren
-  '/activity': typeof ActivityRoute
-  '/backups': typeof BackupsRoute
-  '/labels': typeof LabelsRoute
+  '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
-  '/notifications': typeof NotificationsRoute
-  '/settings': typeof SettingsRoute
-  '/situation': typeof SituationRoute
-  '/storage': typeof StorageRoute
-  '/databases/$id': typeof DatabasesIdRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/databases': typeof DatabasesIndexRoute
-  '/db-servers': typeof DbServersIndexRoute
+  '/activity': typeof AppActivityRoute
+  '/notifications': typeof AppNotificationsRoute
+  '/schedules': typeof AppSchedulesRoute
+  '/settings': typeof AppSettingsRoute
+  '/storage': typeof AppStorageRoute
+  '/system': typeof AppSystemRoute
+  '/users': typeof AppUsersRoute
   '/auth/github/return': typeof AuthGithubReturnRoute
-  '/db-servers/$id': typeof DbServersIdIndexRoute
-  '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
-  '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameIndexRoute
-  '/db-servers/$id/databases/$dbname/tables/$schema/$table': typeof DbServersIdDatabasesDbnameTablesSchemaTableRoute
+  '/agents/': typeof AppAgentsIndexRoute
+  '/backups/': typeof AppBackupsIndexRoute
+  '/databases/': typeof AppDatabasesIndexRoute
+  '/explorer/': typeof AppExplorerIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/activity': typeof ActivityRoute
-  '/backups': typeof BackupsRoute
-  '/labels': typeof LabelsRoute
   '/login': typeof LoginRoute
-  '/notifications': typeof NotificationsRoute
-  '/settings': typeof SettingsRoute
-  '/situation': typeof SituationRoute
-  '/storage': typeof StorageRoute
-  '/databases/$id': typeof DatabasesIdRoute
-  '/dashboard': typeof DashboardIndexRoute
-  '/databases': typeof DatabasesIndexRoute
-  '/db-servers': typeof DbServersIndexRoute
+  '/activity': typeof AppActivityRoute
+  '/notifications': typeof AppNotificationsRoute
+  '/schedules': typeof AppSchedulesRoute
+  '/settings': typeof AppSettingsRoute
+  '/storage': typeof AppStorageRoute
+  '/system': typeof AppSystemRoute
+  '/users': typeof AppUsersRoute
+  '/': typeof AppIndexRoute
   '/auth/github/return': typeof AuthGithubReturnRoute
-  '/db-servers/$id': typeof DbServersIdIndexRoute
-  '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
-  '/db-servers/$id/databases/$dbname': typeof DbServersIdDatabasesDbnameIndexRoute
-  '/db-servers/$id/databases/$dbname/tables/$schema/$table': typeof DbServersIdDatabasesDbnameTablesSchemaTableRoute
+  '/agents': typeof AppAgentsIndexRoute
+  '/backups': typeof AppBackupsIndexRoute
+  '/databases': typeof AppDatabasesIndexRoute
+  '/explorer': typeof AppExplorerIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRouteRouteWithChildren
-  '/activity': typeof ActivityRoute
-  '/backups': typeof BackupsRoute
-  '/labels': typeof LabelsRoute
+  '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
-  '/notifications': typeof NotificationsRoute
-  '/settings': typeof SettingsRoute
-  '/situation': typeof SituationRoute
-  '/storage': typeof StorageRoute
-  '/databases/$id': typeof DatabasesIdRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/databases/': typeof DatabasesIndexRoute
-  '/db-servers/': typeof DbServersIndexRoute
+  '/_app/activity': typeof AppActivityRoute
+  '/_app/notifications': typeof AppNotificationsRoute
+  '/_app/schedules': typeof AppSchedulesRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/storage': typeof AppStorageRoute
+  '/_app/system': typeof AppSystemRoute
+  '/_app/users': typeof AppUsersRoute
+  '/_app/': typeof AppIndexRoute
   '/auth/github/return': typeof AuthGithubReturnRoute
-  '/db-servers/$id/': typeof DbServersIdIndexRoute
-  '/db-servers/$id/databases/$dbname/erd': typeof DbServersIdDatabasesDbnameErdRoute
-  '/db-servers/$id/databases/$dbname/': typeof DbServersIdDatabasesDbnameIndexRoute
-  '/db-servers/$id/databases/$dbname/tables/$schema/$table': typeof DbServersIdDatabasesDbnameTablesSchemaTableRoute
+  '/_app/agents/': typeof AppAgentsIndexRoute
+  '/_app/backups/': typeof AppBackupsIndexRoute
+  '/_app/databases/': typeof AppDatabasesIndexRoute
+  '/_app/explorer/': typeof AppExplorerIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/dashboard'
-    | '/activity'
-    | '/backups'
-    | '/labels'
     | '/login'
+    | '/activity'
     | '/notifications'
+    | '/schedules'
     | '/settings'
-    | '/situation'
     | '/storage'
-    | '/databases/$id'
-    | '/dashboard/'
-    | '/databases'
-    | '/db-servers'
+    | '/system'
+    | '/users'
     | '/auth/github/return'
-    | '/db-servers/$id'
-    | '/db-servers/$id/databases/$dbname/erd'
-    | '/db-servers/$id/databases/$dbname'
-    | '/db-servers/$id/databases/$dbname/tables/$schema/$table'
+    | '/agents/'
+    | '/backups/'
+    | '/databases/'
+    | '/explorer/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
-    | '/activity'
-    | '/backups'
-    | '/labels'
     | '/login'
+    | '/activity'
     | '/notifications'
+    | '/schedules'
     | '/settings'
-    | '/situation'
     | '/storage'
-    | '/databases/$id'
-    | '/dashboard'
-    | '/databases'
-    | '/db-servers'
+    | '/system'
+    | '/users'
+    | '/'
     | '/auth/github/return'
-    | '/db-servers/$id'
-    | '/db-servers/$id/databases/$dbname/erd'
-    | '/db-servers/$id/databases/$dbname'
-    | '/db-servers/$id/databases/$dbname/tables/$schema/$table'
+    | '/agents'
+    | '/backups'
+    | '/databases'
+    | '/explorer'
   id:
     | '__root__'
-    | '/'
-    | '/dashboard'
-    | '/activity'
-    | '/backups'
-    | '/labels'
+    | '/_app'
     | '/login'
-    | '/notifications'
-    | '/settings'
-    | '/situation'
-    | '/storage'
-    | '/databases/$id'
-    | '/dashboard/'
-    | '/databases/'
-    | '/db-servers/'
+    | '/_app/activity'
+    | '/_app/notifications'
+    | '/_app/schedules'
+    | '/_app/settings'
+    | '/_app/storage'
+    | '/_app/system'
+    | '/_app/users'
+    | '/_app/'
     | '/auth/github/return'
-    | '/db-servers/$id/'
-    | '/db-servers/$id/databases/$dbname/erd'
-    | '/db-servers/$id/databases/$dbname/'
-    | '/db-servers/$id/databases/$dbname/tables/$schema/$table'
+    | '/_app/agents/'
+    | '/_app/backups/'
+    | '/_app/databases/'
+    | '/_app/explorer/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
-  ActivityRoute: typeof ActivityRoute
-  BackupsRoute: typeof BackupsRoute
-  LabelsRoute: typeof LabelsRoute
+  AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
-  NotificationsRoute: typeof NotificationsRoute
-  SettingsRoute: typeof SettingsRoute
-  SituationRoute: typeof SituationRoute
-  StorageRoute: typeof StorageRoute
-  DatabasesIdRoute: typeof DatabasesIdRoute
-  DatabasesIndexRoute: typeof DatabasesIndexRoute
-  DbServersIndexRoute: typeof DbServersIndexRoute
   AuthGithubReturnRoute: typeof AuthGithubReturnRoute
-  DbServersIdIndexRoute: typeof DbServersIdIndexRoute
-  DbServersIdDatabasesDbnameErdRoute: typeof DbServersIdDatabasesDbnameErdRoute
-  DbServersIdDatabasesDbnameIndexRoute: typeof DbServersIdDatabasesDbnameIndexRoute
-  DbServersIdDatabasesDbnameTablesSchemaTableRoute: typeof DbServersIdDatabasesDbnameTablesSchemaTableRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/storage': {
-      id: '/storage'
-      path: '/storage'
-      fullPath: '/storage'
-      preLoaderRoute: typeof StorageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/situation': {
-      id: '/situation'
-      path: '/situation'
-      fullPath: '/situation'
-      preLoaderRoute: typeof SituationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/notifications': {
-      id: '/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof NotificationsRouteImport
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -314,75 +224,89 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/labels': {
-      id: '/labels'
-      path: '/labels'
-      fullPath: '/labels'
-      preLoaderRoute: typeof LabelsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/backups': {
-      id: '/backups'
-      path: '/backups'
-      fullPath: '/backups'
-      preLoaderRoute: typeof BackupsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/activity': {
-      id: '/activity'
-      path: '/activity'
-      fullPath: '/activity'
-      preLoaderRoute: typeof ActivityRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/db-servers/': {
-      id: '/db-servers/'
-      path: '/db-servers'
-      fullPath: '/db-servers'
-      preLoaderRoute: typeof DbServersIndexRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_app/activity': {
+      id: '/_app/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof AppActivityRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/databases/': {
-      id: '/databases/'
+    '/_app/notifications': {
+      id: '/_app/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AppNotificationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/schedules': {
+      id: '/_app/schedules'
+      path: '/schedules'
+      fullPath: '/schedules'
+      preLoaderRoute: typeof AppSchedulesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/storage': {
+      id: '/_app/storage'
+      path: '/storage'
+      fullPath: '/storage'
+      preLoaderRoute: typeof AppStorageRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/system': {
+      id: '/_app/system'
+      path: '/system'
+      fullPath: '/system'
+      preLoaderRoute: typeof AppSystemRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users': {
+      id: '/_app/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof AppUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/agents/': {
+      id: '/_app/agents/'
+      path: '/agents'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AppAgentsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/backups/': {
+      id: '/_app/backups/'
+      path: '/backups'
+      fullPath: '/backups/'
+      preLoaderRoute: typeof AppBackupsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/databases/': {
+      id: '/_app/databases/'
       path: '/databases'
-      fullPath: '/databases'
-      preLoaderRoute: typeof DatabasesIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/databases/'
+      preLoaderRoute: typeof AppDatabasesIndexRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/dashboard/': {
-      id: '/dashboard/'
-      path: '/'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRouteRoute
-    }
-    '/databases/$id': {
-      id: '/databases/$id'
-      path: '/databases/$id'
-      fullPath: '/databases/$id'
-      preLoaderRoute: typeof DatabasesIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/db-servers/$id/': {
-      id: '/db-servers/$id/'
-      path: '/db-servers/$id'
-      fullPath: '/db-servers/$id'
-      preLoaderRoute: typeof DbServersIdIndexRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_app/explorer/': {
+      id: '/_app/explorer/'
+      path: '/explorer'
+      fullPath: '/explorer/'
+      preLoaderRoute: typeof AppExplorerIndexRouteImport
+      parentRoute: typeof AppRoute
     }
     '/auth/github/return': {
       id: '/auth/github/return'
@@ -391,72 +315,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGithubReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/db-servers/$id/databases/$dbname/': {
-      id: '/db-servers/$id/databases/$dbname/'
-      path: '/db-servers/$id/databases/$dbname'
-      fullPath: '/db-servers/$id/databases/$dbname'
-      preLoaderRoute: typeof DbServersIdDatabasesDbnameIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/db-servers/$id/databases/$dbname/erd': {
-      id: '/db-servers/$id/databases/$dbname/erd'
-      path: '/db-servers/$id/databases/$dbname/erd'
-      fullPath: '/db-servers/$id/databases/$dbname/erd'
-      preLoaderRoute: typeof DbServersIdDatabasesDbnameErdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/db-servers/$id/databases/$dbname/tables/$schema/$table': {
-      id: '/db-servers/$id/databases/$dbname/tables/$schema/$table'
-      path: '/db-servers/$id/databases/$dbname/tables/$schema/$table'
-      fullPath: '/db-servers/$id/databases/$dbname/tables/$schema/$table'
-      preLoaderRoute: typeof DbServersIdDatabasesDbnameTablesSchemaTableRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
-interface DashboardRouteRouteChildren {
-  DashboardIndexRoute: typeof DashboardIndexRoute
+interface AppRouteChildren {
+  AppActivityRoute: typeof AppActivityRoute
+  AppNotificationsRoute: typeof AppNotificationsRoute
+  AppSchedulesRoute: typeof AppSchedulesRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppStorageRoute: typeof AppStorageRoute
+  AppSystemRoute: typeof AppSystemRoute
+  AppUsersRoute: typeof AppUsersRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppAgentsIndexRoute: typeof AppAgentsIndexRoute
+  AppBackupsIndexRoute: typeof AppBackupsIndexRoute
+  AppDatabasesIndexRoute: typeof AppDatabasesIndexRoute
+  AppExplorerIndexRoute: typeof AppExplorerIndexRoute
 }
 
-const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
-  DashboardIndexRoute: DashboardIndexRoute,
+const AppRouteChildren: AppRouteChildren = {
+  AppActivityRoute: AppActivityRoute,
+  AppNotificationsRoute: AppNotificationsRoute,
+  AppSchedulesRoute: AppSchedulesRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppStorageRoute: AppStorageRoute,
+  AppSystemRoute: AppSystemRoute,
+  AppUsersRoute: AppUsersRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppAgentsIndexRoute: AppAgentsIndexRoute,
+  AppBackupsIndexRoute: AppBackupsIndexRoute,
+  AppDatabasesIndexRoute: AppDatabasesIndexRoute,
+  AppExplorerIndexRoute: AppExplorerIndexRoute,
 }
 
-const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
-  DashboardRouteRouteChildren,
-)
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  DashboardRouteRoute: DashboardRouteRouteWithChildren,
-  ActivityRoute: ActivityRoute,
-  BackupsRoute: BackupsRoute,
-  LabelsRoute: LabelsRoute,
+  AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
-  NotificationsRoute: NotificationsRoute,
-  SettingsRoute: SettingsRoute,
-  SituationRoute: SituationRoute,
-  StorageRoute: StorageRoute,
-  DatabasesIdRoute: DatabasesIdRoute,
-  DatabasesIndexRoute: DatabasesIndexRoute,
-  DbServersIndexRoute: DbServersIndexRoute,
   AuthGithubReturnRoute: AuthGithubReturnRoute,
-  DbServersIdIndexRoute: DbServersIdIndexRoute,
-  DbServersIdDatabasesDbnameErdRoute: DbServersIdDatabasesDbnameErdRoute,
-  DbServersIdDatabasesDbnameIndexRoute: DbServersIdDatabasesDbnameIndexRoute,
-  DbServersIdDatabasesDbnameTablesSchemaTableRoute:
-    DbServersIdDatabasesDbnameTablesSchemaTableRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

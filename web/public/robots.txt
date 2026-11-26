@@ -1,10 +1,2 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Allow: /
-
-# Disallow authenticated routes
-Disallow: /dashboard
-Disallow: /databases/
-
-# Sitemap
-Sitemap: https://dumpstation.monzim.com/sitemap.xml
+Disallow: /

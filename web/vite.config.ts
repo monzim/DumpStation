@@ -1,21 +1,29 @@
 import { defineConfig } from 'vite'
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import viteReact from '@vitejs/plugin-react'
-import viteTsConfigPaths from 'vite-tsconfig-paths'
-import tailwindcss from '@tailwindcss/vite'
-import { cloudflare } from '@cloudflare/vite-plugin'
+import react from '@vitejs/plugin-react'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
+import { fileURLToPath, URL } from 'node:url'
 
-const config = defineConfig({
+// The SPA is served by the DumpStation server in production. In development
+// the API is proxied so the browser talks to a single origin.
+const apiTarget = process.env.DUMPSTATION_API ?? 'http://localhost:8080'
+
+export default defineConfig({
   plugins: [
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
-    // this is the plugin that enables path aliases
-    viteTsConfigPaths({
-      projects: ['./tsconfig.json'],
-    }),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
+    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
+    react(),
   ],
+  resolve: {
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
+  server: {
+    proxy: {
+      '/api': { target: apiTarget, changeOrigin: true },
+      '/config.js': { target: apiTarget, changeOrigin: true },
+    },
+  },
+  build: {
+    target: 'es2022',
+    sourcemap: false,
+    chunkSizeWarningLimit: 1200,
+  },
 })
-
-export default config
