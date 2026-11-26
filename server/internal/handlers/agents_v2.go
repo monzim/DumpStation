@@ -61,6 +61,9 @@ func (h *Handler) agentView(c *reqCtx, a *models.Agent, detail bool) AgentView {
 	if v.Labels == nil {
 		v.Labels = []string{}
 	}
+	if v.UploadModes == nil {
+		v.UploadModes = []string{}
+	}
 	return v
 }
 
