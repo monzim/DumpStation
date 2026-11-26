@@ -20,10 +20,27 @@ import { Route as AppStorageRouteImport } from './routes/_app/storage'
 import { Route as AppSystemRouteImport } from './routes/_app/system'
 import { Route as AppUsersRouteImport } from './routes/_app/users'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents.index'
+import { Route as AppAgentsIdRouteImport } from './routes/_app/agents.$id'
+import { Route as AppAgentsNewRouteImport } from './routes/_app/agents.new'
 import { Route as AppBackupsIndexRouteImport } from './routes/_app/backups.index'
+import { Route as AppBackupsIdRouteImport } from './routes/_app/backups.$id'
 import { Route as AppDatabasesIndexRouteImport } from './routes/_app/databases.index'
+import { Route as AppDatabasesIdRouteImport } from './routes/_app/databases.$id'
+import { Route as AppDatabasesNewRouteImport } from './routes/_app/databases.new'
 import { Route as AppExplorerIndexRouteImport } from './routes/_app/explorer.index'
+import { Route as AppRestoresIndexRouteImport } from './routes/_app/restores.index'
+import { Route as AppRestoresIdRouteImport } from './routes/_app/restores.$id'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
+import { Route as AppSettingsAboutRouteImport } from './routes/_app/settings.about'
+import { Route as AppSettingsLabelsRouteImport } from './routes/_app/settings.labels'
+import { Route as AppSettingsMaintenanceRouteImport } from './routes/_app/settings.maintenance'
+import { Route as AppSettingsProfileRouteImport } from './routes/_app/settings.profile'
+import { Route as AppSettingsSecurityRouteImport } from './routes/_app/settings.security'
 import { Route as AuthGithubReturnRouteImport } from './routes/auth.github.return'
+import { Route as AppExplorerIdIndexRouteImport } from './routes/_app/explorer.$id.index'
+import { Route as AppExplorerIdDbnameIndexRouteImport } from './routes/_app/explorer.$id.$dbname.index'
+import { Route as AppExplorerIdDbnameErdRouteImport } from './routes/_app/explorer.$id.$dbname.erd'
+import { Route as AppExplorerIdDbnameSchemaTableRouteImport } from './routes/_app/explorer.$id.$dbname.$schema.$table'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -79,9 +96,24 @@ const AppAgentsIndexRoute = AppAgentsIndexRouteImport.update({
   path: '/agents/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAgentsIdRoute = AppAgentsIdRouteImport.update({
+  id: '/agents/$id',
+  path: '/agents/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAgentsNewRoute = AppAgentsNewRouteImport.update({
+  id: '/agents/new',
+  path: '/agents/new',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppBackupsIndexRoute = AppBackupsIndexRouteImport.update({
   id: '/backups/',
   path: '/backups/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBackupsIdRoute = AppBackupsIdRouteImport.update({
+  id: '/backups/$id',
+  path: '/backups/$id',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDatabasesIndexRoute = AppDatabasesIndexRouteImport.update({
@@ -89,16 +121,88 @@ const AppDatabasesIndexRoute = AppDatabasesIndexRouteImport.update({
   path: '/databases/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDatabasesIdRoute = AppDatabasesIdRouteImport.update({
+  id: '/databases/$id',
+  path: '/databases/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDatabasesNewRoute = AppDatabasesNewRouteImport.update({
+  id: '/databases/new',
+  path: '/databases/new',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppExplorerIndexRoute = AppExplorerIndexRouteImport.update({
   id: '/explorer/',
   path: '/explorer/',
   getParentRoute: () => AppRoute,
+} as any)
+const AppRestoresIndexRoute = AppRestoresIndexRouteImport.update({
+  id: '/restores/',
+  path: '/restores/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRestoresIdRoute = AppRestoresIdRouteImport.update({
+  id: '/restores/$id',
+  path: '/restores/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsAboutRoute = AppSettingsAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsLabelsRoute = AppSettingsLabelsRouteImport.update({
+  id: '/labels',
+  path: '/labels',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsMaintenanceRoute = AppSettingsMaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsProfileRoute = AppSettingsProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsSecurityRoute = AppSettingsSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => AppSettingsRoute,
 } as any)
 const AuthGithubReturnRoute = AuthGithubReturnRouteImport.update({
   id: '/auth/github/return',
   path: '/auth/github/return',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppExplorerIdIndexRoute = AppExplorerIdIndexRouteImport.update({
+  id: '/explorer/$id/',
+  path: '/explorer/$id/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExplorerIdDbnameIndexRoute =
+  AppExplorerIdDbnameIndexRouteImport.update({
+    id: '/explorer/$id/$dbname/',
+    path: '/explorer/$id/$dbname/',
+    getParentRoute: () => AppRoute,
+  } as any)
+const AppExplorerIdDbnameErdRoute = AppExplorerIdDbnameErdRouteImport.update({
+  id: '/explorer/$id/$dbname/erd',
+  path: '/explorer/$id/$dbname/erd',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExplorerIdDbnameSchemaTableRoute =
+  AppExplorerIdDbnameSchemaTableRouteImport.update({
+    id: '/explorer/$id/$dbname/$schema/$table',
+    path: '/explorer/$id/$dbname/$schema/$table',
+    getParentRoute: () => AppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -106,31 +210,64 @@ export interface FileRoutesByFullPath {
   '/activity': typeof AppActivityRoute
   '/notifications': typeof AppNotificationsRoute
   '/schedules': typeof AppSchedulesRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/storage': typeof AppStorageRoute
   '/system': typeof AppSystemRoute
   '/users': typeof AppUsersRoute
+  '/agents/$id': typeof AppAgentsIdRoute
+  '/agents/new': typeof AppAgentsNewRoute
+  '/backups/$id': typeof AppBackupsIdRoute
+  '/databases/$id': typeof AppDatabasesIdRoute
+  '/databases/new': typeof AppDatabasesNewRoute
+  '/restores/$id': typeof AppRestoresIdRoute
+  '/settings/about': typeof AppSettingsAboutRoute
+  '/settings/labels': typeof AppSettingsLabelsRoute
+  '/settings/maintenance': typeof AppSettingsMaintenanceRoute
+  '/settings/profile': typeof AppSettingsProfileRoute
+  '/settings/security': typeof AppSettingsSecurityRoute
   '/auth/github/return': typeof AuthGithubReturnRoute
   '/agents/': typeof AppAgentsIndexRoute
   '/backups/': typeof AppBackupsIndexRoute
   '/databases/': typeof AppDatabasesIndexRoute
   '/explorer/': typeof AppExplorerIndexRoute
+  '/restores/': typeof AppRestoresIndexRoute
+  '/settings/': typeof AppSettingsIndexRoute
+  '/explorer/$id/': typeof AppExplorerIdIndexRoute
+  '/explorer/$id/$dbname/erd': typeof AppExplorerIdDbnameErdRoute
+  '/explorer/$id/$dbname/': typeof AppExplorerIdDbnameIndexRoute
+  '/explorer/$id/$dbname/$schema/$table': typeof AppExplorerIdDbnameSchemaTableRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/activity': typeof AppActivityRoute
   '/notifications': typeof AppNotificationsRoute
   '/schedules': typeof AppSchedulesRoute
-  '/settings': typeof AppSettingsRoute
   '/storage': typeof AppStorageRoute
   '/system': typeof AppSystemRoute
   '/users': typeof AppUsersRoute
   '/': typeof AppIndexRoute
+  '/agents/$id': typeof AppAgentsIdRoute
+  '/agents/new': typeof AppAgentsNewRoute
+  '/backups/$id': typeof AppBackupsIdRoute
+  '/databases/$id': typeof AppDatabasesIdRoute
+  '/databases/new': typeof AppDatabasesNewRoute
+  '/restores/$id': typeof AppRestoresIdRoute
+  '/settings/about': typeof AppSettingsAboutRoute
+  '/settings/labels': typeof AppSettingsLabelsRoute
+  '/settings/maintenance': typeof AppSettingsMaintenanceRoute
+  '/settings/profile': typeof AppSettingsProfileRoute
+  '/settings/security': typeof AppSettingsSecurityRoute
   '/auth/github/return': typeof AuthGithubReturnRoute
   '/agents': typeof AppAgentsIndexRoute
   '/backups': typeof AppBackupsIndexRoute
   '/databases': typeof AppDatabasesIndexRoute
   '/explorer': typeof AppExplorerIndexRoute
+  '/restores': typeof AppRestoresIndexRoute
+  '/settings': typeof AppSettingsIndexRoute
+  '/explorer/$id': typeof AppExplorerIdIndexRoute
+  '/explorer/$id/$dbname/erd': typeof AppExplorerIdDbnameErdRoute
+  '/explorer/$id/$dbname': typeof AppExplorerIdDbnameIndexRoute
+  '/explorer/$id/$dbname/$schema/$table': typeof AppExplorerIdDbnameSchemaTableRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -139,16 +276,33 @@ export interface FileRoutesById {
   '/_app/activity': typeof AppActivityRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/schedules': typeof AppSchedulesRoute
-  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/storage': typeof AppStorageRoute
   '/_app/system': typeof AppSystemRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/agents/$id': typeof AppAgentsIdRoute
+  '/_app/agents/new': typeof AppAgentsNewRoute
+  '/_app/backups/$id': typeof AppBackupsIdRoute
+  '/_app/databases/$id': typeof AppDatabasesIdRoute
+  '/_app/databases/new': typeof AppDatabasesNewRoute
+  '/_app/restores/$id': typeof AppRestoresIdRoute
+  '/_app/settings/about': typeof AppSettingsAboutRoute
+  '/_app/settings/labels': typeof AppSettingsLabelsRoute
+  '/_app/settings/maintenance': typeof AppSettingsMaintenanceRoute
+  '/_app/settings/profile': typeof AppSettingsProfileRoute
+  '/_app/settings/security': typeof AppSettingsSecurityRoute
   '/auth/github/return': typeof AuthGithubReturnRoute
   '/_app/agents/': typeof AppAgentsIndexRoute
   '/_app/backups/': typeof AppBackupsIndexRoute
   '/_app/databases/': typeof AppDatabasesIndexRoute
   '/_app/explorer/': typeof AppExplorerIndexRoute
+  '/_app/restores/': typeof AppRestoresIndexRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
+  '/_app/explorer/$id/': typeof AppExplorerIdIndexRoute
+  '/_app/explorer/$id/$dbname/erd': typeof AppExplorerIdDbnameErdRoute
+  '/_app/explorer/$id/$dbname/': typeof AppExplorerIdDbnameIndexRoute
+  '/_app/explorer/$id/$dbname/$schema/$table': typeof AppExplorerIdDbnameSchemaTableRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -162,27 +316,60 @@ export interface FileRouteTypes {
     | '/storage'
     | '/system'
     | '/users'
+    | '/agents/$id'
+    | '/agents/new'
+    | '/backups/$id'
+    | '/databases/$id'
+    | '/databases/new'
+    | '/restores/$id'
+    | '/settings/about'
+    | '/settings/labels'
+    | '/settings/maintenance'
+    | '/settings/profile'
+    | '/settings/security'
     | '/auth/github/return'
     | '/agents/'
     | '/backups/'
     | '/databases/'
     | '/explorer/'
+    | '/restores/'
+    | '/settings/'
+    | '/explorer/$id/'
+    | '/explorer/$id/$dbname/erd'
+    | '/explorer/$id/$dbname/'
+    | '/explorer/$id/$dbname/$schema/$table'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/activity'
     | '/notifications'
     | '/schedules'
-    | '/settings'
     | '/storage'
     | '/system'
     | '/users'
     | '/'
+    | '/agents/$id'
+    | '/agents/new'
+    | '/backups/$id'
+    | '/databases/$id'
+    | '/databases/new'
+    | '/restores/$id'
+    | '/settings/about'
+    | '/settings/labels'
+    | '/settings/maintenance'
+    | '/settings/profile'
+    | '/settings/security'
     | '/auth/github/return'
     | '/agents'
     | '/backups'
     | '/databases'
     | '/explorer'
+    | '/restores'
+    | '/settings'
+    | '/explorer/$id'
+    | '/explorer/$id/$dbname/erd'
+    | '/explorer/$id/$dbname'
+    | '/explorer/$id/$dbname/$schema/$table'
   id:
     | '__root__'
     | '/_app'
@@ -195,11 +382,28 @@ export interface FileRouteTypes {
     | '/_app/system'
     | '/_app/users'
     | '/_app/'
+    | '/_app/agents/$id'
+    | '/_app/agents/new'
+    | '/_app/backups/$id'
+    | '/_app/databases/$id'
+    | '/_app/databases/new'
+    | '/_app/restores/$id'
+    | '/_app/settings/about'
+    | '/_app/settings/labels'
+    | '/_app/settings/maintenance'
+    | '/_app/settings/profile'
+    | '/_app/settings/security'
     | '/auth/github/return'
     | '/_app/agents/'
     | '/_app/backups/'
     | '/_app/databases/'
     | '/_app/explorer/'
+    | '/_app/restores/'
+    | '/_app/settings/'
+    | '/_app/explorer/$id/'
+    | '/_app/explorer/$id/$dbname/erd'
+    | '/_app/explorer/$id/$dbname/'
+    | '/_app/explorer/$id/$dbname/$schema/$table'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -287,11 +491,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/agents/$id': {
+      id: '/_app/agents/$id'
+      path: '/agents/$id'
+      fullPath: '/agents/$id'
+      preLoaderRoute: typeof AppAgentsIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/agents/new': {
+      id: '/_app/agents/new'
+      path: '/agents/new'
+      fullPath: '/agents/new'
+      preLoaderRoute: typeof AppAgentsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/backups/': {
       id: '/_app/backups/'
       path: '/backups'
       fullPath: '/backups/'
       preLoaderRoute: typeof AppBackupsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/backups/$id': {
+      id: '/_app/backups/$id'
+      path: '/backups/$id'
+      fullPath: '/backups/$id'
+      preLoaderRoute: typeof AppBackupsIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/databases/': {
@@ -301,12 +526,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDatabasesIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/databases/$id': {
+      id: '/_app/databases/$id'
+      path: '/databases/$id'
+      fullPath: '/databases/$id'
+      preLoaderRoute: typeof AppDatabasesIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/databases/new': {
+      id: '/_app/databases/new'
+      path: '/databases/new'
+      fullPath: '/databases/new'
+      preLoaderRoute: typeof AppDatabasesNewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/explorer/': {
       id: '/_app/explorer/'
       path: '/explorer'
       fullPath: '/explorer/'
       preLoaderRoute: typeof AppExplorerIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/restores/': {
+      id: '/_app/restores/'
+      path: '/restores'
+      fullPath: '/restores/'
+      preLoaderRoute: typeof AppRestoresIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/restores/$id': {
+      id: '/_app/restores/$id'
+      path: '/restores/$id'
+      fullPath: '/restores/$id'
+      preLoaderRoute: typeof AppRestoresIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/about': {
+      id: '/_app/settings/about'
+      path: '/about'
+      fullPath: '/settings/about'
+      preLoaderRoute: typeof AppSettingsAboutRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/labels': {
+      id: '/_app/settings/labels'
+      path: '/labels'
+      fullPath: '/settings/labels'
+      preLoaderRoute: typeof AppSettingsLabelsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/maintenance': {
+      id: '/_app/settings/maintenance'
+      path: '/maintenance'
+      fullPath: '/settings/maintenance'
+      preLoaderRoute: typeof AppSettingsMaintenanceRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/profile': {
+      id: '/_app/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AppSettingsProfileRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/security': {
+      id: '/_app/settings/security'
+      path: '/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof AppSettingsSecurityRouteImport
+      parentRoute: typeof AppSettingsRoute
     }
     '/auth/github/return': {
       id: '/auth/github/return'
@@ -315,37 +610,109 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGithubReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/explorer/$id/': {
+      id: '/_app/explorer/$id/'
+      path: '/explorer/$id'
+      fullPath: '/explorer/$id/'
+      preLoaderRoute: typeof AppExplorerIdIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/explorer/$id/$dbname/': {
+      id: '/_app/explorer/$id/$dbname/'
+      path: '/explorer/$id/$dbname'
+      fullPath: '/explorer/$id/$dbname/'
+      preLoaderRoute: typeof AppExplorerIdDbnameIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/explorer/$id/$dbname/erd': {
+      id: '/_app/explorer/$id/$dbname/erd'
+      path: '/explorer/$id/$dbname/erd'
+      fullPath: '/explorer/$id/$dbname/erd'
+      preLoaderRoute: typeof AppExplorerIdDbnameErdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/explorer/$id/$dbname/$schema/$table': {
+      id: '/_app/explorer/$id/$dbname/$schema/$table'
+      path: '/explorer/$id/$dbname/$schema/$table'
+      fullPath: '/explorer/$id/$dbname/$schema/$table'
+      preLoaderRoute: typeof AppExplorerIdDbnameSchemaTableRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
+
+interface AppSettingsRouteChildren {
+  AppSettingsAboutRoute: typeof AppSettingsAboutRoute
+  AppSettingsLabelsRoute: typeof AppSettingsLabelsRoute
+  AppSettingsMaintenanceRoute: typeof AppSettingsMaintenanceRoute
+  AppSettingsProfileRoute: typeof AppSettingsProfileRoute
+  AppSettingsSecurityRoute: typeof AppSettingsSecurityRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsAboutRoute: AppSettingsAboutRoute,
+  AppSettingsLabelsRoute: AppSettingsLabelsRoute,
+  AppSettingsMaintenanceRoute: AppSettingsMaintenanceRoute,
+  AppSettingsProfileRoute: AppSettingsProfileRoute,
+  AppSettingsSecurityRoute: AppSettingsSecurityRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
 
 interface AppRouteChildren {
   AppActivityRoute: typeof AppActivityRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppSchedulesRoute: typeof AppSchedulesRoute
-  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppStorageRoute: typeof AppStorageRoute
   AppSystemRoute: typeof AppSystemRoute
   AppUsersRoute: typeof AppUsersRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppAgentsIdRoute: typeof AppAgentsIdRoute
+  AppAgentsNewRoute: typeof AppAgentsNewRoute
+  AppBackupsIdRoute: typeof AppBackupsIdRoute
+  AppDatabasesIdRoute: typeof AppDatabasesIdRoute
+  AppDatabasesNewRoute: typeof AppDatabasesNewRoute
+  AppRestoresIdRoute: typeof AppRestoresIdRoute
   AppAgentsIndexRoute: typeof AppAgentsIndexRoute
   AppBackupsIndexRoute: typeof AppBackupsIndexRoute
   AppDatabasesIndexRoute: typeof AppDatabasesIndexRoute
   AppExplorerIndexRoute: typeof AppExplorerIndexRoute
+  AppRestoresIndexRoute: typeof AppRestoresIndexRoute
+  AppExplorerIdIndexRoute: typeof AppExplorerIdIndexRoute
+  AppExplorerIdDbnameErdRoute: typeof AppExplorerIdDbnameErdRoute
+  AppExplorerIdDbnameIndexRoute: typeof AppExplorerIdDbnameIndexRoute
+  AppExplorerIdDbnameSchemaTableRoute: typeof AppExplorerIdDbnameSchemaTableRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppActivityRoute: AppActivityRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppSchedulesRoute: AppSchedulesRoute,
-  AppSettingsRoute: AppSettingsRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppStorageRoute: AppStorageRoute,
   AppSystemRoute: AppSystemRoute,
   AppUsersRoute: AppUsersRoute,
   AppIndexRoute: AppIndexRoute,
+  AppAgentsIdRoute: AppAgentsIdRoute,
+  AppAgentsNewRoute: AppAgentsNewRoute,
+  AppBackupsIdRoute: AppBackupsIdRoute,
+  AppDatabasesIdRoute: AppDatabasesIdRoute,
+  AppDatabasesNewRoute: AppDatabasesNewRoute,
+  AppRestoresIdRoute: AppRestoresIdRoute,
   AppAgentsIndexRoute: AppAgentsIndexRoute,
   AppBackupsIndexRoute: AppBackupsIndexRoute,
   AppDatabasesIndexRoute: AppDatabasesIndexRoute,
   AppExplorerIndexRoute: AppExplorerIndexRoute,
+  AppRestoresIndexRoute: AppRestoresIndexRoute,
+  AppExplorerIdIndexRoute: AppExplorerIdIndexRoute,
+  AppExplorerIdDbnameErdRoute: AppExplorerIdDbnameErdRoute,
+  AppExplorerIdDbnameIndexRoute: AppExplorerIdDbnameIndexRoute,
+  AppExplorerIdDbnameSchemaTableRoute: AppExplorerIdDbnameSchemaTableRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

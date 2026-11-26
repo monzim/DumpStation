@@ -1,13 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Page } from '@/components/Page'
-import { PageHeader } from '@/components/PageHeader'
+import { UsersPage } from '@/components/users/UsersPage'
 
-export const Route = createFileRoute('/_app/users')({ component: RouteComponent })
-
-function RouteComponent() {
-  return (
-    <Page>
-      <PageHeader title="Users" />
-    </Page>
-  )
-}
+export const Route = createFileRoute('/_app/users')({ component: UsersPage })

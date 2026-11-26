@@ -1,0 +1,121 @@
+@layer app {
+  .ds-ov-main {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: var(--spacing-4);
+    align-items: start;
+  }
+
+  @media (max-width: 1100px) {
+    .ds-ov-main {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .ds-ov-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+    min-width: 0;
+  }
+
+  .ds-ov-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .ds-ov-list > li {
+    padding-block: var(--spacing-2);
+    padding-inline: var(--spacing-4);
+    border-bottom: var(--border-width) solid var(--color-border);
+    min-width: 0;
+  }
+
+  .ds-ov-list > li:last-child {
+    border-bottom: none;
+  }
+
+  .ds-ov-tile {
+    height: 100%;
+  }
+
+  .ds-ov-tile:hover {
+    background: var(--color-background-hover, var(--color-background-muted));
+  }
+
+  .ds-ov-tile-alert .ds-metric-value {
+    color: var(--color-text-error);
+  }
+
+  .ds-ov-tile-warn .ds-metric-value {
+    color: var(--color-text-warning);
+  }
+
+  .ds-ov-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    flex: none;
+    background: var(--color-track);
+  }
+
+  .ds-ov-dot.is-success {
+    background: var(--color-success);
+  }
+  .ds-ov-dot.is-error {
+    background: var(--color-error);
+  }
+  .ds-ov-dot.is-warning {
+    background: var(--color-warning);
+  }
+
+  .ds-ov-bars-axis {
+    display: flex;
+    justify-content: space-between;
+    margin-top: var(--spacing-1);
+  }
+
+  .ds-ov-bar-hit {
+    flex: 1;
+    min-width: 6px;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: default;
+  }
+
+  .ds-ov-bar-hit:focus-visible {
+    outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+    outline-offset: 2px;
+  }
+
+  .ds-ov-step {
+    display: flex;
+    gap: var(--spacing-3);
+    align-items: flex-start;
+  }
+
+  .ds-ov-step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    border: var(--border-width) solid var(--color-border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    font-size: var(--text-supporting-size, 0.8125rem);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-ov-step-num.is-done {
+    background: var(--color-success);
+    border-color: var(--color-success);
+    color: var(--color-background, white);
+  }
+}
