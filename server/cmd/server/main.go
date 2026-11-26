@@ -15,6 +15,7 @@ import (
 	"github.com/monzim/db_proxy/v1/internal/config"
 	"github.com/monzim/db_proxy/v1/internal/crypto"
 	"github.com/monzim/db_proxy/v1/internal/database"
+	"github.com/monzim/db_proxy/v1/internal/dbadmin"
 	"github.com/monzim/db_proxy/v1/internal/handlers"
 	"github.com/monzim/db_proxy/v1/internal/jobs"
 	"github.com/monzim/db_proxy/v1/internal/models"
@@ -98,6 +99,7 @@ func main() {
 		log.Fatalf("DIRECT_ALLOWED_CIDRS: %v", err)
 	} else if policy != nil {
 		runner.HostPolicy = policy
+		dbadmin.HostPolicy = policy
 		log.Printf("Direct database connections restricted to: %s", cfg.Jobs.AllowedCIDRs)
 	}
 	log.Printf("PostgreSQL client tools available: %v", runner.Tools.Majors())

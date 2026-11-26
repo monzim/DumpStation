@@ -313,3 +313,28 @@ func (h *Handler) UpdateNotificationV2(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("Notification channel %q updated", n.Name), "", c.IP)
 	writeJSON(w, http.StatusOK, n.ToResponse())
 }
+
+// StorageSettingsView returns editable, non-secret storage fields.
+type StorageSettingsView struct {
+	Bucket   string `json:"bucket"`
+	Region   string `json:"region"`
+	Endpoint string `json:"endpoint"`
+}
+
+// GetStorageSettings handles GET /storage/{id}/settings (edit forms).
+func (h *Handler) GetStorageSettings(w http.ResponseWriter, r *http.Request) {
+	c, ok := writer(w, r)
+	if !ok {
+		return
+	}
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	s, err := h.repo.GetStorageConfigByUser(id, c.UserID, c.IsAdmin)
+	if err != nil || s == nil {
+		writeError(w, http.StatusNotFound, "storage not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, StorageSettingsView{Bucket: s.Bucket, Region: s.Region, Endpoint: s.Endpoint})
+}

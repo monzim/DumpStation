@@ -1,8 +1,6 @@
 package pgexec
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -30,6 +28,9 @@ type Conn struct {
 	// first and falls back to plaintext (the v1 behaviour, without running
 	// the tool twice).
 	SSLMode string `json:"sslmode,omitempty"`
+	// HostAddr pins the connection to a pre-validated IP (PGHOSTADDR);
+	// Host is still used for TLS server-name checks. Never serialized.
+	HostAddr string `json:"-"`
 }
 
 // Validate checks required fields and rejects values that could be
@@ -101,9 +102,27 @@ func ParseURL(raw string) (Conn, error) {
 type Runner struct {
 	Tools   *Toolset
 	TempDir string
-	// HostPolicy, when set, is consulted before every connection. The
-	// server uses it to restrict direct connections to allowed networks.
-	HostPolicy func(host string) error
+	// HostPolicy, when set, is consulted before every connection and the
+	// connection is pinned to the IP it returns. The server uses it to
+	// restrict direct connections to allowed networks.
+	HostPolicy HostPolicy
+}
+
+// prepare validates a connection and applies the host policy, returning the
+// connection (pinned when a policy is set) to use for every tool invocation
+// of one operation.
+func (r *Runner) prepare(c Conn) (Conn, error) {
+	if err := c.Validate(); err != nil {
+		return c, err
+	}
+	if r.HostPolicy != nil {
+		ip, err := r.HostPolicy(c.Host)
+		if err != nil {
+			return c, &Error{Code: CodeConfigError, Message: err.Error()}
+		}
+		c.HostAddr = ip
+	}
+	return c, nil
 }
 
 // NewRunner discovers installed tools. tempDir "" uses os.TempDir().
@@ -163,6 +182,9 @@ func (r *Runner) command(ctx context.Context, bin string, c Conn, passfile strin
 	if passfile != "" {
 		env = append(env, "PGPASSFILE="+passfile)
 	}
+	if c.HostAddr != "" {
+		env = append(env, "PGHOSTADDR="+c.HostAddr)
+	}
 	cmd.Env = env
 	cmd.WaitDelay = 10 * time.Second
 	bindToParent(cmd)
@@ -176,14 +198,14 @@ func connArgs(c Conn) []string {
 // ServerVersion returns the server's version number (e.g. 160004) and
 // human-readable version string.
 func (r *Runner) ServerVersion(ctx context.Context, c Conn) (int, string, error) {
-	if err := c.Validate(); err != nil {
+	c, err := r.prepare(c)
+	if err != nil {
 		return 0, "", err
 	}
-	if r.HostPolicy != nil {
-		if err := r.HostPolicy(c.Host); err != nil {
-			return 0, "", &Error{Code: CodeConfigError, Message: err.Error()}
-		}
-	}
+	return r.serverVersion(ctx, c)
+}
+
+func (r *Runner) serverVersion(ctx context.Context, c Conn) (int, string, error) {
 	psql, _, err := r.Tools.Pick("psql", 0)
 	if err != nil {
 		return 0, "", err
@@ -299,11 +321,12 @@ type DumpOptions struct {
 // path, size and SHA-256. The caller must remove Path. The dump is written
 // to disk (not memory), so memory use stays bounded for any database size.
 func (r *Runner) Dump(ctx context.Context, c Conn, opts DumpOptions) (*DumpResult, error) {
-	if err := c.Validate(); err != nil {
+	c, err := r.prepare(c)
+	if err != nil {
 		return nil, err
 	}
 	start := time.Now()
-	num, ver, err := r.ServerVersion(ctx, c)
+	num, ver, err := r.serverVersion(ctx, c)
 	if err != nil {
 		return nil, err
 	}
@@ -403,86 +426,46 @@ type RestoreOptions struct {
 // are streamed through a filter that rejects every backslash meta-command
 // outside COPY data, and psql runs with ON_ERROR_STOP.
 func (r *Runner) Restore(ctx context.Context, c Conn, path string, opts RestoreOptions) error {
-	if err := c.Validate(); err != nil {
+	c, err := r.prepare(c)
+	if err != nil {
 		return err
 	}
-	num, _, err := r.ServerVersion(ctx, c)
+	num, _, err := r.serverVersion(ctx, c)
 	if err != nil {
 		return err
 	}
 	major := MajorFromNum(num)
+	if opts.Format != "custom" {
+		// Plain SQL is replayed over the wire protocol: no psql, so no
+		// backslash meta-command can ever be interpreted.
+		return restorePlain(ctx, c, path, major)
+	}
 	pass, err := r.writePassfile(c)
 	if err != nil {
 		return err
 	}
 	defer os.Remove(pass)
-
-	if opts.Format == "custom" {
-		bin, _, perr := r.Tools.Pick("pg_restore", 0)
-		if perr != nil {
-			return perr
-		}
-		args := append(connArgs(c), "--dbname", c.Database, "--no-owner", "--no-privileges")
-		if opts.Clean {
-			args = append(args, "--clean", "--if-exists")
-		}
-		args = append(args, "--", path)
-		cmd := r.command(ctx, bin, c, pass, args...)
-		stderr := newRing(256 << 10)
-		cmd.Stderr = stderr
-		cmd.Stdout = io.Discard
-		if err := cmd.Run(); err != nil {
-			if ctx.Err() != nil {
-				return AsError(ctx.Err())
-			}
-			if onlyBenignRestoreErrors(stderr.String(), major) {
-				return nil
-			}
-			return Classify(stderr.String(), CodeRestoreFailed, "Restore failed")
-		}
-		return nil
-	}
-
-	psqlBin, _, perr := r.Tools.Pick("psql", 0)
+	bin, _, perr := r.Tools.Pick("pg_restore", 0)
 	if perr != nil {
 		return perr
 	}
-	psqlArgs := append(connArgs(c), "--dbname", c.Database, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", "-")
-	psql := r.command(ctx, psqlBin, c, pass, psqlArgs...)
-	psqlErr := newRing(64 << 10)
-	psql.Stderr = psqlErr
-	psql.Stdout = io.Discard
-	stdin, err := psql.StdinPipe()
-	if err != nil {
-		return AsError(err)
+	args := append(connArgs(c), "--dbname", c.Database, "--no-owner", "--no-privileges")
+	if opts.Clean {
+		args = append(args, "--clean", "--if-exists")
 	}
-	src, err := os.Open(path)
-	if err != nil {
-		return AsError(err)
-	}
-	defer src.Close()
-	if err := psql.Start(); err != nil {
-		return AsError(err)
-	}
-	copyErr := filterSQL(src, stdin, major)
-	if copyErr != nil {
-		// Abort psql before it executes anything further.
-		_ = psql.Process.Kill()
-	}
-	stdin.Close()
-	psqlRunErr := psql.Wait()
-	if ctx.Err() != nil {
-		return AsError(ctx.Err())
-	}
-	var unsafe *Error
-	if errors.As(copyErr, &unsafe) {
-		return unsafe
-	}
-	if psqlRunErr != nil {
-		return Classify(psqlErr.String(), CodeRestoreFailed, "Restore failed")
-	}
-	if copyErr != nil && !errors.Is(copyErr, io.ErrClosedPipe) {
-		return AsError(copyErr)
+	args = append(args, "--", path)
+	cmd := r.command(ctx, bin, c, pass, args...)
+	stderr := newRing(256 << 10)
+	cmd.Stderr = stderr
+	cmd.Stdout = io.Discard
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return AsError(ctx.Err())
+		}
+		if onlyBenignRestoreErrors(stderr.String(), major) {
+			return nil
+		}
+		return Classify(stderr.String(), CodeRestoreFailed, "Restore failed")
 	}
 	return nil
 }
@@ -502,61 +485,6 @@ func onlyBenignRestoreErrors(stderr string, targetMajor int) bool {
 		return false
 	}
 	return errs > 0
-}
-
-// filterSQL streams SQL from src to dst, dropping session settings that the
-// target server version does not support. Lines are copied verbatim
-// otherwise (COPY data included).
-func filterSQL(src io.Reader, dst io.Writer, targetMajor int) error {
-	br := bufio.NewReaderSize(src, 256<<10)
-	bw := bufio.NewWriterSize(dst, 256<<10)
-	inCopy := false
-	for {
-		line, err := br.ReadSlice('\n')
-		if errors.Is(err, bufio.ErrBufferFull) {
-			// Very long line (large COPY row): pass through in chunks.
-			if _, werr := bw.Write(line); werr != nil {
-				return werr
-			}
-			for errors.Is(err, bufio.ErrBufferFull) {
-				line, err = br.ReadSlice('\n')
-				if _, werr := bw.Write(line); werr != nil {
-					return werr
-				}
-			}
-		} else if len(line) > 0 {
-			drop := false
-			if !inCopy && len(line) > 0 && line[0] == '\\' {
-				// psql meta-command (\!, \o, \copy, \i, ...). pg_dump only emits
-				// \restrict / \unrestrict, which tighten psql; anything else
-				// means the artifact was tampered with.
-				if !bytes.HasPrefix(line, []byte("\\restrict ")) && !bytes.HasPrefix(line, []byte("\\unrestrict ")) {
-					return &Error{Code: CodeVerifyFailed, Message: "Refusing to restore: the dump contains psql meta-commands that pg_dump never produces"}
-				}
-			}
-			if !inCopy {
-				if targetMajor > 0 && targetMajor < 17 && bytes.HasPrefix(line, []byte("SET transaction_timeout")) {
-					drop = true
-				}
-				if bytes.HasPrefix(line, []byte("COPY ")) && bytes.Contains(line, []byte("FROM stdin;")) {
-					inCopy = true
-				}
-			} else if bytes.Equal(bytes.TrimRight(line, "\r\n"), []byte("\\.")) {
-				inCopy = false
-			}
-			if !drop {
-				if _, werr := bw.Write(line); werr != nil {
-					return werr
-				}
-			}
-		}
-		if err == io.EOF {
-			return bw.Flush()
-		}
-		if err != nil && !errors.Is(err, bufio.ErrBufferFull) {
-			return err
-		}
-	}
 }
 
 // HashFile returns the SHA-256 of a file.

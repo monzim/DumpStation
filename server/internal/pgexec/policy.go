@@ -8,10 +8,15 @@ import (
 	"time"
 )
 
+// HostPolicy validates a database host and returns the IP address the
+// connection must be pinned to (so DNS cannot change between the check and
+// the connection). An empty IP means "no pinning".
+type HostPolicy func(host string) (string, error)
+
 // CIDRPolicy returns a HostPolicy that only allows hosts whose every
 // resolved address falls inside one of the given CIDRs (comma separated).
 // An empty list returns nil (no restriction).
-func CIDRPolicy(list string) (func(string) error, error) {
+func CIDRPolicy(list string) (HostPolicy, error) {
 	var nets []*net.IPNet
 	for _, part := range strings.Split(list, ",") {
 		part = strings.TrimSpace(part)
@@ -34,12 +39,12 @@ func CIDRPolicy(list string) (func(string) error, error) {
 	if len(nets) == 0 {
 		return nil, nil
 	}
-	return func(host string) error {
+	return func(host string) (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 		if err != nil || len(ips) == 0 {
-			return fmt.Errorf("could not resolve database host %q", host)
+			return "", fmt.Errorf("could not resolve database host %q", host)
 		}
 		for _, ip := range ips {
 			ok := false
@@ -50,9 +55,9 @@ func CIDRPolicy(list string) (func(string) error, error) {
 				}
 			}
 			if !ok {
-				return fmt.Errorf("direct connections to %s are not allowed by this server (DIRECT_ALLOWED_CIDRS); use an agent", ip.IP)
+				return "", fmt.Errorf("direct connections to %s are not allowed by this server (DIRECT_ALLOWED_CIDRS); use an agent", ip.IP)
 			}
 		}
-		return nil
+		return ips[0].IP.String(), nil
 	}, nil
 }

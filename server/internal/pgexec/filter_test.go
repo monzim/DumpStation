@@ -1,37 +1,62 @@
 package pgexec
 
 import (
-	"bytes"
+	"bufio"
+	"io"
 	"strings"
 	"testing"
 )
 
-func TestFilterSQLDropsUnknownSettingsOnOldTargets(t *testing.T) {
-	in := "SET statement_timeout = 0;\nSET transaction_timeout = 0;\nCOPY public.t (a) FROM stdin;\nSET transaction_timeout = 0;\n\\.\nSELECT 1;\n"
-	var out bytes.Buffer
-	if err := filterSQL(strings.NewReader(in), &out, 16); err != nil {
-		t.Fatal(err)
-	}
-	got := out.String()
-	if strings.Count(got, "SET transaction_timeout") != 1 {
-		t.Fatalf("expected only the COPY-data line to survive, got:\n%s", got)
-	}
-	out.Reset()
-	_ = filterSQL(strings.NewReader(in), &out, 17)
-	if out.String() != in {
-		t.Fatalf("PG17+ targets must receive the stream unchanged")
+func scanAll(t *testing.T, in string) []string {
+	sc := newSQLScanner(bufio.NewReader(strings.NewReader(in)))
+	var out []string
+	for {
+		st, err := sc.Next()
+		if err == io.EOF {
+			return out
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(st) != "" {
+			out = append(out, strings.TrimSpace(st))
+		}
 	}
 }
 
-func TestFilterSQLLongLines(t *testing.T) {
-	long := strings.Repeat("x", 1<<20)
-	in := "COPY t (a) FROM stdin;\n" + long + "\n\\.\n"
-	var out bytes.Buffer
-	if err := filterSQL(strings.NewReader(in), &out, 16); err != nil {
-		t.Fatal(err)
+func TestScannerSplitsStatementsSafely(t *testing.T) {
+	in := "\\restrict abc\nSET a = 1;\n-- comment; with semicolon\nSELECT 'x;y', E'it\\'s;', \"we;ird\";\n" +
+		"CREATE FUNCTION f() RETURNS int AS $body$ SELECT 1; $body$ LANGUAGE sql;\n/* nested /* ; */ */ SELECT 2;\n\\! touch /tmp/pwned\nSELECT 3;\n"
+	got := scanAll(t, in)
+	want := []string{"SET a = 1", "SELECT 'x;y', E'it\\'s;', \"we;ird\"", "CREATE FUNCTION f() RETURNS int AS $body$ SELECT 1; $body$ LANGUAGE sql", "SELECT 2", "SELECT 3"}
+	if len(got) != len(want) {
+		t.Fatalf("got %d statements: %q", len(got), got)
 	}
-	if out.String() != in {
-		t.Fatal("long lines must pass through unchanged")
+	for i := range want {
+		if !strings.HasSuffix(got[i], want[i]) {
+			t.Fatalf("statement %d = %q, want suffix %q", i, got[i], want[i])
+		}
+	}
+	for _, g := range got {
+		if strings.Contains(g, "pwned") || strings.Contains(g, "restrict") {
+			t.Fatalf("meta-command leaked into SQL: %q", g)
+		}
+	}
+}
+
+func TestCopyReaderStopsAtTerminator(t *testing.T) {
+	sc := newSQLScanner(bufio.NewReader(strings.NewReader("COPY t (a) FROM stdin;\n1\n2\n\\.\nSELECT 1;\n")))
+	st, _ := sc.Next()
+	if !copyFromStdin.MatchString(st) {
+		t.Fatalf("not detected as COPY: %q", st)
+	}
+	data, _ := io.ReadAll(sc.CopyData())
+	if string(data) != "1\n2\n" {
+		t.Fatalf("copy data = %q", data)
+	}
+	next, _ := sc.Next()
+	if strings.TrimSpace(next) != "SELECT 1" {
+		t.Fatalf("after COPY got %q", next)
 	}
 }
 
@@ -56,19 +81,6 @@ func TestParseURL(t *testing.T) {
 	}
 	if _, err := ParseURL("postgres://-oProxyCommand@h/db"); err == nil {
 		t.Fatal("option-like values must be rejected")
-	}
-}
-
-func TestFilterSQLRejectsMetaCommands(t *testing.T) {
-	var out bytes.Buffer
-	err := filterSQL(strings.NewReader("SELECT 1;\n\\! touch /tmp/pwned\n"), &out, 16)
-	if e, ok := err.(*Error); !ok || e.Code != CodeVerifyFailed {
-		t.Fatalf("expected meta-command rejection, got %v", err)
-	}
-	out.Reset()
-	in := "\\restrict abc\nCOPY t (a) FROM stdin;\n\\N\n\\.\n\\unrestrict abc\n"
-	if err := filterSQL(strings.NewReader(in), &out, 16); err != nil {
-		t.Fatalf("pg_dump's own restrict lines and COPY data must pass: %v", err)
 	}
 }
 

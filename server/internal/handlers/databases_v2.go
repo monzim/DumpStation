@@ -499,3 +499,31 @@ func (h *Handler) PreviewSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
+
+// DatabaseConnectionView returns the editable, non-secret connection fields.
+type DatabaseConnectionView struct {
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	DBName      string `json:"dbname"`
+	Username    string `json:"user"`
+	HasPassword bool   `json:"has_password"`
+}
+
+// GetDatabaseConnection handles GET /databases/{id}/connection (edit forms).
+// Passwords are never returned; demo accounts are refused.
+func (h *Handler) GetDatabaseConnection(w http.ResponseWriter, r *http.Request) {
+	c, ok := writer(w, r)
+	if !ok {
+		return
+	}
+	id, ok := pathID(w, r, "id")
+	if !ok {
+		return
+	}
+	d, err := h.repo.GetDatabaseConfigByUser(id, c.UserID, c.IsAdmin)
+	if err != nil || d == nil {
+		writeError(w, http.StatusNotFound, "database not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, DatabaseConnectionView{Host: d.Host, Port: d.Port, DBName: d.DBName, Username: d.Username, HasPassword: d.Password != ""})
+}
