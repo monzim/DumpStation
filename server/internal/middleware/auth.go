@@ -22,7 +22,6 @@ func AuthMiddleware(jwtManager *auth.JWTManager) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				log.Printf("[AUTH] ❌ Missing authorization header - %s %s", r.Method, r.URL.Path)
 				writeError(w, http.StatusUnauthorized, "missing authorization header")
 				return
 			}
@@ -46,7 +45,13 @@ func AuthMiddleware(jwtManager *auth.JWTManager) func(http.Handler) http.Handler
 				return
 			}
 
-			log.Printf("[AUTH] ✅ Token validated - User: %s - %s %s", claims.UserID, r.Method, r.URL.Path)
+			// A pending-2FA token only authorizes /auth/2fa/verify (which reads
+			// it from X-2FA-Token, not this middleware). Reject it everywhere
+			// else so a password/OTP step alone never grants API access.
+			if claims.TokenType == auth.TokenType2FA {
+				writeError(w, http.StatusUnauthorized, "two-factor verification required")
+				return
+			}
 
 			// Add claims to request context
 			ctx := context.WithValue(r.Context(), UserContextKey, claims)

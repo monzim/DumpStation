@@ -18,6 +18,25 @@ type Config struct {
 	Turnstile TurnstileConfig
 	Secret    SecretConfig
 	WebOrigin string // Frontend origin used for OAuth redirect (e.g. http://localhost:3000)
+	// PublicURL is the externally reachable base URL of this server
+	// (e.g. https://backups.example.com). Used in agent deployment commands.
+	PublicURL string
+	// WebDir serves the built web UI (SPA) from this directory when set.
+	WebDir string
+	// DemoEnabled exposes the read-only demo login.
+	DemoEnabled bool
+	Jobs        JobsConfig
+}
+
+// JobsConfig tunes backup/restore execution.
+type JobsConfig struct {
+	DirectConcurrency int
+	JobTimeoutMinutes int
+	QueueTTLMinutes   int
+	LeaseTTLSeconds   int
+	MaxAttempts       int
+	TempDir           string
+	MinFreeMB         int
 }
 
 // ServerConfig holds server-related configuration
@@ -139,6 +158,18 @@ func Load() (*Config, error) {
 		Secret: SecretConfig{
 			Key: getEnv("DUMPSTATION_SECRET_KEY", ""),
 		},
+		PublicURL:   getEnv("PUBLIC_URL", ""),
+		WebDir:      getEnv("WEB_DIR", ""),
+		DemoEnabled: getEnvAsBool("DEMO_ENABLED", !isProduction()),
+		Jobs: JobsConfig{
+			DirectConcurrency: getEnvAsInt("BACKUP_CONCURRENCY", 2),
+			JobTimeoutMinutes: getEnvAsInt("BACKUP_TIMEOUT_MINUTES", 360),
+			QueueTTLMinutes:   getEnvAsInt("AGENT_JOB_QUEUE_TTL_MINUTES", 360),
+			LeaseTTLSeconds:   getEnvAsInt("AGENT_JOB_LEASE_SECONDS", 120),
+			MaxAttempts:       getEnvAsInt("AGENT_JOB_MAX_ATTEMPTS", 3),
+			TempDir:           getEnv("BACKUP_TEMP_DIR", ""),
+			MinFreeMB:         getEnvAsInt("BACKUP_MIN_FREE_MB", 0),
+		},
 	}
 
 	// Validate required fields
@@ -165,7 +196,7 @@ func Load() (*Config, error) {
 		if cfg.WebOrigin == "" && len(cfg.CORS.AllowedOrigins) > 0 {
 			cfg.WebOrigin = cfg.CORS.AllowedOrigins[0]
 		}
-		if cfg.WebOrigin == "" {
+		if cfg.WebOrigin == "" && cfg.WebDir == "" && cfg.PublicURL == "" {
 			return nil, fmt.Errorf("WEB_ORIGIN (or CORS_ALLOWED_ORIGINS) is required when GitHub OAuth is configured so the callback can redirect back to the frontend")
 		}
 	}
@@ -244,4 +275,9 @@ func getEnvAsSlice(key string, defaultValue []string) []string {
 		return defaultValue
 	}
 	return result
+}
+
+// isProduction mirrors the demo-seed rule: APP_ENV or GO_ENV = production.
+func isProduction() bool {
+	return strings.EqualFold(os.Getenv("APP_ENV"), "production") || strings.EqualFold(os.Getenv("GO_ENV"), "production")
 }

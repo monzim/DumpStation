@@ -93,10 +93,14 @@ func (h *Handler) PurgeFailedBackups(w http.ResponseWriter, r *http.Request) {
 		if b.StoragePath == "" {
 			continue
 		}
-		if b.Database.StorageID == uuid.Nil {
+		sid := b.Database.StorageID
+		if b.StorageID != nil {
+			sid = *b.StorageID
+		}
+		if sid == uuid.Nil {
 			continue
 		}
-		storageConfig, err := h.repo.GetStorageConfig(b.Database.StorageID)
+		storageConfig, err := h.repo.GetStorageConfig(sid)
 		if err != nil || storageConfig == nil {
 			continue
 		}
@@ -298,7 +302,7 @@ func (h *Handler) VerifyBackupDownloadOTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	result, err := h.repo.VerifyPurposeOTP(req.OTPID, *userID, req.Code, models.OTPPurposeBackupDownload)
+	result, err := h.repo.VerifyPurposeOTP(req.OTPID, *userID, req.Code, models.OTPPurposeBackupDownload, &backupID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to verify OTP")
 		return
@@ -325,7 +329,11 @@ func (h *Handler) VerifyBackupDownloadOTP(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "failed to load database config")
 		return
 	}
-	storageCfg, err := h.repo.GetStorageConfig(dbCfg.StorageID)
+	sid := dbCfg.StorageID
+	if backup.StorageID != nil {
+		sid = *backup.StorageID // storage the artifact was actually written to
+	}
+	storageCfg, err := h.repo.GetStorageConfig(sid)
 	if err != nil || storageCfg == nil {
 		writeError(w, http.StatusInternalServerError, "failed to load storage config")
 		return

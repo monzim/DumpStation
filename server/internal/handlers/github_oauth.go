@@ -50,10 +50,7 @@ func (h *Handler) AuthConfig(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, AuthConfigResponse{
 		DiscordEnabled: cfg != nil && cfg.Discord.WebhookURL != "",
 		GitHubEnabled:  cfg != nil && cfg.GitHub.Enabled,
-		// Demo is on whenever a demo user exists; we keep this simple: if
-		// DemoLogin endpoint is mounted, return true. The frontend treats
-		// this as a hint and gracefully handles a 500 from /auth/demo-login.
-		DemoEnabled: true,
+		DemoEnabled:    cfg != nil && cfg.DemoEnabled,
 	})
 }
 
@@ -174,27 +171,41 @@ func (h *Handler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, expiresAt, err := h.jwtMgr.GenerateToken(user.ID, user.DiscordUserID, user.IsAdmin)
-	if err != nil {
-		log.Printf("github oauth: jwt sign failed: %v", err)
-		h.redirectGitHubError(w, r, "token_failed")
-		return
-	}
-
-	_ = h.repo.LogActivity(&user.ID, models.ActionLogin, models.LogLevelSuccess,
-		"user", &user.ID, user.GitHubLogin,
-		fmt.Sprintf("User %q logged in via GitHub OAuth", user.GitHubLogin),
-		"", getIPAddress(r))
-
-	dest, err := url.Parse(strings.TrimRight(h.cfg.WebOrigin, "/") + "/auth/github/return")
+	dest, err := url.Parse(strings.TrimRight(h.webOrigin(r), "/") + "/auth/github/return")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "invalid WEB_ORIGIN")
 		return
 	}
-	q := dest.Query()
-	q.Set("token", token)
-	q.Set("exp", expiresAt.UTC().Format(time.RFC3339))
-	dest.RawQuery = q.Encode()
+	// Tokens travel in the URL fragment, which browsers never send to
+	// servers or put in Referer headers.
+	frag := url.Values{}
+	if user.TwoFactorEnabled {
+		// GitHub proves identity but not possession of the TOTP device:
+		// hand out a pending-2FA token only.
+		tfa, tfaExp, err := h.jwtMgr.Generate2FAToken(user.ID, user.DiscordUserID, user.IsAdmin)
+		if err != nil {
+			h.redirectGitHubError(w, r, "token_failed")
+			return
+		}
+		_ = h.repo.LogActivity(&user.ID, models.ActionLogin, models.LogLevelInfo, "user", &user.ID, user.GitHubLogin,
+			fmt.Sprintf("User %q authenticated via GitHub, awaiting 2FA verification", user.GitHubLogin), "", getIPAddress(r))
+		frag.Set("two_factor_token", tfa)
+		frag.Set("two_factor_exp", tfaExp.UTC().Format(time.RFC3339))
+	} else {
+		token, expiresAt, err := h.jwtMgr.GenerateToken(user.ID, user.DiscordUserID, user.IsAdmin)
+		if err != nil {
+			log.Printf("github oauth: jwt sign failed: %v", err)
+			h.redirectGitHubError(w, r, "token_failed")
+			return
+		}
+		_ = h.repo.LogActivity(&user.ID, models.ActionLogin, models.LogLevelSuccess,
+			"user", &user.ID, user.GitHubLogin,
+			fmt.Sprintf("User %q logged in via GitHub OAuth", user.GitHubLogin),
+			"", getIPAddress(r))
+		frag.Set("token", token)
+		frag.Set("exp", expiresAt.UTC().Format(time.RFC3339))
+	}
+	dest.Fragment = frag.Encode()
 
 	http.Redirect(w, r, dest.String(), http.StatusFound)
 }
@@ -202,11 +213,12 @@ func (h *Handler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 // redirectGitHubError sends the user back to the login page with an error
 // code in the query string so the frontend can render a friendly message.
 func (h *Handler) redirectGitHubError(w http.ResponseWriter, r *http.Request, reason string) {
-	if h.cfg == nil || h.cfg.WebOrigin == "" {
+	origin := h.webOrigin(r)
+	if origin == "" {
 		writeError(w, http.StatusForbidden, reason)
 		return
 	}
-	dest := strings.TrimRight(h.cfg.WebOrigin, "/") + "/login?github_error=" + url.QueryEscape(reason)
+	dest := strings.TrimRight(origin, "/") + "/login?github_error=" + url.QueryEscape(reason)
 	http.Redirect(w, r, dest, http.StatusFound)
 }
 
@@ -321,4 +333,12 @@ func verifyState(rawState, cookieValue, secret string) bool {
 	// Constant-time compare on the full "state.hmac" string is fine because
 	// the state half is already known to match.
 	return hmac.Equal([]byte(expected), []byte(cookieValue))
+}
+
+// webOrigin is where the SPA lives: WEB_ORIGIN, else this server.
+func (h *Handler) webOrigin(r *http.Request) string {
+	if h.cfg != nil && h.cfg.WebOrigin != "" {
+		return h.cfg.WebOrigin
+	}
+	return h.publicURL(r)
 }

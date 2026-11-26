@@ -46,6 +46,20 @@ func New(dsn string) (*DB, error) {
 func (db *DB) AutoMigrate() error {
 	log.Println("Running GORM auto-migration...")
 
+	// v2: constraints whose allowed values changed are recreated under new
+	// names (chk_*_v2) by AutoMigrate; drop the v1 versions first.
+	for _, stmt := range []string{
+		`ALTER TABLE IF EXISTS backups DROP CONSTRAINT IF EXISTS chk_backups_status`,
+		`ALTER TABLE IF EXISTS restore_jobs DROP CONSTRAINT IF EXISTS chk_restore_jobs_status`,
+		`ALTER TABLE IF EXISTS storage_configs DROP CONSTRAINT IF EXISTS chk_storage_configs_provider`,
+		// Labels were accidentally globally unique by name; make them unique per user.
+		`DROP INDEX IF EXISTS idx_user_label_name`,
+	} {
+		if err := db.DB.Exec(stmt).Error; err != nil {
+			log.Printf("warning: pre-migration step failed (%s): %v", stmt, err)
+		}
+	}
+
 	err := db.DB.AutoMigrate(
 		&models.User{},
 		&models.OTPToken{},
@@ -60,6 +74,10 @@ func (db *DB) AutoMigrate() error {
 		&models.StorageLabel{},
 		&models.NotificationLabel{},
 		&models.ServerConnection{},
+		&models.Agent{},
+		&models.AgentEnrollment{},
+		&models.AgentJob{},
+		&models.JobEvent{},
 	)
 
 	if err != nil {
@@ -96,6 +114,21 @@ func (db *DB) AutoMigrate() error {
 	for _, m := range manualColumns {
 		if err := db.DB.Exec(m.stmt).Error; err != nil {
 			log.Printf("warning: schema patch for %s failed (likely already applied): %v", m.hint, err)
+		}
+	}
+
+	// v2 backfills (idempotent).
+	for _, stmt := range []string{
+		// Pin existing artifacts to the storage they were written to.
+		`UPDATE backups b SET storage_id = d.storage_id FROM database_configs d
+		  WHERE b.database_id = d.id AND b.storage_id IS NULL`,
+		// v1 rows never recorded how they ran.
+		`UPDATE database_configs SET execution_mode = 'direct' WHERE execution_mode IS NULL OR execution_mode = ''`,
+		`UPDATE restore_jobs SET status = 'failed', error_message = 'Restore status was not tracked before v2'
+		  WHERE status IN ('pending','running') AND executor = 'direct' AND user_id IS NULL`,
+	} {
+		if err := db.DB.Exec(stmt).Error; err != nil {
+			log.Printf("warning: v2 backfill failed: %v", err)
 		}
 	}
 

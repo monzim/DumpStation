@@ -1,0 +1,45 @@
+# =============================================================================
+# DumpStation Agent — outbound-only PostgreSQL backup worker
+# Build context: ./server
+#   docker build -f server/Dockerfile.agent -t dumpstation-agent server
+# Includes PostgreSQL client tools 12–18 (pg_dump/pg_restore/psql).
+# =============================================================================
+FROM debian:bookworm-slim AS pg-clients
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg lsb-release tzdata \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+       postgresql-client-12 postgresql-client-13 postgresql-client-14 postgresql-client-15 \
+       postgresql-client-16 postgresql-client-17 postgresql-client-18 \
+    && apt-get purge -y gnupg lsb-release curl && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+ARG TARGETOS
+ARG TARGETARCH
+ARG VERSION=dev
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w -X main.version=${VERSION}" -o /out/dumpstation-agent ./cmd/agent
+
+FROM pg-clients
+LABEL org.opencontainers.image.title="DumpStation Agent" \
+      org.opencontainers.image.description="Outbound-only PostgreSQL backup agent for DumpStation" \
+      org.opencontainers.image.source="https://github.com/monzim/DumpStation" \
+      org.opencontainers.image.licenses="MIT"
+RUN groupadd --gid 10001 dumpstation && useradd --uid 10001 --gid dumpstation --no-create-home --shell /usr/sbin/nologin dumpstation \
+    && mkdir -p /var/lib/dumpstation-agent /etc/dumpstation-agent /tmp/dumpstation \
+    && chown -R dumpstation:dumpstation /var/lib/dumpstation-agent /tmp/dumpstation
+COPY --from=builder /out/dumpstation-agent /usr/local/bin/dumpstation-agent
+ENV DUMPSTATION_STATE_DIR=/var/lib/dumpstation-agent \
+    DUMPSTATION_TEMP_DIR=/tmp/dumpstation \
+    TZ=UTC
+VOLUME ["/var/lib/dumpstation-agent"]
+USER 10001:10001
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD ["dumpstation-agent", "healthcheck"]
+ENTRYPOINT ["dumpstation-agent"]
+CMD ["run"]

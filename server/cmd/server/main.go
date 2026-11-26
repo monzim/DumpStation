@@ -9,20 +9,23 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/monzim/db_proxy/v1/internal/agentapi"
 	"github.com/monzim/db_proxy/v1/internal/auth"
-	"github.com/monzim/db_proxy/v1/internal/backup"
 	"github.com/monzim/db_proxy/v1/internal/cleanup"
 	"github.com/monzim/db_proxy/v1/internal/config"
 	"github.com/monzim/db_proxy/v1/internal/crypto"
 	"github.com/monzim/db_proxy/v1/internal/database"
 	"github.com/monzim/db_proxy/v1/internal/handlers"
+	"github.com/monzim/db_proxy/v1/internal/jobs"
 	"github.com/monzim/db_proxy/v1/internal/models"
 	"github.com/monzim/db_proxy/v1/internal/notification"
+	"github.com/monzim/db_proxy/v1/internal/pgexec"
 	"github.com/monzim/db_proxy/v1/internal/repository"
 	"github.com/monzim/db_proxy/v1/internal/scheduler"
+	"github.com/monzim/db_proxy/v1/internal/secret"
 )
 
-// @title PostgreSQL Backup Service API
+// @title DumpStation API
 // @version 1.0
 // @description A RESTful API service for managing PostgreSQL database backups with automated scheduling, multiple storage backends (S3/R2), and Discord notifications.
 // @termsOfService http://swagger.io/terms/
@@ -42,13 +45,21 @@ import (
 // @description Type "Bearer" followed by a space and the JWT token.
 
 func main() {
-	log.Println("Starting PostgreSQL Backup Service...")
+	log.Println("Starting DumpStation...")
 
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	// At-rest encryption for configuration secrets (must precede any DB read
+	// of encrypted columns).
+	cipher, err := crypto.NewCipher(cfg.Secret.Key)
+	if err != nil {
+		log.Fatalf("Failed to initialize secret cipher: %v", err)
+	}
+	secret.Configure(cipher)
 
 	// Initialize database
 	db, err := database.New(cfg.Database.GetDSN())
@@ -81,15 +92,25 @@ func main() {
 	// Initialize JWT manager
 	jwtMgr := auth.NewJWTManager(cfg.JWT.Secret, cfg.JWT.Expiration)
 
-	// Initialize backup service
-	backupSvc := backup.NewService(repo)
+	// Job orchestrator (direct + agent execution)
+	runner := pgexec.NewRunner(cfg.Jobs.TempDir)
+	log.Printf("PostgreSQL client tools available: %v", runner.Tools.Majors())
+	orch := jobs.New(repo, runner, jobs.Config{
+		DirectConcurrency: cfg.Jobs.DirectConcurrency,
+		JobTimeout:        time.Duration(cfg.Jobs.JobTimeoutMinutes) * time.Minute,
+		QueueTTL:          time.Duration(cfg.Jobs.QueueTTLMinutes) * time.Minute,
+		LeaseTTL:          time.Duration(cfg.Jobs.LeaseTTLSeconds) * time.Second,
+		MaxAttempts:       cfg.Jobs.MaxAttempts,
+		TempDir:           cfg.Jobs.TempDir,
+		MinFreeBytes:      uint64(cfg.Jobs.MinFreeMB) << 20,
+	})
+	orch.Start()
 
 	// Initialize scheduler
-	sched := scheduler.NewScheduler(repo, backupSvc)
+	sched := scheduler.NewScheduler(repo, orch)
 	if err := sched.Start(); err != nil {
 		log.Fatalf("Failed to start scheduler: %v", err)
 	}
-	defer sched.Stop()
 
 	// Initialize activity log cleanup service (60 days retention)
 	cleanupSvc := cleanup.NewService(repo, 60*24*time.Hour)
@@ -101,26 +122,20 @@ func main() {
 	// Initialize Discord notifier
 	var notifier *notification.DiscordNotifier
 	if cfg.Discord.WebhookURL != "" {
-		notifier = notification.NewDiscordNotifier(cfg.Discord.WebhookURL, "PostgreSQL Backup Service")
-		notifier.SendMessage("🚀 **PostgreSQL Backup Service Started**\n✅ System is now online and ready to manage backups.")
+		notifier = notification.NewDiscordNotifier(cfg.Discord.WebhookURL, "DumpStation")
+		notifier.SendMessage("🚀 **DumpStation Started**\n✅ System is now online and ready to manage backups.")
 	}
 
 	// Log system startup
 	if err := repo.LogActivity(nil, models.ActionSystemStartup, models.LogLevelInfo,
 		"system", nil, "System",
-		"PostgreSQL Backup Service started successfully", "", ""); err != nil {
+		"DumpStation started successfully", "", ""); err != nil {
 		log.Printf("[ACTIVITY_LOG] ⚠️  Failed to log system startup: %v", err)
-	}
-
-	// Initialize crypto for at-rest encryption of server credentials
-	cipher, err := crypto.NewCipher(cfg.Secret.Key)
-	if err != nil {
-		log.Fatalf("Failed to initialize secret cipher: %v", err)
 	}
 
 	// Initialize handlers
 	otpExpiry := time.Duration(cfg.Discord.OTPExpiration) * time.Minute
-	h := handlers.New(repo, jwtMgr, backupSvc, sched, notifier, otpExpiry,
+	h := handlers.New(repo, jwtMgr, orch, sched, notifier, otpExpiry,
 		cfg.Turnstile.Enabled, cfg.Turnstile.SecretKey, cfg.Turnstile.Timeout,
 		cipher, cfg)
 
@@ -130,16 +145,19 @@ func main() {
 	totpMgr := auth.NewTOTPManager(totpConfig)
 
 	// Setup routes with 2FA support
-	router := handlers.SetupRoutesWithTOTP(h, jwtMgr, cfg, totpMgr)
+	trustProxy := os.Getenv("TRUST_PROXY_HEADERS") == "true"
+	router := handlers.SetupRoutesWithTOTP(h, jwtMgr, cfg, totpMgr, agentapi.New(repo, orch, trustProxy))
 
 	// Start HTTP server
 	addr := cfg.Server.Host + ":" + cfg.Server.Port
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              addr,
+		Handler:           router,
+		ReadHeaderTimeout: 15 * time.Second,
+		// No global read/write timeout: agent long-polls hold requests for
+		// up to 30s and proxied artifact transfers stream for as long as the
+		// backup takes. Handlers bound their own work.
+		IdleTimeout: 120 * time.Second,
 	}
 
 	// Start server in a goroutine
@@ -160,22 +178,24 @@ func main() {
 	// Log system shutdown
 	if err := repo.LogActivity(nil, models.ActionSystemShutdown, models.LogLevelInfo,
 		"system", nil, "System",
-		"PostgreSQL Backup Service shutting down", "", ""); err != nil {
+		"DumpStation shutting down", "", ""); err != nil {
 		log.Printf("[ACTIVITY_LOG] ⚠️  Failed to log system shutdown: %v", err)
 	}
 
 	// Send shutdown notification
 	if notifier != nil {
-		notifier.SendMessage("⏹️ **PostgreSQL Backup Service Shutting Down**\n👋 System is going offline.")
+		notifier.SendMessage("⏹️ **DumpStation Shutting Down**\n👋 System is going offline.")
 	}
 
 	// Graceful shutdown with 30 second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	sched.Stop()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		log.Printf("Server forced to shutdown: %v", err)
 	}
+	orch.Stop(20 * time.Second)
 
 	log.Println("Server exited gracefully")
 }

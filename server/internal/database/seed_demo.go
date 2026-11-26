@@ -228,6 +228,11 @@ func seedDemoDatabases(repo *repository.Repository, userID uuid.UUID, storageID 
 		if err != nil {
 			return created, err
 		}
+		// Demo databases point at fake hosts: keep them paused so the
+		// scheduler never runs (and fails) real backups against them.
+		if err := repo.PauseDatabaseConfig(config.ID); err == nil {
+			config.Paused = true
+		}
 		created = append(created, config)
 	}
 
