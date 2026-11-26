@@ -707,7 +707,7 @@ func (r *Repository) GetDailyBackupCounts(userID uuid.UUID, isAdmin bool, days i
 			COUNT(*) FILTER (WHERE backups.status IN ('success','deleted')) AS success,
 			COUNT(*) FILTER (WHERE backups.status='failed') AS failed`).
 		Where("backups.started_at > ?", time.Now().AddDate(0, 0, -days)).
-		Group("1").Order("1")
+		Group("day").Order("day")
 	q = scopeUser(q, "database_configs.user_id", userID, isAdmin)
 	err := q.Scan(&out).Error
 	return out, err
