@@ -21,6 +21,19 @@ function GitHubReturn() {
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
     // Drop the fragment from history immediately.
     window.history.replaceState(null, '', window.location.pathname)
+    let expected: string | null = null
+    try {
+      expected = sessionStorage.getItem('ds.gh_nonce')
+      sessionStorage.removeItem('ds.gh_nonce')
+    } catch {
+      /* ignore */
+    }
+    // Only accept a session that this tab asked for: a link crafted by
+    // someone else (login CSRF) carries no matching nonce.
+    if (!expected || params.get('nonce') !== expected) {
+      setFailed(true)
+      return
+    }
     const token = params.get('token')
     const tfa = params.get('two_factor_token')
     if (token) {

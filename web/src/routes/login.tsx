@@ -166,7 +166,16 @@ function LoginPage() {
                     variant={showOtpForm ? 'secondary' : 'primary'}
                     width="100%"
                     icon={<Github size={16} />}
-                    onClick={() => window.location.assign(`${API_BASE}/auth/github/login`)}
+                    onClick={() => {
+                      // Nonce binds the returned session to this browser tab (login-CSRF guard).
+                      const nonce = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '')
+                      try {
+                        sessionStorage.setItem('ds.gh_nonce', nonce)
+                      } catch {
+                        /* ignore */
+                      }
+                      window.location.assign(`${API_BASE}/auth/github/login?nonce=${nonce}`)
+                    }}
                   />
                 )}
                 {cfg.data.github_enabled && showOtpForm && <Divider label="or" />}

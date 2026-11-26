@@ -24,6 +24,11 @@ import (
 // cookie cannot be replayed without also knowing the server secret.
 const githubStateCookie = "ds_gh_oauth_state"
 
+// githubNonceCookie carries the SPA-generated nonce through the OAuth round
+// trip. It is echoed back in the return URL fragment so the browser that
+// started the login can verify the session it receives (login-CSRF guard).
+const githubNonceCookie = "ds_gh_oauth_nonce"
+
 // githubStateTTL bounds how long an OAuth round trip can pause for. Five
 // minutes covers the slowest human "approve this app" interaction without
 // leaving the cookie viable indefinitely.
@@ -85,6 +90,19 @@ func (h *Handler) GitHubLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   r.TLS != nil,
 		SameSite: http.SameSiteLaxMode,
 	})
+
+	// The SPA passes a random nonce it keeps in sessionStorage.
+	if nonce := r.URL.Query().Get("nonce"); isValidNonce(nonce) {
+		http.SetCookie(w, &http.Cookie{
+			Name:     githubNonceCookie,
+			Value:    nonce,
+			Path:     "/api/v1/auth/github",
+			Expires:  time.Now().Add(githubStateTTL),
+			HttpOnly: true,
+			Secure:   r.TLS != nil,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
 
 	q := url.Values{}
 	q.Set("client_id", h.cfg.GitHub.ClientID)
@@ -205,6 +223,10 @@ func (h *Handler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 		frag.Set("token", token)
 		frag.Set("exp", expiresAt.UTC().Format(time.RFC3339))
 	}
+	if c, err := r.Cookie(githubNonceCookie); err == nil && isValidNonce(c.Value) {
+		frag.Set("nonce", c.Value)
+	}
+	http.SetCookie(w, &http.Cookie{Name: githubNonceCookie, Value: "", Path: "/api/v1/auth/github", MaxAge: -1, HttpOnly: true})
 	dest.Fragment = frag.Encode()
 
 	http.Redirect(w, r, dest.String(), http.StatusFound)
@@ -341,4 +363,16 @@ func (h *Handler) webOrigin(r *http.Request) string {
 		return h.cfg.WebOrigin
 	}
 	return h.publicURL(r)
+}
+
+func isValidNonce(n string) bool {
+	if len(n) < 16 || len(n) > 128 {
+		return false
+	}
+	for _, r := range n {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
 }
