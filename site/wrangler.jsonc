@@ -1,0 +1,13 @@
+// Static landing page + docs for DumpStation, served by Workers static assets.
+// Deploy: npx wrangler deploy   ·   Local: npx wrangler dev
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "dumpstation-site",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "observability": { "enabled": true }
+}

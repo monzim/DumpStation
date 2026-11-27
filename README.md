@@ -187,6 +187,7 @@ agents are covered in [docs/AGENTS.md](docs/AGENTS.md).
 | [docs/TURNSTILE_INTEGRATION.md](docs/TURNSTILE_INTEGRATION.md) | Cloudflare Turnstile on the login page |
 | [configs/README.md](configs/README.md) | The production Compose bundle and helper scripts |
 | [server/README.md](server/README.md) | Developer setup, tests, building |
+| [site/README.md](site/README.md) | The landing page and web docs (Cloudflare Worker) |
 | [ROADMAP.md](ROADMAP.md) | What shipped and what is next |
 
 ## Screenshots

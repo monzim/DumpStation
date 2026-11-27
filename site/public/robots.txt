@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://dumpstation.monzim.com/sitemap.xml

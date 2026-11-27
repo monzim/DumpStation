@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DumpStation — Self-hosted PostgreSQL backups you can restore</title>
+  <meta name="description" content="Scheduled pg_dump backups to S3, R2 or MinIO, verified with SHA-256, guided restores, and outbound-only agents for databases in private networks. One open-source Go server, one Docker image." />
+  <meta name="theme-color" content="#000000" />
+  <link rel="canonical" href="https://dumpstation.monzim.com/" />
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="DumpStation — PostgreSQL backups you can restore" />
+  <meta property="og:description" content="Self-hosted pg_dump scheduling, verified artifacts, guided restores and outbound-only agents. MIT licensed." />
+  <meta property="og:url" content="https://dumpstation.monzim.com/" />
+  <meta property="og:image" content="https://dumpstation.monzim.com/assets/og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..750&family=Hanken+Grotesk:ital,wght@0,400..700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet" href="/assets/site.css" />
+  <script src="/assets/theme.js"></script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"DumpStation","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, Docker, Kubernetes","license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://dumpstation.monzim.com/","codeRepository":"https://github.com/monzim/DumpStation","description":"Self-hosted PostgreSQL backup manager with scheduled pg_dump, S3-compatible storage, verified artifacts, guided restores and outbound-only agents."}
+  </script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14 9l2 2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 9M22 21a7 7 0 0 0-4-6.3"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-net" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3"/><rect x="4" y="7" width="16" height="13" rx="3"/><path d="M9 13h.01M15 13h.01M9 17h6"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  </defs>
+</svg>
+
+<header class="hdr" id="hdr">
+  <div class="wrap hdr-in">
+    <a class="brand" href="/" aria-label="DumpStation home"><img src="/assets/logo.svg" alt="" width="28" height="28" />DumpStation</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#tour">Tour</a>
+      <a href="#deploy">Deploy</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <div class="hdr-act">
+      <a class="gh-stars" href="https://github.com/monzim/DumpStation" rel="noopener"><svg><use href="#i-gh"/></svg><span>GitHub</span><span class="dim" data-stars hidden></span></a>
+      <button class="icon-btn theme-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="i-moon"><use href="#i-moon"/></svg><svg class="i-sun"><use href="#i-sun"/></svg></button>
+      <a class="btn btn-primary btn-sm" href="/docs/#quick-start">Get started</a>
+      <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mnav" data-menu><svg><use href="#i-menu"/></svg></button>
+    </div>
+  </div>
+</header>
+<nav class="mnav" id="mnav" aria-label="Mobile">
+  <a href="#how">How it works</a>
+  <a href="#features">Features</a>
+  <a href="#tour">Tour</a>
+  <a href="#deploy">Deploy</a>
+  <a href="/docs/">Documentation</a>
+  <a href="https://github.com/monzim/DumpStation" rel="noopener">GitHub</a>
+  <a class="btn btn-primary" href="/docs/#quick-start">Get started</a>
+</nav>
+
+<main id="main">
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="grid-bg"></div>
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow rise">Open source · Self-hosted · MIT</p>
+      <h1 class="h-display rise d1">Postgres backups you can <span class="accent">actually restore.</span></h1>
+      <p class="lede rise d2">DumpStation schedules <code>pg_dump</code>, ships every artifact to S3, R2 or MinIO, verifies it byte for byte, and reaches databases in private networks through agents that only ever dial out. One Go server. One Docker image.</p>
+      <div class="hero-cta rise d3">
+        <a class="btn btn-coral btn-lg" href="/docs/#quick-start">Deploy in 5 minutes <svg><use href="#i-arrow"/></svg></a>
+        <a class="btn btn-lg" href="#" data-demo-link hidden>Try the live demo</a>
+        <a class="btn btn-lg" href="https://github.com/monzim/DumpStation" rel="noopener"><svg><use href="#i-gh"/></svg> Star on GitHub</a>
+      </div>
+      <div class="cmd rise d4">
+        <span class="p">$</span>
+        <code id="cmd-hero">git clone https://github.com/monzim/DumpStation &amp;&amp; cd DumpStation/configs &amp;&amp; docker compose up -d</code>
+        <button class="copy" type="button" data-copy="#cmd-hero" aria-label="Copy command"><svg><use href="#i-copy"/></svg></button>
+      </div>
+      <div class="hero-meta rise d5">
+        <span>PostgreSQL 12 – 18</span><span>No inbound ports</span><span>SHA-256 verified</span>
+      </div>
+    </div>
+
+    <!-- live console -->
+    <div class="console rise d3" aria-label="Animated example of a backup job" role="img">
+      <div class="c-top">
+        <div class="c-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="c-title" data-c-title>backups / job 4f2a…e91</div>
+        <div class="seg" role="group" aria-label="Executor">
+          <button type="button" aria-pressed="false" data-mode="direct">Direct</button>
+          <button type="button" aria-pressed="true" data-mode="agent">Agent</button>
+        </div>
+      </div>
+      <div class="c-body">
+        <div class="c-job">
+          <div class="c-db">
+            <div class="c-db-ic"><svg><use href="#i-db"/></svg></div>
+            <div><b data-c-db>orders · production</b><small data-c-via>via agent eu-vpc-1 · pg 16.4</small></div>
+          </div>
+          <span class="pill" data-s="run" data-c-status>Running</span>
+        </div>
+        <div class="stages" data-stages>
+          <div class="stage"><div class="bar"><i></i></div><span>queued</span></div>
+          <div class="stage"><div class="bar"><i></i></div><span>connect</span></div>
+          <div class="stage"><div class="bar"><i></i></div><span>dump</span></div>
+          <div class="stage"><div class="bar"><i></i></div><span>upload</span></div>
+          <div class="stage"><div class="bar"><i></i></div><span>verify</span></div>
+          <div class="stage"><div class="bar"><i></i></div><span>retain</span></div>
+        </div>
+        <div class="c-stats">
+          <div><small>Size</small><b data-c-size>0 B</b></div>
+          <div><small>Elapsed</small><b data-c-time>0.0s</b></div>
+          <div><small>sha256</small><b data-c-sha>—</b></div>
+        </div>
+        <div class="log" data-log aria-hidden="true"></div>
+      </div>
+      <div class="c-foot"><span data-c-dest>r2://acme-backups/orders/</span><span>retention: keep 14</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STRIP ============ -->
+<div class="strip" aria-label="Works with">
+  <div class="strip-in">
+    <span><b>PostgreSQL</b> 12–18</span><span><b>AWS S3</b></span><span><b>Cloudflare R2</b></span><span><b>MinIO</b></span><span><b>Backblaze B2</b></span><span><b>Wasabi</b></span><span><b>DO Spaces</b></span><span><b>Discord</b></span><span><b>Telegram</b></span><span><b>GitHub</b> OAuth</span><span><b>Docker</b></span><span><b>Kubernetes</b></span><span><b>systemd</b></span>
+    <span aria-hidden="true"><b>PostgreSQL</b> 12–18</span><span aria-hidden="true"><b>AWS S3</b></span><span aria-hidden="true"><b>Cloudflare R2</b></span><span aria-hidden="true"><b>MinIO</b></span><span aria-hidden="true"><b>Backblaze B2</b></span><span aria-hidden="true"><b>Wasabi</b></span><span aria-hidden="true"><b>DO Spaces</b></span><span aria-hidden="true"><b>Discord</b></span><span aria-hidden="true"><b>Telegram</b></span><span aria-hidden="true"><b>GitHub</b> OAuth</span><span aria-hidden="true"><b>Docker</b></span><span aria-hidden="true"><b>Kubernetes</b></span><span aria-hidden="true"><b>systemd</b></span>
+  </div>
+</div>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="sec" id="how">
+  <div class="wrap">
+    <div class="sec-hd reveal">
+      <p class="eyebrow">How it works</p>
+      <h2 class="h-section">Two ways to reach a database. <span class="dim">One job lifecycle.</span></h2>
+      <p class="lede">The server decides what runs and where. It runs <code>pg_dump</code> itself when it can reach the database, and hands the job to an agent inside the network when it can't. Same history, retention, verification and alerts either way.</p>
+    </div>
+
+    <div class="topo-tabs reveal" role="tablist" aria-label="Execution mode">
+      <button role="tab" aria-selected="false" data-topo="direct" id="tt-direct" aria-controls="topo-panel">Direct</button>
+      <button role="tab" aria-selected="true" data-topo="agent" id="tt-agent" aria-controls="topo-panel">Agent</button>
+    </div>
+
+    <div class="topo reveal" id="topo-panel" role="tabpanel">
+      <div class="panel topo-map">
+        <svg viewBox="0 0 640 400" role="img" aria-labelledby="topo-t">
+          <title id="topo-t">DumpStation architecture: server, storage, a reachable database and an agent in a private network</title>
+          <!-- zones -->
+          <rect class="tp-zone" x="12" y="14" width="300" height="230" rx="14"/>
+          <text class="tp-zone-l" x="28" y="36">Control plane</text>
+          <rect class="tp-zone tp-dim" data-tp="agent" x="340" y="190" width="288" height="196" rx="14"/>
+          <text class="tp-zone-l tp-dim" data-tp="agent" x="356" y="212">Private network · no inbound</text>
+
+          <!-- paths -->
+          <path class="tp-path" data-p="direct" d="M250 110 C 330 110, 360 92, 432 92"/>
+          <path class="tp-path" data-p="agent" d="M210 150 C 210 280, 320 300, 380 300"/>
+          <path class="tp-path" data-p="agent2" d="M520 300 L 560 300"/>
+          <path class="tp-path" data-p="store-d" d="M140 150 L 140 316"/>
+          <path class="tp-path" data-p="store-a" d="M400 330 C 330 370, 260 350, 222 346"/>
+          <path class="tp-path" data-p="meta" d="M80 150 L 80 206"/>
+
+          <text class="tp-lbl" data-l="direct" x="300" y="86">pg_dump</text>
+          <text class="tp-lbl" data-l="agent" x="220" y="250">HTTPS ↑ dial-out only</text>
+          <text class="tp-lbl" data-l="store-a" x="250" y="380">presigned PUT</text>
+          <text class="tp-lbl" data-l="store-d" x="148" y="270">upload + verify</text>
+
+          <!-- nodes -->
+          <g class="tp-node core" transform="translate(40 70)"><rect width="220" height="80" rx="12"/><text x="18" y="32">DumpStation server</text><text class="sub" x="18" y="54">scheduler · jobs · retention</text></g>
+          <g class="tp-node" transform="translate(30 206)"><rect width="110" height="30" rx="8"/><text class="sub" x="14" y="20">metadata pg</text></g>
+          <g class="tp-node tp-dim" data-tp="direct" transform="translate(432 60)"><rect width="176" height="64" rx="12"/><text x="16" y="28">Reachable Postgres</text><text class="sub" x="16" y="48">RDS · Neon · VPS</text></g>
+          <g class="tp-node tp-dim" data-tp="agent" transform="translate(380 272)"><rect width="140" height="58" rx="12"/><text x="16" y="26">Agent</text><text class="sub" x="16" y="45">pg_dump · creds local</text></g>
+          <g class="tp-node tp-dim" data-tp="agent" transform="translate(560 272)"><rect width="56" height="58" rx="12"/><text class="sub" x="11" y="34">pg</text></g>
+          <g class="tp-node" transform="translate(40 316)"><rect width="182" height="58" rx="12"/><text x="16" y="26">Object storage</text><text class="sub" x="16" y="45">S3 · R2 · MinIO</text></g>
+        </svg>
+      </div>
+      <div class="panel topo-side">
+        <div data-topo-copy="agent">
+          <h3 class="h-card">Agent: for databases the server can't see</h3>
+          <p class="muted">Private subnets, other clouds, a box behind NAT. Run one small container next to the database and it does the work there.</p>
+          <ul class="facts">
+            <li><svg><use href="#i-net"/></svg><span><b>Outbound HTTPS only.</b> Enroll, heartbeat and long-poll for jobs. No published ports, no VPN, no firewall rules.</span></li>
+            <li><svg><use href="#i-key"/></svg><span><b>Credentials stay on the host.</b> Connections are named locally; the server only ever sees the name.</span></li>
+            <li><svg><use href="#i-shield"/></svg><span><b>Whitelisted job kinds.</b> Backup, restore (opt-in on both sides) and connection tests. Nothing else.</span></li>
+            <li><svg><use href="#i-arrow"/></svg><span><b>Direct-to-bucket transfers</b> with presigned URLs, or streamed through the server when the bucket is unreachable.</span></li>
+          </ul>
+        </div>
+        <div data-topo-copy="direct" hidden>
+          <h3 class="h-card">Direct: zero extra moving parts</h3>
+          <p class="muted">If the server can reach the database, that's all you need. Managed Postgres, a VPS, the container next door.</p>
+          <ul class="facts">
+            <li><svg><use href="#i-db"/></svg><span><b>Right client, every time.</b> <code>pg_dump</code> 12 through 18 are bundled; the version is matched to each server.</span></li>
+            <li><svg><use href="#i-shield"/></svg><span><b>Network guardrails.</b> <code>DIRECT_ALLOWED_CIDRS</code> pins which hosts the server may connect to.</span></li>
+            <li><svg><use href="#i-check"/></svg><span><b>Verified before success.</b> SHA-256 while dumping, object size checked in storage after upload.</span></li>
+            <li><svg><use href="#i-list"/></svg><span><b>Concurrency control.</b> <code>BACKUP_CONCURRENCY</code> caps parallel dumps and restores; the rest queue.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule" />
+
+<!-- ============ FEATURES ============ -->
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-hd reveal">
+      <p class="eyebrow">Features</p>
+      <h2 class="h-section">Everything between <span class="h-mono">pg_dump</span> and a good night's sleep.</h2>
+      <p class="lede">Scheduling, storage, verification, retention, restore and alerting in one place, with sensible defaults and nothing to babysit. Try the pieces below.</p>
+    </div>
+
+    <div class="bento">
+      <!-- schedule -->
+      <article class="cell w3 reveal">
+        <span class="tag">Schedules</span>
+        <h3 class="h-card">Cron or presets, in the database's own time zone.</h3>
+        <p>Every database gets an IANA time zone and a preview of the next runs. Missed runs, say while the server was down, are detected and reported.</p>
+        <div class="demo">
+          <div class="chips" role="group" aria-label="Schedule preset" data-sched-presets>
+            <button class="chip" type="button" aria-pressed="false" data-preset="hourly">Hourly</button>
+            <button class="chip" type="button" aria-pressed="false" data-preset="6h">Every 6h</button>
+            <button class="chip" type="button" aria-pressed="true" data-preset="daily">Daily 02:00</button>
+            <button class="chip" type="button" aria-pressed="false" data-preset="weekly">Sun 03:30</button>
+            <button class="chip" type="button" aria-pressed="false" data-preset="monthly">1st of month</button>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+            <code data-sched-cron style="font-size:13px">0 2 * * *</code>
+            <label class="sr" for="tz">Time zone</label>
+            <select class="sel" id="tz" data-sched-tz>
+              <option>UTC</option><option>Europe/Berlin</option><option>America/New_York</option><option>Asia/Dhaka</option><option>Asia/Kolkata</option><option>Asia/Tokyo</option><option>Australia/Sydney</option>
+            </select>
+          </div>
+          <ol class="runs" data-sched-runs aria-live="polite"></ol>
+        </div>
+      </article>
+
+      <!-- retention -->
+      <article class="cell w3 reveal">
+        <span class="tag">Retention</span>
+        <h3 class="h-card">Prune old dumps. Never the newest good one.</h3>
+        <p>Keep the last N backups or everything from the last N days. Whatever the policy, the most recent successful backup always survives.</p>
+        <div class="demo">
+          <div class="ret-row" data-ret aria-hidden="true"></div>
+          <label class="sr" for="keep">Keep last N backups</label>
+          <input class="range" id="keep" type="range" min="1" max="12" value="5" data-ret-n />
+          <div class="ret-out"><span data-ret-label>keep last 5</span><span data-ret-freed>9 pruned</span></div>
+          <div class="ret-legend"><span><i style="background:var(--coral)"></i>newest</span><span><i style="background:var(--fg)"></i>kept</span><span><i style="box-shadow:inset 0 0 0 1px var(--line-2)"></i>pruned</span><span><i style="background:var(--err);opacity:.55"></i>failed (ignored)</span></div>
+        </div>
+      </article>
+
+      <!-- verify -->
+      <article class="cell reveal">
+        <span class="tag">Verified artifacts</span>
+        <h3 class="h-card">If it says success, it's in the bucket.</h3>
+        <p>SHA-256 computed while dumping, object size checked in storage, checksum re-checked before every restore.</p>
+        <div class="demo"><div class="hash">sha256 <b>9c1e4f0a7d22b8e3…51ad</b><br/>size 1.84 GB · head ✓ · match ✓</div></div>
+      </article>
+
+      <!-- restore -->
+      <article class="cell reveal">
+        <span class="tag">Guided restore</span>
+        <h3 class="h-card">Restores with a seatbelt.</h3>
+        <p>Into the original, another database or a custom target. Destructive options need the name typed out.</p>
+        <div class="demo confirm">
+          <label for="confirm">Type <code>orders</code> to confirm</label>
+          <input class="input" id="confirm" autocomplete="off" spellcheck="false" placeholder="orders" data-confirm />
+          <button class="btn btn-danger btn-sm" type="button" disabled data-confirm-btn>Restore with --clean</button>
+        </div>
+      </article>
+
+      <!-- notifications -->
+      <article class="cell reveal">
+        <span class="tag">Alerts</span>
+        <h3 class="h-card">Know when it breaks, and why.</h3>
+        <p>Discord webhooks and Telegram bots, per database, with typed error codes.</p>
+        <div class="demo">
+          <div class="msg"><span class="av"><img src="/assets/logo.svg" alt="" /></span><div><b>DumpStation</b><time>02:00</time><div class="emb">✓ orders · 1.84 GB · 41s</div></div></div>
+          <div class="msg"><span class="av"><img src="/assets/logo.svg" alt="" /></span><div><b>DumpStation</b><time>02:01</time><div class="emb bad">✗ billing · host_unreachable</div></div></div>
+        </div>
+      </article>
+
+      <!-- storage -->
+      <article class="cell w4 reveal">
+        <span class="tag">Storage</span>
+        <h3 class="h-card">Any S3-compatible bucket. Pinned per backup.</h3>
+        <p>AWS S3, Cloudflare R2, MinIO, Backblaze B2, Wasabi, Spaces, Garage, Ceph. Each backup remembers where it was written, so moving a database to new storage never orphans its history. Built-in test writes, reads and deletes a probe object and tells you which step failed. Needs only four object-level permissions; no CORS, no ListBucket.</p>
+        <div class="demo checks">
+          <span><svg><use href="#i-check"/></svg>Multipart uploads</span><span><svg><use href="#i-check"/></svg>Presigned agent PUTs</span>
+          <span><svg><use href="#i-check"/></svg>Presigned downloads (OTP-gated)</span><span><svg><use href="#i-check"/></svg>Orphan cleanup</span>
+        </div>
+      </article>
+
+      <!-- explorer -->
+      <article class="cell reveal">
+        <span class="tag">DB Explorer</span>
+        <h3 class="h-card">Peek inside before you restore.</h3>
+        <p>Browse servers, databases, tables and rows. ER diagrams, roles and grants.</p>
+      </article>
+
+      <!-- history -->
+      <article class="cell w3 reveal">
+        <span class="tag">History & logs</span>
+        <h3 class="h-card">One timeline for every job.</h3>
+        <p>Filter by database, agent, status, executor, trigger or date. Each job has a stage-by-stage execution log, including lines streamed from agents, and failures carry a typed code like <code>auth_failed</code> or <code>version_mismatch</code> with a fix.</p>
+      </article>
+
+      <!-- ui -->
+      <article class="cell w3 reveal">
+        <span class="tag">Interface</span>
+        <h3 class="h-card">Fast to operate. Pleasant at 3 a.m.</h3>
+        <p>Built on the Astryx design system. <kbd>⌘K</kbd> command menu, collapsible sidebar, light, dark and pitch-black themes, and a layout that works on your phone when the pager goes off.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STATS ============ -->
+<section class="wrap reveal" aria-label="At a glance">
+  <div class="stats">
+    <div><b>0</b><span>inbound ports needed for agents</span></div>
+    <div><b>7</b><span>pg_dump majors bundled, 12 to 18</span></div>
+    <div><b>1</b><span>image for server, API and UI</span></div>
+    <div><b>22</b><span>typed error codes, all documented</span></div>
+  </div>
+</section>
+
+<!-- ============ TOUR ============ -->
+<section class="sec" id="tour">
+  <div class="wrap">
+    <div class="sec-hd reveal">
+      <p class="eyebrow">Product tour</p>
+      <h2 class="h-section">See it before you run it.</h2>
+    </div>
+    <div class="tour-tabs reveal" role="tablist" aria-label="Screens" data-tour-tabs></div>
+    <div class="frame reveal">
+      <div class="frame-bar"><div class="c-dots" aria-hidden="true"><i></i><i></i><i></i></div><div class="url" data-tour-url>backups.example.com/</div><div style="width:46px"></div></div>
+      <div class="frame-img" data-tour-imgs></div>
+    </div>
+    <p class="tour-cap" data-tour-cap aria-live="polite"></p>
+  </div>
+</section>
+
+<hr class="rule" />
+
+<!-- ============ DEPLOY ============ -->
+<section class="sec" id="deploy">
+  <div class="wrap">
+    <div class="sec-hd reveal">
+      <p class="eyebrow">Deploy</p>
+      <h2 class="h-section">From zero to first backup in three steps.</h2>
+      <p class="lede">Enter your domain and the commands fill themselves in. Secrets are generated in your browser and never leave it.</p>
+    </div>
+
+    <div class="deploy reveal">
+      <div>
+        <div class="field">
+          <label for="domain">Where will DumpStation live?</label>
+          <input class="input" id="domain" value="backups.example.com" autocomplete="off" spellcheck="false" data-domain />
+        </div>
+        <ol class="steps" data-steps>
+          <li aria-current="step" data-step="0" tabindex="0"><div><b>Configure the server</b><p>Copy the Compose bundle and drop in a generated <code>.env</code>.</p></div></li>
+          <li data-step="1" tabindex="0"><div><b>Start it and sign in</b><p>Bring the stack up. Without a Discord webhook, your sign-in code is in the log.</p></div></li>
+          <li data-step="2" tabindex="0"><div><b>Add an agent (optional)</b><p>For a private database: one container, one enrollment token, outbound only.</p></div></li>
+        </ol>
+        <p class="muted" style="font-size:14.5px;margin:18px 16px 0">Then in the UI: add storage, add a database, press <b>Back up now</b>. TLS, reverse proxies and Kubernetes are in the <a href="/docs/">docs</a>.</p>
+      </div>
+      <div class="code" data-codegroup>
+        <div class="code-hd">
+          <div class="code-tabs" role="tablist" aria-label="Files" data-deploy-tabs></div>
+          <button class="copy" type="button" data-copy-active><svg><use href="#i-copy"/></svg><span>Copy</span></button>
+        </div>
+        <div data-deploy-panes></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECURITY ============ -->
+<section class="sec" id="security" style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-hd reveal">
+      <p class="eyebrow">Security</p>
+      <h2 class="h-section">It holds the keys to your data. <span class="dim">It's built like it.</span></h2>
+    </div>
+    <div class="sec-grid reveal">
+      <div><svg><use href="#i-lock"/></svg><h3>Encrypted at rest</h3><p>Database passwords, storage keys, webhooks and TOTP secrets are sealed with AES-256-GCM under your <code>DUMPSTATION_SECRET_KEY</code>.</p></div>
+      <div><svg><use href="#i-key"/></svg><h3>Passwordless sign-in + 2FA</h3><p>One-time codes, optional GitHub OAuth for a single allowed account, TOTP enforced on both, and Cloudflare Turnstile if you want it.</p></div>
+      <div><svg><use href="#i-users"/></svg><h3>Roles & tenant isolation</h3><p>Every resource has an owner. Admins see everything and manage roles; an optional read-only demo account is safe to share.</p></div>
+      <div><svg><use href="#i-bot"/></svg><h3>Least-privilege agents</h3><p>Single-use enrollment tokens, revocable credentials, restores disabled unless enabled on the agent and in the server.</p></div>
+      <div><svg><use href="#i-list"/></svg><h3>Activity log</h3><p>Logins, configuration changes, backups, restores and agent events, kept for 60 days.</p></div>
+      <div><svg><use href="#i-shield"/></svg><h3>Downloads behind a code</h3><p>Pulling a dump to your laptop needs a fresh one-time code and gets a short-lived presigned URL.</p></div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule" />
+
+<!-- ============ FAQ ============ -->
+<section class="sec" id="faq">
+  <div class="wrap">
+    <div class="sec-hd reveal"><p class="eyebrow">FAQ</p><h2 class="h-section">Questions, answered.</h2></div>
+    <div class="faq reveal">
+      <details><summary>Is it free?</summary><div><p>Yes. DumpStation is MIT licensed and fully self-hosted. You pay only for the machine it runs on and your object storage.</p></div></details>
+      <details><summary>What does a backup contain?</summary><div><p>A <code>pg_dump</code> custom-format archive (<code>--format=custom</code>) of one database: schema and data, compressed, restorable with <code>pg_restore</code> with or without DumpStation. Roles and other cluster-wide objects are not included.</p></div></details>
+      <details><summary>Do agents need a VPN or open ports?</summary><div><p>No. Agents make outbound HTTPS requests to your server's <code>PUBLIC_URL</code> and nothing else needs to reach them. Uploads go straight to the bucket with presigned URLs when the agent can reach it, or stream through the server when it can't.</p></div></details>
+      <details><summary>Where do database passwords live?</summary><div><p>For direct databases, encrypted in DumpStation's metadata database. For agent databases, only on the agent host, as an env var, a password file or a connections YAML. The server only sees a connection name.</p></div></details>
+      <details><summary>Which PostgreSQL versions are supported?</summary><div><p>Servers from 12 to 18. The images bundle every client version and pick the right <code>pg_dump</code> for each server, so dumping a newer server never fails with a version mismatch.</p></div></details>
+      <details><summary>What happens if the DumpStation server dies?</summary><div><p>Your artifacts are plain <code>pg_dump</code> files in your bucket, restorable by hand. Back up the metadata database too (<code>configs/manage.sh backup</code>) and keep the secret key somewhere separate. Agent jobs survive server restarts; direct jobs are marked <code>interrupted</code>.</p></div></details>
+      <details><summary>Can I upgrade from v1?</summary><div><p>Yes. Pull the v2 image and recreate the container; migrations run on start and existing secrets keep working. The <a href="/docs/#upgrading">upgrade guide</a> covers the details and how to roll back.</p></div></details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA ============ -->
+<section class="cta">
+  <div class="cta-glow"></div>
+  <div class="wrap reveal">
+    <img class="cta-mark" src="/assets/logo.svg" alt="" width="84" height="84" />
+    <h2 class="h-section">Your next restore should be boring.</h2>
+    <p class="lede">Five minutes with Docker Compose. Free forever, on your own hardware.</p>
+    <div class="hero-cta">
+      <a class="btn btn-coral btn-lg" href="/docs/#quick-start">Read the install guide <svg><use href="#i-arrow"/></svg></a>
+      <a class="btn btn-lg" href="https://github.com/monzim/DumpStation" rel="noopener"><svg><use href="#i-gh"/></svg> View source</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="ftr">
+  <div class="wrap">
+    <div class="ftr-grid">
+      <div>
+        <a class="brand" href="/"><img src="/assets/logo.svg" alt="" width="28" height="28" />DumpStation</a>
+        <p style="margin:14px 0 0;max-width:34ch">Self-hosted PostgreSQL backups with verified artifacts, guided restores and outbound-only agents.</p>
+      </div>
+      <div><h4>Product</h4><ul><li><a href="#how">How it works</a></li><li><a href="#features">Features</a></li><li><a href="#tour">Tour</a></li><li><a href="#security">Security</a></li></ul></div>
+      <div><h4>Docs</h4><ul><li><a href="/docs/#quick-start">Quick start</a></li><li><a href="/docs/#configuration">Configuration</a></li><li><a href="/docs/#agents">Agents</a></li><li><a href="/docs/#troubleshooting">Troubleshooting</a></li></ul></div>
+      <div><h4>Project</h4><ul><li><a href="https://github.com/monzim/DumpStation" rel="noopener">GitHub</a></li><li><a href="https://github.com/monzim/DumpStation/issues" rel="noopener">Issues</a></li><li><a href="https://github.com/monzim/DumpStation/releases" rel="noopener">Releases</a></li><li><a href="https://github.com/monzim/DumpStation/blob/main/LICENSE" rel="noopener">MIT License</a></li></ul></div>
+    </div>
+    <div class="ftr-bottom"><span>© <span data-year>2026</span> DumpStation contributors</span><span>Made for people who restore on purpose.</span></div>
+  </div>
+</footer>
+
+<div class="toast" role="status" aria-live="polite" data-toast></div>
+<script src="/assets/site.js" defer></script>
+<script src="/assets/home.js" defer></script>
+</body>
+</html>

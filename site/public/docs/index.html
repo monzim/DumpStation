@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Docs · DumpStation: install, configure and operate</title>
+  <meta name="description" content="Install DumpStation with Docker Compose, configure it with environment variables, put it behind a reverse proxy, deploy agents for private databases, and troubleshoot every error code." />
+  <meta name="theme-color" content="#000000" />
+  <link rel="canonical" href="https://dumpstation.monzim.com/docs/" />
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta property="og:title" content="DumpStation docs" />
+  <meta property="og:description" content="Install, configure and operate self-hosted PostgreSQL backups." />
+  <meta property="og:image" content="https://dumpstation.monzim.com/assets/og.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..750&family=Hanken+Grotesk:ital,wght@0,400..700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet" href="/assets/site.css" />
+  <link rel="stylesheet" href="/assets/docs.css" />
+  <script src="/assets/theme.js"></script>
+</head>
+<body>
+<a class="skip" href="#article">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+    <symbol id="i-tip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z"/></symbol>
+  </defs>
+</svg>
+
+<header class="hdr" id="hdr" data-scrolled>
+  <div class="wrap hdr-in" style="max-width:1320px">
+    <a class="brand" href="/" aria-label="DumpStation home"><img src="/assets/logo.svg" alt="" width="28" height="28" />DumpStation <span class="dim" style="font-weight:450">Docs</span></a>
+    <nav class="nav" aria-label="Primary">
+      <a href="/#how">Product</a>
+      <a href="/docs/" aria-current="page">Docs</a>
+      <a href="https://github.com/monzim/DumpStation/releases" rel="noopener">Releases</a>
+    </nav>
+    <div class="hdr-act">
+      <a class="gh-stars" href="https://github.com/monzim/DumpStation" rel="noopener"><svg><use href="#i-gh"/></svg><span>GitHub</span><span class="dim" data-stars hidden></span></a>
+      <button class="icon-btn theme-btn" type="button" data-theme-toggle aria-label="Toggle light and dark theme"><svg class="i-moon"><use href="#i-moon"/></svg><svg class="i-sun"><use href="#i-sun"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<div class="docs">
+  <aside class="side" id="side" aria-label="Documentation">
+    <div class="side-search">
+      <svg><use href="#i-search"/></svg>
+      <label class="sr" for="doc-q">Filter sections</label>
+      <input id="doc-q" type="search" placeholder="Filter sections…  /" autocomplete="off" data-doc-q />
+    </div>
+    <nav data-side-nav>
+      <h4>Get started</h4>
+      <a href="#intro">Introduction</a>
+      <a href="#requirements">Requirements</a>
+      <a href="#quick-start">Quick start</a>
+      <a href="#compose">Docker Compose</a>
+      <h4>Configure</h4>
+      <a href="#configuration">Environment variables</a>
+      <a href="#reverse-proxy">Reverse proxy &amp; TLS</a>
+      <a href="#sign-in">Sign-in &amp; security</a>
+      <h4>Use</h4>
+      <a href="#first-backup">Your first backup</a>
+      <a href="#storage">Storage providers</a>
+      <a href="#schedules">Schedules &amp; retention</a>
+      <a href="#restore">Restore</a>
+      <a href="#notifications">Notifications</a>
+      <h4>Agents</h4>
+      <a href="#agents">How agents work</a>
+      <a href="#agent-install">Install an agent</a>
+      <a href="#connections">Connections</a>
+      <a href="#agent-env">Agent reference</a>
+      <h4>Operate</h4>
+      <a href="#operations">Operations &amp; sizing</a>
+      <a href="#upgrading">Upgrading from v1</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+      <a href="#development">Build from source</a>
+      <p class="empty" hidden data-side-empty>No matching sections.</p>
+    </nav>
+  </aside>
+
+  <main class="prose" id="article">
+    <div class="doc-menu"><button type="button" data-side-toggle aria-expanded="false" aria-controls="side"><svg><use href="#i-menu"/></svg>Menu</button><span data-cur>Introduction</span></div>
+
+    <!-- ================= INTRO ================= -->
+    <section id="intro" data-title="Introduction">
+      <p class="eyebrow">Documentation</p>
+      <h1>Run DumpStation</h1>
+      <p class="lede">Everything you need to install, configure and operate DumpStation: a self-hosted server that runs <code>pg_dump</code> on a schedule, stores verified artifacts in S3-compatible storage, and reaches private databases through outbound-only agents.</p>
+      <div class="cards">
+        <a href="#quick-start"><b>Quick start →</b><span>Docker Compose, a generated <code>.env</code>, first sign-in. About five minutes.</span></a>
+        <a href="#configuration"><b>Configuration →</b><span>Every environment variable, searchable, with defaults.</span></a>
+        <a href="#agents"><b>Agents →</b><span>Back up databases in private networks without opening a port.</span></a>
+        <a href="#troubleshooting"><b>Troubleshooting →</b><span>All error codes and what to do about each.</span></a>
+      </div>
+      <h3>The pieces</h3>
+      <ul>
+        <li><strong>Server</strong> (<code>ghcr.io/monzim/dumpstation</code>): one Go binary serving the web UI, the REST API (<code>/api/v1</code>) and the agent API (<code>/agent/v1</code>). It schedules jobs, runs direct backups, applies retention and sends notifications.</li>
+        <li><strong>Metadata database</strong>: a PostgreSQL instance for DumpStation's own configuration, history and encrypted secrets.</li>
+        <li><strong>Object storage</strong>: one or more S3-compatible buckets where artifacts live.</li>
+        <li><strong>Agents</strong> (<code>ghcr.io/monzim/dumpstation-agent</code>, optional): small workers next to databases the server can't reach.</li>
+      </ul>
+    </section>
+
+    <!-- ================= REQUIREMENTS ================= -->
+    <section id="requirements" data-title="Requirements">
+      <h2>Requirements</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Need</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Docker + Compose v2</td><td>Or Kubernetes / a bare binary. Images are <code>linux/amd64</code> and <code>linux/arm64</code>.</td></tr>
+          <tr><td>1–2 vCPU, 256–512 MiB RAM</td><td>Plus ~64 MiB per concurrent upload. Agents do their own work.</td></tr>
+          <tr><td>Temp disk</td><td>Largest compressed dump × <code>BACKUP_CONCURRENCY</code>, for direct backups.</td></tr>
+          <tr><td>An S3-compatible bucket</td><td>AWS S3, Cloudflare R2, MinIO, B2, Wasabi, Spaces, Garage, Ceph RGW…</td></tr>
+          <tr><td>A domain with TLS</td><td>Recommended for production and required in practice for agents across the internet.</td></tr>
+          <tr><td>PostgreSQL 12–18 to back up</td><td>Client tools for every version are bundled in the images.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ================= QUICK START ================= -->
+    <section id="quick-start" data-title="Quick start">
+      <h2>Quick start</h2>
+      <p>The production Compose bundle in <code>configs/</code> runs the server and its metadata database. Direct backups work out of the box.</p>
+      <ol class="stepper">
+        <li><b>Get the bundle</b>
+          <div class="code"><div class="code-hd"><span class="fn">terminal</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="bash">git clone https://github.com/monzim/DumpStation.git
+cd DumpStation/configs
+cp .env.example .env</code></pre></div>
+        </li>
+        <li><b>Fill in the required values</b>
+          <p>Generate secrets and set the URL browsers and agents will use:</p>
+          <div class="code"><div class="code-hd"><span class="fn">.env</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="env">POSTGRES_PASSWORD=   # openssl rand -base64 24
+JWT_SECRET=          # openssl rand -base64 64
+DUMPSTATION_SECRET_KEY=   # openssl rand -base64 32  (keep it safe!)
+PUBLIC_URL=https://backups.example.com
+SYSTEM_USERNAME=admin
+APP_ENV=production</code></pre></div>
+          <div class="callout warn"><svg><use href="#i-warn"/></svg><div><p><b>Back up <code>DUMPSTATION_SECRET_KEY</code> separately.</b> It encrypts stored database passwords, storage keys, webhooks and TOTP secrets. Losing it makes them unrecoverable; changing it breaks decryption.</p></div></div>
+        </li>
+        <li><b>Start it</b>
+          <div class="code"><div class="code-hd"><span class="fn">terminal</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="bash">docker compose up -d
+docker compose logs -f dumpstation   # wait for "Auto-migration completed successfully"</code></pre></div>
+        </li>
+        <li><b>Sign in</b>
+          <p>Open <code>http://localhost:8080</code> (or your domain), enter <code>admin</code> and request a code. Without <code>DISCORD_WEBHOOK_URL</code> the code is written to the server log:</p>
+          <div class="code"><div class="code-hd"><span class="fn">terminal</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="bash">docker compose logs dumpstation | grep "OTP not sent"</code></pre></div>
+        </li>
+        <li><b>Turn on two-factor authentication</b>
+          <p>Under <strong>Settings → Security</strong>, before you expose the server. Then continue with <a href="#first-backup">your first backup</a>.</p>
+        </li>
+      </ol>
+      <div class="callout tip"><svg><use href="#i-tip"/></svg><div><p>The <a href="/#deploy">configurator on the home page</a> generates a ready <code>.env</code> with fresh secrets in your browser.</p></div></div>
+    </section>
+
+    <!-- ================= COMPOSE ================= -->
+    <section id="compose" data-title="Docker Compose">
+      <h2>Docker Compose</h2>
+      <p>This is <code>configs/compose.yml</code>. The metadata database sits on an <code>internal</code> network with no route out; only the server publishes a port.</p>
+      <div class="code"><div class="code-hd"><span class="fn">configs/compose.yml</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="yaml">services:
+  postgres:
+    image: postgres:${POSTGRES_IMAGE_TAG:-15-alpine}  # keep the major your volume was created with
+    container_name: dumpstation_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-backup_service}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password required}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [dumpstation_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-backup_service}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  dumpstation:
+    image: ghcr.io/monzim/dumpstation:${DUMPSTATION_VERSION:-latest}
+    container_name: dumpstation
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Database password required}
+      DB_NAME: ${POSTGRES_DB:-backup_service}
+      DB_SSLMODE: disable
+      JWT_SECRET: ${JWT_SECRET:?JWT secret required}
+      DUMPSTATION_SECRET_KEY: ${DUMPSTATION_SECRET_KEY:?Encryption key required}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
+      SYSTEM_USERNAME: ${SYSTEM_USERNAME:-admin}
+      SYSTEM_EMAIL: ${SYSTEM_EMAIL:-admin@dumpstation.local}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_ALLOWED_LOGIN: ${GITHUB_ALLOWED_LOGIN:-}
+      GITHUB_REDIRECT_URL: ${GITHUB_REDIRECT_URL:-}
+      TURNSTILE_ENABLED: ${TURNSTILE_ENABLED:-false}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      APP_ENV: ${APP_ENV:-production}
+      DEMO_ENABLED: ${DEMO_ENABLED:-false}
+      BACKUP_CONCURRENCY: ${BACKUP_CONCURRENCY:-2}
+      BACKUP_TIMEOUT_MINUTES: ${BACKUP_TIMEOUT_MINUTES:-360}
+      AGENT_JOB_QUEUE_TTL_MINUTES: ${AGENT_JOB_QUEUE_TTL_MINUTES:-360}
+      DIRECT_ALLOWED_CIDRS: ${DIRECT_ALLOWED_CIDRS:-}
+    volumes:
+      - backup_tmp:/tmp/dumpstation
+    ports:
+      - "${DUMPSTATION_PORT:-8080}:8080"
+    networks: [dumpstation_internal, dumpstation_external]
+
+networks:
+  dumpstation_internal:
+    internal: true
+  dumpstation_external: {}
+
+volumes:
+  postgres_data:
+    name: dumpstation_postgres_data
+  backup_tmp:
+    name: dumpstation_backup_tmp</code></pre></div>
+      <h3>Useful commands</h3>
+      <div class="code"><div class="code-hd"><span class="fn">terminal</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="bash">docker compose pull &amp;&amp; docker compose up -d   # upgrade; migrations run on start
+docker compose logs -f dumpstation           # follow logs
+./manage.sh backup                           # dump the metadata database
+curl -fsS localhost:8080/api/v1/health       # health check</code></pre></div>
+    </section>
+
+    <!-- ================= CONFIGURATION ================= -->
+    <section id="configuration" data-title="Environment variables">
+      <h2>Environment variables</h2>
+      <p>All settings are environment variables read at start-up. In the Compose bundle you set them in <code>.env</code>. Invalid numbers or booleans fall back to the default.</p>
+      <div class="filter"><label class="sr" for="env-q">Filter variables</label><input id="env-q" type="search" placeholder="Filter, e.g. GITHUB or timeout" data-filter="#env-table" /><span data-filter-count="#env-table"></span></div>
+      <div class="tbl" id="env-table"><table>
+        <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>PUBLIC_URL</code></td><td>from request</td><td>External base URL, e.g. <code>https://backups.example.com</code>. Shown in agent snippets and used for GitHub sign-in. Set it in production.</td></tr>
+          <tr><td><code>JWT_SECRET</code><span class="req">required</span></td><td></td><td>Signs sessions and OAuth state. <code>openssl rand -base64 64</code>.</td></tr>
+          <tr><td><code>DUMPSTATION_SECRET_KEY</code><span class="req">required</span></td><td></td><td>Base64 32-byte AES-256-GCM key for secrets at rest. <code>openssl rand -base64 32</code>.</td></tr>
+          <tr><td><code>JWT_EXPIRATION_MINUTES</code></td><td><code>30</code></td><td>Sliding session length; absolute cap 12 hours.</td></tr>
+          <tr><td><code>SERVER_HOST</code> / <code>SERVER_PORT</code></td><td><code>0.0.0.0</code> / <code>8080</code></td><td>Listen address and port.</td></tr>
+          <tr><td><code>WEB_DIR</code></td><td><code>/app/web</code> in the image</td><td>Built web UI. Empty disables UI serving (API only).</td></tr>
+          <tr><td><code>TRUST_PROXY_HEADERS</code></td><td><code>false</code></td><td>Take client IPs from <code>X-Forwarded-For</code>. Only behind a proxy you control.</td></tr>
+          <tr><td><code>TZ</code></td><td><code>UTC</code></td><td>Server time zone, used for schedules without their own.</td></tr>
+          <tr><td><code>DB_HOST</code> · <code>DB_PORT</code></td><td><code>localhost</code> · <code>5432</code></td><td>Metadata database.</td></tr>
+          <tr><td><code>DB_USER</code> · <code>DB_NAME</code></td><td><code>postgres</code> · <code>backup_service</code></td><td>Metadata database.</td></tr>
+          <tr><td><code>DB_PASSWORD</code><span class="req">required</span></td><td></td><td>Metadata database password (<code>POSTGRES_PASSWORD</code> in Compose).</td></tr>
+          <tr><td><code>DB_SSLMODE</code></td><td><code>disable</code></td><td>libpq <code>sslmode</code> for the metadata connection.</td></tr>
+          <tr><td><code>SYSTEM_USERNAME</code></td><td><code>root</code> (<code>admin</code> in Compose)</td><td>Initial user, created on first start and made administrator if none exists.</td></tr>
+          <tr><td><code>SYSTEM_EMAIL</code></td><td></td><td>Email of the initial user.</td></tr>
+          <tr><td><code>DISCORD_WEBHOOK_URL</code></td><td>empty</td><td>Receives sign-in codes and start/stop notices. Empty: codes go to the server log.</td></tr>
+          <tr><td><code>OTP_EXPIRATION_MINUTES</code></td><td><code>5</code></td><td>Lifetime of sign-in codes.</td></tr>
+          <tr><td><code>GITHUB_CLIENT_ID</code> · <code>GITHUB_CLIENT_SECRET</code></td><td>empty</td><td>GitHub OAuth app.</td></tr>
+          <tr><td><code>GITHUB_ALLOWED_LOGIN</code></td><td>empty</td><td>The only GitHub login allowed. GitHub sign-in turns on when ID, secret and login are set.</td></tr>
+          <tr><td><code>GITHUB_REDIRECT_URL</code></td><td>empty</td><td><code>https://&lt;host&gt;/api/v1/auth/github/callback</code>.</td></tr>
+          <tr><td><code>TURNSTILE_ENABLED</code></td><td><code>false</code></td><td>Require Cloudflare Turnstile on code requests.</td></tr>
+          <tr><td><code>TURNSTILE_SITE_KEY</code> · <code>TURNSTILE_SECRET_KEY</code></td><td>empty</td><td>Turnstile keys. <code>TURNSTILE_TIMEOUT</code> (s) defaults to <code>5</code>.</td></tr>
+          <tr><td><code>APP_ENV</code></td><td>empty</td><td><code>production</code> disables demo seeding and the demo default.</td></tr>
+          <tr><td><code>DEMO_ENABLED</code></td><td><code>true</code> unless production</td><td>Enables the read-only demo sign-in.</td></tr>
+          <tr><td><code>BACKUP_CONCURRENCY</code></td><td><code>2</code></td><td>Simultaneous direct backups and restores on the server.</td></tr>
+          <tr><td><code>BACKUP_TIMEOUT_MINUTES</code></td><td><code>360</code></td><td>Limit for one backup or restore (server and agents).</td></tr>
+          <tr><td><code>BACKUP_TEMP_DIR</code></td><td><code>/tmp/dumpstation</code></td><td>Staging for direct dumps and restores.</td></tr>
+          <tr><td><code>BACKUP_MIN_FREE_MB</code></td><td><code>0</code> (off)</td><td>Refuse to start a direct dump with less free temp space.</td></tr>
+          <tr><td><code>DIRECT_ALLOWED_CIDRS</code></td><td>empty (any)</td><td>CIDRs/IPs the server may connect to for direct jobs, tests and DB Explorer.</td></tr>
+          <tr><td><code>AGENT_JOB_QUEUE_TTL_MINUTES</code></td><td><code>360</code></td><td>How long an agent job waits to be picked up before <code>agent_unavailable</code>.</td></tr>
+          <tr><td><code>AGENT_JOB_LEASE_SECONDS</code></td><td><code>120</code></td><td>An agent silent for this long loses its job.</td></tr>
+          <tr><td><code>AGENT_JOB_MAX_ATTEMPTS</code></td><td><code>3</code></td><td>Attempts for agent backups after lost leases. Restores are never retried.</td></tr>
+          <tr><td><code>PG_BIN_DIRS</code></td><td>empty</td><td>Extra colon-separated directories with PostgreSQL client tools.</td></tr>
+          <tr><td><code>CORS_ALLOWED_ORIGINS</code></td><td>empty (off)</td><td>Only for API calls from another origin. The UI is same-origin.</td></tr>
+          <tr><td><code>DUMPSTATION_VERSION</code></td><td><code>latest</code></td><td>Compose only: image tag. Pin it in production.</td></tr>
+          <tr><td><code>DUMPSTATION_PORT</code></td><td><code>8080</code></td><td>Compose only: published host port.</td></tr>
+          <tr><td><code>POSTGRES_IMAGE_TAG</code></td><td><code>15-alpine</code></td><td>Compose only: keep the major version your data volume was created with.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ================= REVERSE PROXY ================= -->
+    <section id="reverse-proxy" data-title="Reverse proxy & TLS">
+      <h2>Reverse proxy &amp; TLS</h2>
+      <p>Put one hostname in front of the server for every path (<code>/</code>, <code>/api/</code>, <code>/agent/</code>, <code>/config.js</code>) and set <code>PUBLIC_URL</code> to it. Agents long-poll and may stream large artifacts, so <code>/agent/</code> needs long timeouts and no body limit.</p>
+      <div class="code" data-tabs>
+        <div class="code-hd">
+          <div class="code-tabs" role="tablist" aria-label="Proxy"><button role="tab" type="button" aria-selected="true">Caddy</button><button role="tab" type="button" aria-selected="false" tabindex="-1">nginx</button><button role="tab" type="button" aria-selected="false" tabindex="-1">Traefik</button></div>
+          <button class="copy" type="button" data-copy-active><svg><use href="#i-copy"/></svg><span>Copy</span></button>
+        </div>
+        <div role="tabpanel"><pre><code data-lang="caddy">backups.example.com {
+    reverse_proxy dumpstation:8080 {
+        flush_interval -1
+        transport http {
+            read_timeout 6h
+            write_timeout 6h
+        }
+    }
+}</code></pre></div>
+        <div role="tabpanel" hidden><pre><code data-lang="nginx">server {
+    listen 443 ssl http2;
+    server_name backups.example.com;
+    # ssl_certificate ...; ssl_certificate_key ...;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    # Agent protocol: long-polls and streamed artifact transfers.
+    location /agent/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 0;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_read_timeout 6h;
+        proxy_send_timeout 6h;
+    }
+}</code></pre></div>
+        <div role="tabpanel" hidden><pre><code data-lang="yaml"># traefik.yml — raise entrypoint timeouts (v3 defaults readTimeout to 60s)
+entryPoints:
+  websecure:
+    address: ":443"
+    transport:
+      respondingTimeouts:
+        readTimeout: 0
+        writeTimeout: 0
+# Do not attach a buffering middleware with a body limit to /agent/.</code></pre></div>
+      </div>
+      <p>Set <code>TRUST_PROXY_HEADERS=true</code> when the proxy is yours, so login rate limits and the activity log see real client IPs.</p>
+      <div class="callout"><svg><use href="#i-info"/></svg><div><p><b>Behind Cloudflare or another CDN?</b> Proxied plans cap request bodies (100 MB on free) and hold requests for about 100 s. Long-polls fit; proxied transfers of large backups don't. Let agents upload directly to storage (<code>auto</code> / <code>direct</code>) or expose a hostname for agents that bypasses the CDN.</p></div></div>
+    </section>
+
+    <!-- ================= SIGN-IN ================= -->
+    <section id="sign-in" data-title="Sign-in & security">
+      <h2>Sign-in &amp; security</h2>
+      <h3>One-time codes</h3>
+      <p>Users sign in with a username and a 6-digit code. Codes go to <code>DISCORD_WEBHOOK_URL</code> when set, otherwise to the server log. They expire after <code>OTP_EXPIRATION_MINUTES</code>.</p>
+      <h3>GitHub</h3>
+      <ol>
+        <li>Create an OAuth app at <a href="https://github.com/settings/developers" rel="noopener">github.com/settings/developers</a>.</li>
+        <li>Set its callback URL to <code>https://backups.example.com/api/v1/auth/github/callback</code>.</li>
+        <li>Set <code>GITHUB_CLIENT_ID</code>, <code>GITHUB_CLIENT_SECRET</code>, <code>GITHUB_ALLOWED_LOGIN</code> and <code>GITHUB_REDIRECT_URL</code>. Only that one account can sign in; it becomes an administrator on first sign-in.</li>
+      </ol>
+      <h3>Two-factor authentication</h3>
+      <p>TOTP from <strong>Settings → Security</strong>, with recovery codes. Once enabled it is enforced for GitHub sign-ins too.</p>
+      <h3>Turnstile</h3>
+      <p>Set <code>TURNSTILE_ENABLED=true</code> and both keys to put a Cloudflare Turnstile challenge on code requests.</p>
+      <h3>What's protected, and how</h3>
+      <ul>
+        <li>Secrets at rest (database passwords, storage keys, webhook URLs, TOTP secrets, Explorer credentials) are encrypted with AES-256-GCM under <code>DUMPSTATION_SECRET_KEY</code>.</li>
+        <li>Every resource has an owner; administrators can see all and manage roles. The demo account is read-only.</li>
+        <li>Downloading an artifact needs a code sent to one of your notification channels, then gives a presigned URL valid for 5 minutes.</li>
+        <li>The activity log records logins, configuration changes, backups, restores and agent events for 60 days.</li>
+      </ul>
+    </section>
+
+    <!-- ================= FIRST BACKUP ================= -->
+    <section id="first-backup" data-title="Your first backup">
+      <h2>Your first backup</h2>
+      <ol class="stepper">
+        <li><b>Add storage</b><p><strong>Storage → Add storage</strong>. Pick the provider, bucket, endpoint and keys, then <strong>Test</strong>: it writes, reads and deletes a probe object under <code>.dumpstation/</code> and tells you which step failed. The first storage becomes the default.</p></li>
+        <li><b>Add a database</b><p><strong>Databases → Add database</strong> (or <kbd>⌘K</kbd> → "Add database"). Choose <strong>Direct</strong> if the server can reach it, <strong>Agent</strong> if not. <strong>Test connection</strong> checks reachability, authentication, the server version and that a compatible <code>pg_dump</code> exists.</p></li>
+        <li><b>Pick a schedule and retention</b><p>A preset or cron expression, an IANA time zone, and keep-last-N or keep-N-days. See <a href="#schedules">schedules &amp; retention</a>.</p></li>
+        <li><b>Back up now</b><p>Press <strong>Back up now</strong> and follow the job: queued → connecting → dumping → uploading → verifying → retention. Every stage is logged.</p></li>
+      </ol>
+      <div class="callout"><svg><use href="#i-info"/></svg><div><p>The backup role must be able to read everything in the database: the owner, or <code>pg_read_all_data</code> on PostgreSQL 14+.</p></div></div>
+    </section>
+
+    <!-- ================= STORAGE ================= -->
+    <section id="storage" data-title="Storage providers">
+      <h2>Storage providers</h2>
+      <div class="tbl"><table>
+        <thead><tr><th>Provider</th><th>Endpoint</th><th>Region</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>AWS S3</td><td>leave empty</td><td>bucket region (empty → <code>us-east-1</code>)</td><td>Virtual-hosted style.</td></tr>
+          <tr><td>Cloudflare R2</td><td><code>https://&lt;account&gt;.r2.cloudflarestorage.com</code></td><td><code>auto</code></td><td>API token with Object Read &amp; Write on the bucket.</td></tr>
+          <tr><td>MinIO</td><td><code>http://minio:9000</code></td><td>any (empty → <code>auto</code>)</td><td>Path-style.</td></tr>
+          <tr><td>S3-compatible</td><td>provider's S3 endpoint</td><td>as documented</td><td>B2, Wasabi, Spaces, Garage, Ceph RGW… Must support multipart and presigned URLs.</td></tr>
+        </tbody>
+      </table></div>
+      <p>The access key needs only object-level actions; no <code>ListBucket</code>, no bucket CORS:</p>
+      <div class="code"><div class="code-hd"><span class="fn">iam-policy.json</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="json">{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:AbortMultipartUpload"],
+    "Resource": "arn:aws:s3:::my-dumpstation-backups/*"
+  }]
+}</code></pre></div>
+      <p>Each backup remembers the storage it was written to. Changing a database's storage only affects new backups; older ones are restored from and deleted in their original bucket. Consider a lifecycle rule that aborts incomplete multipart uploads after a day, and object lock if you need protection against deletion.</p>
+    </section>
+
+    <!-- ================= SCHEDULES ================= -->
+    <section id="schedules" data-title="Schedules & retention">
+      <h2>Schedules &amp; retention</h2>
+      <p>Schedules are cron expressions or presets (hourly, every N hours, daily, weekly, monthly) evaluated in the database's IANA time zone, with a preview of the next runs. Runs missed while the server was down are detected and reported, and can notify you.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Retention</th><th>Range</th><th>Keeps</th></tr></thead>
+        <tbody>
+          <tr><td><code>count</code></td><td>1–10,000</td><td>The N newest successful backups.</td></tr>
+          <tr><td><code>days</code></td><td>1–3,650</td><td>Successful backups started within the last N days.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout tip"><svg><use href="#i-tip"/></svg><div><p><b>The newest successful backup is never deleted</b>, whatever the policy. A broken schedule can't leave you with nothing.</p></div></div>
+      <p>Retention runs after every successful backup. Failed and cancelled backups aren't counted; purge them from the Backups page. <strong>Pause</strong> stops scheduled runs while manual backups still work.</p>
+    </section>
+
+    <!-- ================= RESTORE ================= -->
+    <section id="restore" data-title="Restore">
+      <h2>Restore</h2>
+      <p>Open a successful backup and choose <strong>Restore</strong>. The wizard has three steps: target, options, confirmation.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Target</th><th>Runs on</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Original database</td><td>its executor</td><td>Restores into the source; typed confirmation.</td></tr>
+          <tr><td>Another configured database</td><td>that database's executor</td><td>Great for staging copies; typed confirmation.</td></tr>
+          <tr><td>Custom target</td><td>the server or an agent you pick</td><td>Enter connection details or pick an agent's local connection.</td></tr>
+        </tbody>
+      </table></div>
+      <ul>
+        <li><strong>--clean</strong> runs <code>pg_restore --clean --if-exists</code>. Without it, existing objects cause errors.</li>
+        <li>Restores always use <code>--no-owner --no-privileges</code>. The target database must already exist.</li>
+        <li>The artifact's SHA-256 is checked against the value recorded at backup time before anything is restored.</li>
+        <li>Through an agent, both <em>Allow restores</em> on the server and <code>DUMPSTATION_ALLOW_RESTORE=true</code> on the agent are required.</li>
+        <li>Restores are never retried automatically.</li>
+      </ul>
+      <p>Prefer the command line? Download the artifact and run:</p>
+      <div class="code"><div class="code-hd"><span class="fn">terminal</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="bash">pg_restore --no-owner -d mydb backup.dump</code></pre></div>
+    </section>
+
+    <!-- ================= NOTIFICATIONS ================= -->
+    <section id="notifications" data-title="Notifications">
+      <h2>Notifications</h2>
+      <p><strong>Notifications → Add channel</strong>. A channel holds a Discord webhook, a Telegram bot token and chat ID, or both; <strong>Test</strong> sends a message. Assign it to databases to receive:</p>
+      <ul>
+        <li>backup success (size, duration) and failure (with the error code);</li>
+        <li>restore success and failure;</li>
+        <li>missed scheduled runs;</li>
+        <li>the database's agent going offline or coming back.</li>
+      </ul>
+      <p>For Telegram, create a bot with <code>@BotFather</code>; get a chat ID from <code>@userinfobot</code> or by adding the bot to a group. The server-wide <code>DISCORD_WEBHOOK_URL</code> is separate: it only receives sign-in codes and start/stop notices.</p>
+    </section>
+
+    <!-- ================= AGENTS ================= -->
+    <section id="agents" data-title="How agents work">
+      <h2>How agents work</h2>
+      <p>An agent is a small worker that backs up (and optionally restores) databases the server can't reach. It runs inside the private network, makes <strong>outbound HTTPS requests only</strong>, and executes only <code>backup</code>, <code>restore</code> and <code>test_connection</code> jobs.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>It needs</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Outbound HTTPS to <code>PUBLIC_URL</code></td><td>Control traffic and, in proxy mode, artifact transfers.</td></tr>
+          <tr><td>Network access to the databases</td><td><code>pg_dump</code> / <code>pg_restore</code> connect from the agent host.</td></tr>
+          <tr><td>Outbound HTTPS to storage (optional)</td><td>Direct uploads via presigned URLs; otherwise uploads go through the server.</td></tr>
+          <tr><td>A persistent state directory</td><td>Holds the credential issued at enrollment.</td></tr>
+          <tr><td>Temp disk ≥ your largest compressed dump</td><td>Dumps are written to disk before upload.</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Registration</h3>
+      <ol>
+        <li><strong>Backup Agents → Add agent</strong>: name, restore permission (off by default), token lifetime (15 min, 1 h or 24 h).</li>
+        <li>Copy the single-use <code>dse_…</code> enrollment token and one of the ready-made snippets.</li>
+        <li>Start the agent. It enrolls, stores its credential, and the wizard flips to <em>online</em>.</li>
+        <li><strong>Databases → Add database → Agent</strong>, pick the agent and one of its connections.</li>
+      </ol>
+      <h3>Transfer modes</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Mode</th><th>Behaviour</th><th>Use when</th></tr></thead>
+        <tbody>
+          <tr><td><code>auto</code></td><td>Presigned multipart upload; falls back to proxy if it fails twice.</td><td>Most setups (default).</td></tr>
+          <tr><td><code>direct</code></td><td>Presigned only; failure fails the job.</td><td>You don't want artifacts flowing through the server.</td></tr>
+          <tr><td><code>proxy</code></td><td>Streamed through the server.</td><td>The agent can reach the server but not the bucket.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="agent-install" data-title="Install an agent">
+      <h2>Install an agent</h2>
+      <p>The image <code>ghcr.io/monzim/dumpstation-agent</code> runs as UID 10001, keeps state in <code>/var/lib/dumpstation-agent</code> and bundles PostgreSQL client tools 12–18.</p>
+      <div class="code" data-tabs>
+        <div class="code-hd">
+          <div class="code-tabs" role="tablist" aria-label="Install method"><button role="tab" type="button" aria-selected="true">Docker</button><button role="tab" type="button" aria-selected="false" tabindex="-1">Compose</button><button role="tab" type="button" aria-selected="false" tabindex="-1">Kubernetes</button><button role="tab" type="button" aria-selected="false" tabindex="-1">systemd</button></div>
+          <button class="copy" type="button" data-copy-active><svg><use href="#i-copy"/></svg><span>Copy</span></button>
+        </div>
+        <div role="tabpanel"><pre><code data-lang="bash">docker volume create dumpstation-agent-state
+docker run -d --name dumpstation-agent --restart unless-stopped \
+  -e DUMPSTATION_SERVER_URL=https://backups.example.com \
+  -e DUMPSTATION_ENROLLMENT_TOKEN=dse_... \
+  -e DUMPSTATION_CONN_MAIN='postgres://backup:secret@db.internal:5432/app' \
+  -v dumpstation-agent-state:/var/lib/dumpstation-agent \
+  ghcr.io/monzim/dumpstation-agent:latest</code></pre></div>
+        <div role="tabpanel" hidden><pre><code data-lang="yaml"># deploy/agent/compose.yml — put the token in .env, the password in orders_password.txt
+services:
+  dumpstation-agent:
+    image: ghcr.io/monzim/dumpstation-agent:${AGENT_VERSION:-latest}
+    container_name: dumpstation-agent
+    restart: unless-stopped
+    environment:
+      DUMPSTATION_SERVER_URL: ${DUMPSTATION_SERVER_URL:?e.g. https://backups.example.com}
+      DUMPSTATION_ENROLLMENT_TOKEN: ${DUMPSTATION_ENROLLMENT_TOKEN:-}
+      DUMPSTATION_CONN_ORDERS: postgres://backup_user@db.internal:5432/orders?sslmode=prefer
+      DUMPSTATION_CONN_ORDERS_PASSWORD_FILE: /run/secrets/orders_password
+      DUMPSTATION_ALLOW_RESTORE: "false"
+      DUMPSTATION_MAX_CONCURRENCY: "1"
+      DUMPSTATION_TRANSFER_MODE: auto
+    secrets:
+      - orders_password
+    volumes:
+      - agent_state:/var/lib/dumpstation-agent
+      - agent_tmp:/tmp/dumpstation
+
+secrets:
+  orders_password:
+    file: ./orders_password.txt
+
+volumes:
+  agent_state:
+  agent_tmp:</code></pre></div>
+        <div role="tabpanel" hidden><pre><code data-lang="bash">kubectl create namespace dumpstation
+kubectl -n dumpstation create secret generic dumpstation-agent \
+  --from-literal=enrollment-token=dse_... \
+  --from-literal=orders-password='...'
+# edit DUMPSTATION_SERVER_URL and the connection in agent.yaml
+kubectl -n dumpstation apply -f deploy/kubernetes/agent.yaml
+kubectl -n dumpstation logs -f statefulset/dumpstation-agent</code></pre></div>
+        <div role="tabpanel" hidden><pre><code data-lang="bash"># copy the binary out of the image
+docker cp "$(docker create ghcr.io/monzim/dumpstation-agent:latest)":/usr/local/bin/dumpstation-agent /usr/local/bin/
+sudo mkdir -p /etc/dumpstation-agent /var/lib/dumpstation-agent
+sudo tee /etc/dumpstation-agent/agent.env &gt;/dev/null &lt;&lt;'EOF'
+DUMPSTATION_SERVER_URL=https://backups.example.com
+DUMPSTATION_ENROLLMENT_TOKEN=dse_...
+DUMPSTATION_STATE_DIR=/var/lib/dumpstation-agent
+DUMPSTATION_TEMP_DIR=/var/tmp/dumpstation
+DUMPSTATION_CONN_MAIN=postgres://backup:secret@127.0.0.1:5432/app
+EOF
+sudo chmod 600 /etc/dumpstation-agent/agent.env
+
+# /etc/systemd/system/dumpstation-agent.service
+#   [Service]
+#   EnvironmentFile=/etc/dumpstation-agent/agent.env
+#   ExecStart=/usr/local/bin/dumpstation-agent run
+#   Restart=always
+sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now dumpstation-agent</code></pre></div>
+      </div>
+      <p>The Kubernetes manifest is a single-replica StatefulSet with a small PVC for state, a read-only root filesystem, all capabilities dropped and an exec liveness probe. No Service or Ingress is needed. Keep <code>replicas: 1</code>; for more capacity, deploy another agent.</p>
+      <div class="callout"><svg><use href="#i-info"/></svg><div><p>Leaving <code>DUMPSTATION_ENROLLMENT_TOKEN</code> set after enrollment is harmless: the agent only re-enrolls when the value changes.</p></div></div>
+    </section>
+
+    <section id="connections" data-title="Connections">
+      <h2>Connections</h2>
+      <p>Agents back up <em>named connections</em> defined on the agent host. The server only sees the name; passwords never leave the host. Define them as env vars or in a YAML file.</p>
+      <div class="code" data-tabs>
+        <div class="code-hd">
+          <div class="code-tabs" role="tablist" aria-label="Connection format"><button role="tab" type="button" aria-selected="true">Env vars</button><button role="tab" type="button" aria-selected="false" tabindex="-1">connections.yaml</button></div>
+          <button class="copy" type="button" data-copy-active><svg><use href="#i-copy"/></svg><span>Copy</span></button>
+        </div>
+        <div role="tabpanel"><pre><code data-lang="env"># name "orders": lower-cased, _ becomes -
+DUMPSTATION_CONN_ORDERS=postgres://backup_user@orders-db.internal:5432/orders?sslmode=require
+DUMPSTATION_CONN_ORDERS_PASSWORD_FILE=/run/secrets/orders_password</code></pre></div>
+        <div role="tabpanel" hidden><pre><code data-lang="yaml"># /etc/dumpstation-agent/connections.yaml (or DUMPSTATION_CONNECTIONS_FILE)
+connections:
+  orders:
+    url: postgres://backup_user@orders-db.internal:5432/orders?sslmode=require
+    password_file: /run/secrets/orders_password
+  analytics:
+    host: 10.20.0.15
+    port: 5432
+    database: analytics
+    user: backup
+    password_env: ANALYTICS_DB_PASSWORD
+    sslmode: prefer</code></pre></div>
+      </div>
+      <p>Check what an agent sees with <code>docker exec dumpstation-agent dumpstation-agent connections</code>. Restart the agent after changing connections.</p>
+    </section>
+
+    <section id="agent-env" data-title="Agent reference">
+      <h2>Agent reference</h2>
+      <div class="filter"><label class="sr" for="aenv-q">Filter agent variables</label><input id="aenv-q" type="search" placeholder="Filter agent variables" data-filter="#agent-env-table" /><span data-filter-count="#agent-env-table"></span></div>
+      <div class="tbl" id="agent-env-table"><table>
+        <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>DUMPSTATION_SERVER_URL</code><span class="req">required</span></td><td></td><td>Base URL of the server, <code>https://</code>.</td></tr>
+          <tr><td><code>DUMPSTATION_ENROLLMENT_TOKEN</code></td><td></td><td>Single-use <code>dse_</code> token. <code>_FILE</code> supported.</td></tr>
+          <tr><td><code>DUMPSTATION_AGENT_CREDENTIAL</code></td><td></td><td>Use this <code>dsa_</code> credential instead of enrolling. <code>_FILE</code> supported.</td></tr>
+          <tr><td><code>DUMPSTATION_STATE_DIR</code></td><td><code>/var/lib/dumpstation-agent</code></td><td>Stores the credential. Must persist.</td></tr>
+          <tr><td><code>DUMPSTATION_CONNECTIONS_FILE</code></td><td><code>/etc/dumpstation-agent/connections.yaml</code></td><td>Named connections (YAML/JSON). Missing file is fine.</td></tr>
+          <tr><td><code>DUMPSTATION_CONN_&lt;NAME&gt;</code></td><td></td><td>Connection URL. Also <code>_PASSWORD_FILE</code> and <code>_FILE</code> variants.</td></tr>
+          <tr><td><code>DUMPSTATION_ALLOW_RESTORE</code></td><td><code>false</code></td><td>Agent-side restore switch.</td></tr>
+          <tr><td><code>DUMPSTATION_MAX_CONCURRENCY</code></td><td><code>1</code></td><td>Concurrent jobs, 1–16.</td></tr>
+          <tr><td><code>DUMPSTATION_TRANSFER_MODE</code></td><td><code>auto</code></td><td><code>auto</code>, <code>direct</code> or <code>proxy</code>.</td></tr>
+          <tr><td><code>DUMPSTATION_TEMP_DIR</code></td><td><code>/tmp/dumpstation</code></td><td>Dump and restore scratch space.</td></tr>
+          <tr><td><code>DUMPSTATION_MIN_FREE_MB</code></td><td><code>0</code> (off)</td><td>Refuse to dump with less free temp space.</td></tr>
+          <tr><td><code>DUMPSTATION_CA_FILE</code></td><td></td><td>PEM bundle for a server behind a private CA.</td></tr>
+          <tr><td><code>DUMPSTATION_INSECURE_SKIP_VERIFY</code></td><td><code>false</code></td><td>Disable TLS verification. Testing only.</td></tr>
+          <tr><td><code>DUMPSTATION_SHUTDOWN_GRACE_SECONDS</code></td><td><code>30</code></td><td>Time running jobs get after SIGTERM.</td></tr>
+          <tr><td><code>PG_BIN_DIRS</code></td><td></td><td>Extra directories with PostgreSQL client tools.</td></tr>
+          <tr><td><code>HTTPS_PROXY</code> · <code>NO_PROXY</code></td><td></td><td>Standard outbound proxy settings.</td></tr>
+        </tbody>
+      </table></div>
+      <h3>CLI</h3>
+      <div class="tbl"><table>
+        <thead><tr><th>Command</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td><code>run</code></td><td>Enroll if needed, then heartbeat and process jobs (default).</td></tr>
+          <tr><td><code>healthcheck</code></td><td>Exit 0 if the server was reached in the last 2 minutes.</td></tr>
+          <tr><td><code>connections</code></td><td>Print the connections the agent would report, with warnings.</td></tr>
+          <tr><td><code>tools</code></td><td>Print the PostgreSQL client versions found.</td></tr>
+          <tr><td><code>version</code></td><td>Print the build version.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ================= OPERATIONS ================= -->
+    <section id="operations" data-title="Operations & sizing">
+      <h2>Operations &amp; sizing</h2>
+      <ul>
+        <li><strong>Health:</strong> <code>GET /api/v1/health</code> (unauthenticated, used by the image's <code>HEALTHCHECK</code>). <strong>System Health</strong> in the UI shows version, uptime, DB latency, client tools and enabled sign-in methods.</li>
+        <li><strong>Logs:</strong> <code>docker compose logs -f dumpstation</code>, plus an execution log per job in the UI.</li>
+        <li><strong>Back up the metadata database</strong> (<code>configs/manage.sh backup</code>) and store <code>DUMPSTATION_SECRET_KEY</code> separately. Artifacts in storage are plain <code>pg_dump</code> files and stay restorable without DumpStation.</li>
+        <li><strong>Graceful shutdown:</strong> on SIGTERM the server stops the scheduler, drains HTTP for 30 s, then cancels running direct jobs (marked <code>interrupted</code>). Agent jobs are unaffected.</li>
+        <li><strong>Upgrades:</strong> pull and recreate; migrations run on start. Pin <code>DUMPSTATION_VERSION</code> in production.</li>
+      </ul>
+      <div class="tbl"><table>
+        <thead><tr><th>Resource</th><th>Server</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>CPU</td><td>1–2 vCPU</td><td>Compression for direct backups.</td></tr>
+          <tr><td>Memory</td><td>256–512 MiB</td><td>+ ~64 MiB per concurrent upload.</td></tr>
+          <tr><td>Temp disk</td><td>largest dump × concurrency</td><td>Only for direct backups and restores.</td></tr>
+          <tr><td>Metadata DB</td><td>small</td><td>Grows with history and the 60-day activity log.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ================= UPGRADING ================= -->
+    <section id="upgrading" data-title="Upgrading from v1">
+      <h2>Upgrading from v1</h2>
+      <p>v2 serves the UI from the server itself, so the separate <code>web</code> service goes away. Existing databases become <em>direct</em> databases, and secrets keep working.</p>
+      <ol class="stepper">
+        <li><b>Stop v1</b><p><code>docker compose down</code>. Volumes are kept. Back up the metadata database first.</p></li>
+        <li><b>Swap the Compose file</b><p>Use the v2 <code>configs/compose.yml</code>, or delete the <code>web</code> service and map the server to <code>8080</code>. Keep your PostgreSQL image major version.</p></li>
+        <li><b>Update <code>.env</code></b><p>Set <code>DUMPSTATION_SECRET_KEY</code> (your existing key), <code>PUBLIC_URL</code>, <code>APP_ENV=production</code>. Drop <code>VITE_*</code>, <code>WEB_PORT</code>, <code>BACKEND_PORT</code>.</p></li>
+        <li><b>Point the proxy at one upstream</b><p>Every path to port 8080. GitHub users: update the OAuth callback to <code>https://&lt;host&gt;/api/v1/auth/github/callback</code>.</p></li>
+        <li><b>Start and verify</b><p><code>docker compose pull &amp;&amp; docker compose up -d</code>, wait for "Auto-migration completed successfully", test each storage and run one manual backup.</p></li>
+      </ol>
+    </section>
+
+    <!-- ================= TROUBLESHOOTING ================= -->
+    <section id="troubleshooting" data-title="Troubleshooting">
+      <h2>Troubleshooting</h2>
+      <p>Every failed job carries a typed error code, shared by the server, agents and UI.</p>
+      <div class="filter"><label class="sr" for="err-q">Filter error codes</label><input id="err-q" type="search" placeholder="Filter, e.g. ssl or agent" data-filter="#err-table" /><span data-filter-count="#err-table"></span></div>
+      <div class="tbl" id="err-table"><table>
+        <thead><tr><th>Code</th><th>Meaning</th><th>What to do</th></tr></thead>
+        <tbody>
+          <tr><td><code>auth_failed</code></td><td>Wrong password, no password, role missing, or <code>pg_hba.conf</code> rejected the connection.</td><td>Check credentials (on the agent for local connections) and add a <code>pg_hba.conf</code> entry for the executor's IP.</td></tr>
+          <tr><td><code>host_unreachable</code></td><td>DNS failure, refused, no route, or 15 s connect timeout.</td><td>Check host/port from the executor's network. A private host usually means: use an agent.</td></tr>
+          <tr><td><code>database_not_found</code></td><td>The database name doesn't exist.</td><td>Fix the name; for restores create the target first.</td></tr>
+          <tr><td><code>permission_denied</code></td><td>The role can't read some objects (or must own them to restore).</td><td>Use the owner or <code>pg_read_all_data</code>; for restores, <code>--clean</code> with an owner.</td></tr>
+          <tr><td><code>version_mismatch</code></td><td>No installed <code>pg_dump</code> new enough, or an archive from a newer <code>pg_dump</code>.</td><td>Use the official images, or add a newer client to <code>PG_BIN_DIRS</code>.</td></tr>
+          <tr><td><code>ssl_error</code></td><td>SSL negotiation or certificate verification failed.</td><td>Check <code>sslmode</code>; use <code>disable</code> for local containers without SSL.</td></tr>
+          <tr><td><code>insufficient_disk</code></td><td>Temp space below the minimum, or disk full.</td><td>Grow the temp volume, lower concurrency.</td></tr>
+          <tr><td><code>timeout</code></td><td>Ran longer than <code>BACKUP_TIMEOUT_MINUTES</code>.</td><td>Raise the limit; check locks and storage speed.</td></tr>
+          <tr><td><code>cancelled</code></td><td>Cancelled by a user, or the lease was lost during upload.</td><td>Re-run if needed.</td></tr>
+          <tr><td><code>tool_missing</code></td><td>No PostgreSQL client tools on the executor.</td><td>Use the official image or install <code>postgresql-client</code>.</td></tr>
+          <tr><td><code>upload_failed</code></td><td>Upload to storage failed.</td><td>Run the storage <strong>Test</strong>; for agents try <code>DUMPSTATION_TRANSFER_MODE=proxy</code>.</td></tr>
+          <tr><td><code>download_failed</code></td><td>Couldn't fetch the artifact for a restore.</td><td>Check the object exists and is reachable; try proxy mode.</td></tr>
+          <tr><td><code>verification_failed</code></td><td>Object missing or size differs, or checksum mismatch on restore.</td><td>Re-run the backup; for restores pick another backup and check bucket integrity.</td></tr>
+          <tr><td><code>storage_error</code></td><td>Storage config missing or invalid, or presigning failed.</td><td>Check endpoint, region and keys; run <strong>Test</strong>.</td></tr>
+          <tr><td><code>agent_unavailable</code></td><td>Agent revoked, disabled, or didn't pick the job up in time.</td><td>Start or enable the agent; re-enroll a revoked one.</td></tr>
+          <tr><td><code>agent_lost</code></td><td>The agent stopped reporting progress.</td><td>Check agent logs for crashes, OOM kills or network loss.</td></tr>
+          <tr><td><code>configuration_error</code></td><td>Invalid fields, unknown connection name, restores disabled, or host blocked by <code>DIRECT_ALLOWED_CIDRS</code>.</td><td>Read the message; check <code>dumpstation-agent connections</code>.</td></tr>
+          <tr><td><code>restore_failed</code></td><td><code>pg_restore</code> reported errors.</td><td>Read the output tail; use <code>--clean</code> or an empty database; create missing roles/extensions.</td></tr>
+          <tr><td><code>dump_failed</code></td><td><code>pg_dump</code> failed for another reason or produced an empty file.</td><td>Read the output tail (locks, catalog issues).</td></tr>
+          <tr><td><code>interrupted</code></td><td>The server restarted during a direct job.</td><td>Re-run; use agents for jobs that must survive restarts.</td></tr>
+          <tr><td><code>unknown</code></td><td>Unclassified.</td><td>Read the message and the server/agent logs.</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Common problems</h3>
+      <ul>
+        <li><strong>Agent won't enroll:</strong> the token is single-use and expires; create a new one. Check the agent can reach <code>PUBLIC_URL</code> over HTTPS.</li>
+        <li><strong>Agent shows offline:</strong> it hasn't sent a heartbeat recently. Check its logs and outbound network; <code>dumpstation-agent healthcheck</code> prints the reason.</li>
+        <li><strong>Backups stuck in <code>waiting_for_agent</code>:</strong> the agent is offline or busy; jobs fail after <code>AGENT_JOB_QUEUE_TTL_MINUTES</code>.</li>
+        <li><strong>No sign-in code:</strong> without a Discord webhook, look for "OTP not sent" in the server log.</li>
+      </ul>
+    </section>
+
+    <!-- ================= DEVELOPMENT ================= -->
+    <section id="development" data-title="Build from source">
+      <h2>Build from source</h2>
+      <p>Go 1.25 and Node with pnpm. The server serves the built UI from <code>WEB_DIR</code>.</p>
+      <div class="code"><div class="code-hd"><span class="fn">terminal</span><button class="copy" type="button" data-copy aria-label="Copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button></div><pre><code data-lang="bash">git clone https://github.com/monzim/DumpStation.git &amp;&amp; cd DumpStation
+cd web &amp;&amp; pnpm install &amp;&amp; pnpm build &amp;&amp; cd ..
+cd server &amp;&amp; go build -o dumpstation ./cmd/server
+WEB_DIR=../web/dist ./dumpstation             # plus the DB_* and secret variables
+
+CGO_ENABLED=0 go build -o dumpstation-agent ./cmd/agent   # the agent</code></pre></div>
+      <p>Contributions are welcome: see <a href="https://github.com/monzim/DumpStation" rel="noopener">the repository</a> for issues, the roadmap and contributor notes.</p>
+      <nav class="pager" aria-label="More"><a href="/" ><small>Back to</small>Product overview</a><a class="next" href="https://github.com/monzim/DumpStation/issues" rel="noopener"><small>Stuck?</small>Open an issue →</a></nav>
+    </section>
+  </main>
+
+  <aside class="toc" aria-label="On this page">
+    <h4>On this page</h4>
+    <nav data-toc></nav>
+    <a class="edit" href="https://github.com/monzim/DumpStation/tree/main/docs" rel="noopener">Full docs on GitHub →</a>
+  </aside>
+</div>
+
+<div class="toast" role="status" aria-live="polite" data-toast></div>
+<script src="/assets/site.js" defer></script>
+<script src="/assets/docs.js" defer></script>
+</body>
+</html>

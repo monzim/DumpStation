@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DumpStation">
+  <title>DumpStation</title>
+  <rect width="64" height="64" rx="15" fill="#0b0b0c"/>
+  <rect x=".5" y=".5" width="63" height="63" rx="14.5" fill="none" stroke="#fff" stroke-opacity=".14"/>
+  <!-- archived snapshots -->
+  <path d='M15 40.5 32 49v5.5L15 46z' fill='#a3302a'/><path d='M49 40.5 32 49v5.5l17 -8.5z' fill='#7a221d'/><path d='M15 40.5 32 32l17 8.5-17 8.5z' fill='#d9443a'/>
+  <path d='M15 33 32 41.5v5.5L15 38.5z' fill='#d9443a'/><path d='M49 33 32 41.5v5.5l17 -8.5z' fill='#a3302a'/><path d='M15 33 32 24.5l17 8.5-17 8.5z' fill='#ff6a55'/>
+  <!-- incoming snapshot dropping into the stack, with its shadow -->
+  <path d='M21 33 32 27.5l11 5.5-11 5.5z' fill='#7a221d' opacity='.55'/>
+  <path d='M21 15 32 20.5v4.5L21 19.5z' fill='#d4d4d8'/><path d='M43 15 32 20.5v4.5l11 -5.5z' fill='#a1a1aa'/><path d='M21 15 32 9.5l11 5.5-11 5.5z' fill='#ffffff'/>
+</svg>

@@ -1,0 +1,12 @@
+{
+  "name": "dumpstation-site",
+  "private": true,
+  "description": "DumpStation landing page and docs (Cloudflare Workers static assets)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  }
+}
