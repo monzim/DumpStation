@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="web/public/images/og.webp" alt="DumpStation" />
+  <img src="docs/assets/logo.svg" alt="DumpStation logo" width="96" height="96" />
 
 # DumpStation
 
@@ -12,6 +12,8 @@ outbound-only agents for databases in private networks.
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
 [![Live demo](https://img.shields.io/badge/Live-Demo-success)](https://dumpstation.monzim.com)
+
+<img src="web/public/images/og.webp" alt="DumpStation" />
 
 </div>
 

@@ -13,7 +13,7 @@
 
 @layer app {
   :root {
-    --ds-brand: #f36458; /* DumpStation signal coral — wordmark dot only */
+    --ds-brand: #f36458; /* DumpStation signal coral — logo only */
   }
 
   html,
@@ -56,11 +56,8 @@
     color: var(--color-text-primary);
   }
 
-  .ds-wordmark-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: var(--radius-full);
-    background: var(--ds-brand);
+  .ds-wordmark-logo {
+    display: block;
     flex: none;
   }
 

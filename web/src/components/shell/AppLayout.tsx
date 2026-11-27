@@ -47,7 +47,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const nav = (
     <SideNav
       aria-label="Primary"
-      header={<SideNavHeading heading="DumpStation" icon={<span className="ds-wordmark-dot" aria-hidden />} headingHref="/" />}
+      header={<SideNavHeading heading="DumpStation" icon={<img className="ds-wordmark-logo" src="/logo.svg" alt="" width={22} height={22} aria-hidden />} headingHref="/" />}
       footer={
         <DropdownMenu
           menuWidth={220}
