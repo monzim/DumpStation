@@ -1,6 +1,6 @@
 module github.com/monzim/db_proxy/v1
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/aws/aws-sdk-go v1.55.8
@@ -16,7 +16,7 @@ require (
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/time v0.15.0
+	golang.org/x/time v0.16.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 )
