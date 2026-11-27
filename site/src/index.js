@@ -9,7 +9,7 @@ export default {
       const res = await env.ASSETS.fetch(new Request(new URL('/demo/', url), request))
       return new Response(res.body, { status: 200, headers: res.headers })
     }
-    const page = await env.ASSETS.fetch(new Request(new URL('/404.html', url), request))
+    const page = await env.ASSETS.fetch(new Request(new URL('/404', url), request))
     return new Response(page.body, { status: 404, headers: page.headers })
   },
 }
