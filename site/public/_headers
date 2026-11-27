@@ -9,6 +9,3 @@
 
 /assets/*
   Cache-Control: public, max-age=600, stale-while-revalidate=86400
-
-/assets/shots/*
-  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

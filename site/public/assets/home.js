@@ -1,277 +1,389 @@
-// Landing page interactions: hero console, topology, schedule preview,
-// retention simulator, restore confirm, product tour, deploy configurator.
+// Landing page: the in-browser demo app and the deploy configurator.
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const icon = (id) => `<svg><use href="#i-${id}"/></svg>`;
+  const hex = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, '0')).join('');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  /* ================= Hero console ================= */
-  const consoleEl = $('.console');
-  if (consoleEl) {
-    const logEl = $('[data-log]', consoleEl);
-    const stages = $$('.stage', consoleEl);
-    const statusEl = $('[data-c-status]', consoleEl);
-    const sizeEl = $('[data-c-size]', consoleEl);
-    const timeEl = $('[data-c-time]', consoleEl);
-    const shaEl = $('[data-c-sha]', consoleEl);
-    const viaEl = $('[data-c-via]', consoleEl);
-    const dbEl = $('[data-c-db]', consoleEl);
-    const destEl = $('[data-c-dest]', consoleEl);
-    const modeBtns = $$('[data-mode]', consoleEl);
+  /* ================= Demo app ================= */
+  const app = $('[data-app]');
+  if (app) {
+    const view = $('[data-view]', app);
+    const modal = $('[data-modal]', app);
+    const toasts = $('[data-app-toasts]', app);
+    const MIN = 60e3, HOUR = 60 * MIN, DAY = 24 * HOUR;
+    const now = () => Date.now();
 
-    const SCRIPTS = {
-      agent: {
-        db: 'orders · production', via: 'via agent eu-vpc-1 · pg 16.4', dest: 'r2://acme-backups/orders/', src: 'agent', total: 1.84e9,
-        steps: [
-          [0, 'job queued for agent eu-vpc-1 (scheduled, Europe/Berlin)', 'server'],
-          [0, 'agent picked up job over long-poll · lease 120s', 'server'],
-          [1, 'connection "orders" resolved locally · sslmode=require', 'agent'],
-          [1, 'server version 16.4 → using pg_dump 16', 'agent'],
-          [2, 'pg_dump --format=custom -Z 6 orders', 'agent'],
-          [2, 'dumping 214 tables, 3 schemas', 'agent'],
-          [3, 'presigned multipart upload · 16 MiB parts', 'agent'],
-          [3, 'upload complete · direct to bucket', 'agent'],
-          [4, 'HEAD object · size matches', 'server'],
-          [4, 'sha256 recorded', 'server'],
-          [5, 'retention keep 14 · pruned 1 old backup', 'server'],
-          [6, 'notified #ops-backups on Discord', 'server'],
-        ],
+    const fmtBytes = (b) => (b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : b >= 1e3 ? (b / 1e3).toFixed(0) + ' KB' : b + ' B');
+    const ago = (t) => {
+      const s = Math.max(0, Math.round((now() - t) / 1000));
+      if (s < 5) return 'just now';
+      if (s < 60) return s + 's ago';
+      if (s < 3600) return Math.round(s / 60) + 'm ago';
+      if (s < 86400) return Math.round(s / 3600) + 'h ago';
+      return Math.round(s / 86400) + 'd ago';
+    };
+    const clock = (t) => new Date(t).toTimeString().slice(0, 8);
+    const dur = (ms) => (ms < 60e3 ? (ms / 1000).toFixed(1) + 's' : Math.floor(ms / 60e3) + 'm ' + Math.round((ms % 60e3) / 1000) + 's');
+
+    const agents = [
+      { name: 'eu-private-vpc', host: 'ip-10-0-3-41', version: 'v2.0.0', clients: '12 – 18', conns: 'ORDERS, ANALYTICS', seen: now() - 4000, online: true },
+    ];
+    const dbs = [
+      { id: 'orders', host: '10.0.0.12:5432', pg: '16.4', exec: 'agent', agent: 'eu-private-vpc', sched: 'Daily 02:00', tz: 'UTC', size: 1.84e9 },
+      { id: 'analytics', host: 'analytics.c9x.eu-west-1.rds.amazonaws.com', pg: '17.2', exec: 'direct', sched: 'Every 6 hours', tz: 'Europe/Berlin', size: 6.2e8 },
+      { id: 'billing', host: 'db.internal:5432', pg: '15.8', exec: 'direct', sched: 'Hourly', tz: 'America/New_York', size: 2.4e8 },
+    ];
+    const byId = (id) => dbs.find((d) => d.id === id);
+
+    // Seed history: a fortnight of mostly-green backups, newest first.
+    const jobs = [];
+    const seedLog = (j) => [[j.start, 'server', 'job created · trigger ' + j.trigger], [j.start + 800, j.db.exec === 'agent' ? j.db.agent : 'server', 'pg_dump --format=custom ' + j.db.id], [j.end, 'server', j.status === 'ok' ? 'verified sha256 ' + j.sha.slice(0, 12) + '… · ' + fmtBytes(j.size) : 'failed · ' + j.code]];
+    [
+      ['billing', 'fail', 0.6 * HOUR, 'host_unreachable'], ['orders', 'ok', 2.1 * HOUR], ['analytics', 'ok', 3.4 * HOUR],
+      ['billing', 'ok', 1.6 * HOUR + DAY], ['analytics', 'ok', 9.4 * HOUR], ['orders', 'ok', DAY + 2.1 * HOUR], ['analytics', 'ok', 15.4 * HOUR],
+    ].forEach(([id, status, back, code]) => {
+      const db = byId(id); const end = now() - back; const ms = 20e3 + Math.random() * 40e3;
+      const j = { id: hex(4), kind: 'backup', db, status, trigger: 'schedule', start: end - ms, end, size: status === 'ok' ? Math.round(db.size * (0.97 + Math.random() * 0.03)) : 0, sha: hex(32), code };
+      j.log = seedLog(j); jobs.push(j);
+    });
+    jobs.sort((a, b) => b.end - a.end);
+    const hist = [9, 11, 10, 12, 11, 12, 10, 12, 12, 11, 12, 12, 11, 6].map((n, i) => ({ ok: n, fail: i === 4 || i === 13 ? 1 : 0 }));
+
+    let route = 'databases', jobRef = null, firstRun = true;
+
+    function toast(msg) {
+      const el = document.createElement('div');
+      el.className = 'a-toast';
+      el.innerHTML = icon('check') + '<span>' + esc(msg) + '</span>';
+      toasts.appendChild(el);
+      setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, 3000);
+    }
+
+    const statusEl = (j) => j.status === 'ok' ? '<span class="st ok">Succeeded</span>' : j.status === 'fail' ? '<span class="st fail">Failed</span>' : '<span class="st run">' + (j.kind === 'restore' ? 'Restoring' : 'Running') + '</span>';
+    const execTag = (db) => db.exec === 'agent' ? `<span class="tag">${icon('server')}${esc(db.agent)}</span>` : `<span class="tag">Direct</span>`;
+    const lastOf = (db) => jobs.find((j) => j.db === db && j.kind === 'backup');
+
+    /* ---------- views ---------- */
+    const V = {
+      overview() {
+        const ok = jobs.filter((j) => j.status === 'ok').length, all = jobs.filter((j) => j.status !== 'run').length;
+        const max = Math.max(...hist.map((h) => h.ok + h.fail));
+        const used = jobs.filter((j) => j.status === 'ok').reduce((a, j) => a + j.size, 0) + 38.6e9;
+        return `
+          <div class="v-hd"><div><h3>Overview</h3><p>Last 14 days</p></div><button class="a-btn pri" data-act="run" data-db="orders">${icon('play')}Back up orders</button></div>
+          <div class="tiles">
+            <div class="card tile"><small>Databases</small><b>${dbs.length}</b></div>
+            <div class="card tile"><small>Success rate</small><b>${(98 + (ok / Math.max(all, 1)) * 1.6).toFixed(1)}%</b></div>
+            <div class="card tile"><small>Agents online</small><b>${agents.filter((a) => a.online).length}/${agents.length}</b></div>
+            <div class="card tile"><small>Storage used</small><b>${fmtBytes(used)}</b></div>
+          </div>
+          <div class="ov">
+            <div class="card"><div class="card-hd">Backups per day<span>14 days</span></div>
+              <div class="bars">${hist.map((h) => `<div title="${h.ok} ok, ${h.fail} failed"><i style="height:${(h.ok / max) * 100}%"></i>${h.fail ? `<i class="f" style="height:${(h.fail / max) * 100}%"></i>` : ''}</div>`).join('')}</div>
+            </div>
+            <div class="card"><div class="card-hd">Recent jobs</div>
+              <ul class="feed">${jobs.slice(0, 5).map((j) => `<li data-job="${j.id}" style="cursor:pointer"><span>${statusEl(j).replace(/>(\w+)</, '>' + esc(j.db.id) + (j.kind === 'restore' ? ' · restore' : '') + '<')}</span><span class="mut3">${j.status === 'run' ? 'now' : ago(j.end)}</span></li>`).join('')}</ul>
+            </div>
+          </div>`;
       },
-      direct: {
-        db: 'billing · neon', via: 'direct · pg 17.2', dest: 's3://acme-backups/billing/', src: 'server', total: 6.3e8,
-        steps: [
-          [0, 'job queued (manual: Back up now)', 'server'],
-          [1, 'host allowed by DIRECT_ALLOWED_CIDRS', 'server'],
-          [1, 'server version 17.2 → using pg_dump 17', 'server'],
-          [2, 'pg_dump --format=custom -Z 6 billing', 'server'],
-          [2, 'streaming to multipart upload, hashing on the fly', 'server'],
-          [3, 'upload complete · 40 parts', 'server'],
-          [4, 'HEAD object · size matches', 'server'],
-          [4, 'sha256 recorded', 'server'],
-          [5, 'retention 30 days · nothing to prune', 'server'],
-          [6, 'notified Telegram @ops', 'server'],
-        ],
+      databases() {
+        return `
+          <div class="v-hd"><div><h3>Databases</h3><p>${dbs.length} databases · 1 agent</p></div><button class="a-btn" tabindex="-1">${icon('plus')}Add database</button></div>
+          <div class="card" style="overflow-x:auto"><table class="tbl-a">
+            <thead><tr><th>Name</th><th class="hide-sm">Executor</th><th class="hide-sm">Schedule</th><th>Last backup</th><th></th></tr></thead>
+            <tbody>${dbs.map((db) => {
+              const l = lastOf(db);
+              return `<tr>
+                <td class="nm"><b>${esc(db.id)}</b><small>pg ${db.pg}</small></td>
+                <td class="hide-sm">${execTag(db)}</td>
+                <td class="hide-sm"><span>${db.sched}</span><div class="mut3" style="font-size:12px">${db.tz}</div></td>
+                <td>${l ? (l.status === 'run' ? statusEl(l) : `<span class="st ${l.status}">${ago(l.end)}</span>`) : '<span class="mut3">Never</span>'}</td>
+                <td class="r"><button class="a-btn${firstRun && db.id === 'orders' ? ' hint' : ''}" data-act="run" data-db="${db.id}" ${l && l.status === 'run' ? 'disabled' : ''}>${icon('play')}<span class="hide-sm">Back up now</span><span class="sr">Back up ${db.id} now</span></button></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>
+          <div class="card" style="margin-top:12px"><div class="card-hd">Upcoming runs<span>next 24 hours</span></div>
+            <ul class="feed" data-upcoming>${upcoming()}</ul></div>`;
+      },
+      backups() {
+        return `
+          <div class="v-hd"><div><h3>Backups</h3><p>Every backup and restore, newest first</p></div></div>
+          <div class="card" style="overflow-x:auto"><table class="tbl-a">
+            <thead><tr><th>Database</th><th>Status</th><th class="hide-sm">Size</th><th class="hide-sm">Trigger</th><th class="r">When</th></tr></thead>
+            <tbody>${jobs.map((j) => `<tr data-row data-job="${j.id}">
+              <td class="nm"><b>${esc(j.db.id)}</b><small>${j.kind}${j.db.exec === 'agent' ? ' · agent' : ''}</small></td>
+              <td>${statusEl(j)}${j.code ? ` <span class="mut3" style="font:11.5px var(--font-mono)">${j.code}</span>` : ''}</td>
+              <td class="hide-sm mut">${j.size ? fmtBytes(j.size) : '—'}</td>
+              <td class="hide-sm mut">${j.trigger}</td>
+              <td class="r mut3">${j.status === 'run' ? 'now' : ago(j.end)}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+      },
+      job() {
+        const j = jobs.find((x) => x.id === jobRef);
+        if (!j) return V.backups();
+        const stages = j.stages || (j.kind === 'restore' ? RESTORE_ST : BACKUP_ST).map((s) => ({ name: s[0], p: 1 }));
+        return `
+          <button class="v-back" data-nav-to="backups">${icon('back')}Backups</button>
+          <div class="v-hd">
+            <div><h3>${esc(j.db.id)} · ${j.kind}</h3><p class="mono">job ${j.id} · ${j.db.exec === 'agent' ? 'via agent ' + esc(j.db.agent) : 'direct'}</p></div>
+            <div style="display:flex;gap:8px;align-items:center"><span data-j-status>${statusEl(j)}</span>
+            ${j.kind === 'backup' ? `<button class="a-btn" data-act="restore" data-job="${j.id}" ${j.status !== 'ok' ? 'disabled' : ''}>${icon('undo')}Restore…</button>` : ''}</div>
+          </div>
+          <div class="stages" style="--n:${stages.length}" data-j-stages>${stages.map((s) => `<div class="stage" data-s="${s.p >= 1 ? 'done' : s.p > 0 ? 'active' : ''}"><div class="bar"><i style="width:${Math.round(s.p * 100)}%"></i></div><span>${s.name}</span></div>`).join('')}</div>
+          <div class="card kv">
+            <div><small>${j.kind === 'restore' ? 'Restored' : 'Size'}</small><b data-j-size>${fmtBytes(j.size)}</b></div>
+            <div><small>Duration</small><b data-j-dur>${dur((j.end || now()) - j.start)}</b></div>
+            <div><small>SHA-256</small><b data-j-sha>${j.status === 'ok' ? j.sha.slice(0, 16) + '…' : '—'}</b></div>
+            <div><small>Storage</small><b>r2://acme-backups</b></div>
+          </div>
+          <div class="card"><div class="card-hd">Execution log<span data-j-lines>${j.log.length} lines</span></div>
+            <div class="log" data-j-log>${j.log.map(logLine).join('')}</div></div>`;
+      },
+      agents() {
+        return `
+          <div class="v-hd"><div><h3>Agents</h3><p>Workers inside private networks. Outbound HTTPS only.</p></div><button class="a-btn pri" data-act="add-agent">${icon('plus')}Add agent</button></div>
+          <div class="agents">${agents.map((a, i) => `
+            <div class="card agent${a.fresh ? ' new' : ''}">
+              <div class="agent-top"><div><b>${esc(a.name)}</b><div class="mut3" style="font-size:12px;margin-top:2px">${a.version}</div></div>
+                <span class="st live" data-seen="${i}">${ago(a.seen)}</span></div>
+              <dl><dt>Host</dt><dd>${esc(a.host)}</dd><dt>pg_dump</dt><dd>${a.clients}</dd><dt>Connections</dt><dd>${esc(a.conns)}</dd><dt>Restores</dt><dd>${a.fresh ? 'disabled' : 'enabled'}</dd></dl>
+            </div>`).join('')}</div>`;
+      },
+      storage() {
+        return `
+          <div class="v-hd"><div><h3>Storage</h3><p>Each backup stays pinned to the bucket it was written to.</p></div></div>
+          <div class="card bucket">
+            <div class="agent-top"><div class="nm"><b>acme-backups</b><small>Cloudflare R2 · auto</small></div><span class="tag">Default</span></div>
+            <ul class="checks" data-checks>
+              <li><i>${icon('check')}</i>Write probe object<small></small></li>
+              <li><i>${icon('check')}</i>Read it back<small></small></li>
+              <li><i>${icon('check')}</i>Delete it<small></small></li>
+            </ul>
+            <div><button class="a-btn pri" data-act="test-storage">Test connection</button></div>
+          </div>
+          <div class="card" style="margin-top:12px;max-width:560px"><div class="card-hd">Usage by database<span>${fmtBytes(dbs.reduce((a, d) => a + d.size * 14, 0))}</span></div>
+            <ul class="feed">${dbs.map((d) => `<li><span>${esc(d.id)}</span><span class="mut3 mono" style="font-size:12px">14 backups · ${fmtBytes(d.size * 14)}</span></li>`).join('')}</ul></div>`;
       },
     };
 
-    let mode = 'agent';
-    let runId = 0;
-    let visible = true;
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const waitVisible = async () => { while (!visible || document.hidden) await sleep(250); };
-    const fmtBytes = (b) => (b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.round(b / 1e3) + ' KB');
-    const hex = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (x) => x.toString(16).padStart(2, '0')).join('');
+    // Next scheduled runs, computed from each database's schedule and time zone.
+    const STEP = { orders: [24 * HOUR, 2 * HOUR], analytics: [6 * HOUR, 0], billing: [HOUR, 0] };
+    const nextRun = (db) => { const [every, off] = STEP[db.id] || [DAY, 0]; const t = now(); return Math.ceil((t - off) / every) * every + off; };
+    const inFmt = (t) => { const s = Math.max(0, Math.round((t - now()) / 1000)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return 'in ' + (h ? h + 'h ' + String(m).padStart(2, '0') + 'm' : m + 'm ' + String(x).padStart(2, '0') + 's'); };
+    const upcoming = () => dbs.map((db) => [db, nextRun(db)]).sort((a, b) => a[1] - b[1]).map(([db, t]) =>
+      `<li><span><b style="font-weight:560">${esc(db.id)}</b> <span class="mut3">· ${new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: db.tz })} ${db.tz.split('/').pop().replace('_', ' ')}</span></span><span class="mut3 mono" style="font-size:12px">${inFmt(t)}</span></li>`).join('');
 
-    function setStage(i, progress) {
-      stages.forEach((s, j) => {
-        s.dataset.st = j < i ? 'done' : j === i ? 'active' : '';
-        const bar = s.querySelector('i');
-        bar.style.width = j < i ? '100%' : j === i ? Math.round(progress * 100) + '%' : '0%';
-      });
-    }
-    function addLine(t, text, src, ok) {
-      const d = document.createElement('div');
-      d.innerHTML = `<span class="t">${t}</span><span class="src">${src}</span>${ok ? '<span class="ok">' + esc(text) + '</span>' : esc(text)}`;
-      logEl.appendChild(d);
-      while (logEl.children.length > 9) logEl.firstChild.remove();
-    }
-    function setStatus(s) {
-      statusEl.dataset.s = s;
-      statusEl.textContent = s === 'ok' ? 'Succeeded' : s === 'run' ? 'Running' : 'Queued';
+    const logLine = ([t, src, msg]) => `<div><span class="t">${clock(t)}</span><span class="k">${esc(src)}</span><span class="${/^(verified|restore complete|connected)/.test(msg) ? 'g' : /failed/.test(msg) ? 'e' : ''}">${esc(msg)}</span></div>`;
+
+    function render(r) {
+      if (r) route = r;
+      const nav = route === 'job' ? 'backups' : route;
+      $$('[data-nav]', app).forEach((b) => (b.dataset.nav === nav ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current')));
+      view.innerHTML = V[route]();
+      view.style.animation = 'none'; void view.offsetWidth; view.style.animation = '';
+      const log = $('[data-j-log]', view); if (log) log.scrollTop = log.scrollHeight;
     }
 
-    async function run(id) {
-      const sc = SCRIPTS[mode];
-      dbEl.textContent = sc.db; viaEl.textContent = sc.via; destEl.textContent = sc.dest;
-      logEl.textContent = ''; shaEl.textContent = '—'; sizeEl.textContent = '0 B'; timeEl.textContent = '0.0s';
-      setStage(0, 0); setStatus('wait');
-      const t0 = performance.now();
-      let size = 0;
-      const sha = hex();
-      const tick = setInterval(() => { if (id === runId) timeEl.textContent = ((performance.now() - t0) / 1000 * 4.1).toFixed(1) + 's'; }, 100);
+    /* ---------- job simulation ---------- */
+    const BACKUP_ST = [['queued', 500], ['connect', 700], ['dump', 2600], ['upload', 1600], ['verify', 700], ['retention', 500]];
+    const RESTORE_ST = [['queued', 500], ['download', 1500], ['checksum', 700], ['pg_restore', 2600], ['analyze', 600]];
+    const LINES = {
+      backup: (j, s) => {
+        const who = j.db.exec === 'agent' ? j.db.agent : 'server';
+        return ({
+          queued: [['server', j.db.exec === 'agent' ? 'queued for agent ' + j.db.agent : 'queued · 1 of 4 slots']],
+          connect: [[who, j.db.exec === 'agent' ? 'claimed job via long-poll' : 'connecting ' + j.db.host], [who, 'server version ' + j.db.pg + ' · using pg_dump ' + j.db.pg.split('.')[0]]],
+          dump: [[who, 'pg_dump --format=custom --no-owner ' + j.db.id], [who, 'dumping 48 tables, 3 schemas']],
+          upload: [[who, j.db.exec === 'agent' ? 'PUT presigned URL · multipart 8 × 64 MB' : 'multipart upload · 8 parts']],
+          verify: [['server', 'HEAD object · size matches']],
+          retention: [['server', 'retention keep 14 · pruned 1 old backup']],
+        })[s] || [];
+      },
+      restore: (j, s) => ({
+        queued: [['server', 'restore target ' + j.target + (j.clean ? ' · --clean' : '')]],
+        download: [[j.db.exec === 'agent' ? j.db.agent : 'server', 'GET presigned URL · ' + fmtBytes(j.size)]],
+        checksum: [['server', 'sha256 matches ' + j.sha.slice(0, 12) + '…']],
+        pg_restore: [[j.db.exec === 'agent' ? j.db.agent : 'server', 'pg_restore --no-owner' + (j.clean ? ' --clean --if-exists' : '') + ' -d ' + j.target]],
+        analyze: [['server', 'ANALYZE · 48 tables']],
+      })[s] || [],
+    };
 
-      if (reduced) {
-        sc.steps.forEach(([, text, src], k) => addLine('02:00:' + String(k * 3).padStart(2, '0'), text, src, k === sc.steps.length - 1));
-        setStage(6, 1); setStatus('ok'); sizeEl.textContent = fmtBytes(sc.total); shaEl.textContent = sha.slice(0, 12) + '…';
-        timeEl.textContent = '41.2s'; clearInterval(tick);
-        return;
-      }
-
-      let clock = 0;
-      for (let k = 0; k < sc.steps.length; k++) {
-        if (id !== runId) return clearInterval(tick);
-        await waitVisible();
-        const [stage, text, src] = sc.steps[k];
-        const nextStage = sc.steps[k + 1] ? sc.steps[k + 1][0] : 6;
-        if (stage >= 1) setStatus('run');
-        clock += 2 + Math.floor(Math.random() * 4);
-        addLine('02:00:' + String(clock).padStart(2, '0'), text, src, stage === 6);
-        if (stage === 2 || stage === 3) {
-          // animate bytes during dump/upload
-          const steps = 14;
-          for (let p = 1; p <= steps; p++) {
-            if (id !== runId) return clearInterval(tick);
-            await waitVisible();
-            setStage(stage, (p / steps) * (nextStage > stage ? 1 : 0.5));
-            if (stage === 2) { size = (sc.total * p) / steps; sizeEl.textContent = fmtBytes(size); }
-            await sleep(70);
-          }
-        } else {
-          setStage(stage, nextStage > stage ? 1 : 0.5);
-          await sleep(stage === 6 ? 0 : 620);
+    function startJob(j, plan) {
+      j.stages = plan.map(([name]) => ({ name, p: 0 }));
+      j.log = [[now(), 'server', j.kind === 'restore' ? 'restore requested by admin' : 'job created · trigger manual']];
+      j.status = 'run'; j.start = now(); j.end = 0;
+      jobs.unshift(j);
+      let i = -1, t0 = 0;
+      const target = j.kind === 'backup' ? Math.round(j.db.size * (0.98 + Math.random() * 0.04)) : j.size;
+      if (j.kind === 'backup') j.size = 0;
+      const scale = reduced ? 0.3 : 1;
+      const tick = () => {
+        const tnow = now();
+        if (i < 0 || tnow - t0 >= plan[i][1] * scale) {
+          if (i >= 0) j.stages[i].p = 1;
+          i++; t0 = tnow;
+          if (i >= plan.length) return finish();
+          LINES[j.kind](j, plan[i][0]).forEach(([src, msg]) => j.log.push([tnow, src, msg]));
         }
-        if (stage === 4 && shaEl.textContent === '—') shaEl.textContent = sha.slice(0, 12) + '…';
-      }
-      setStage(6, 1); setStatus('ok'); clearInterval(tick);
-      await sleep(3800);
-      if (id === runId) run(++runId);
+        const p = Math.min(1, (tnow - t0) / (plan[i][1] * scale));
+        j.stages[i].p = Math.max(p, 0.02);
+        if (j.kind === 'backup' && plan[i][0] === 'dump') j.size = Math.round(target * p);
+        patch(j);
+        setTimeout(tick, 90);
+      };
+      const finish = () => {
+        j.status = 'ok'; j.end = now();
+        if (j.kind === 'backup') {
+          j.size = target;
+          j.log.push([j.end, 'server', 'verified sha256 ' + j.sha.slice(0, 12) + '… · ' + fmtBytes(j.size)]);
+          hist[hist.length - 1].ok++;
+          toast(`${j.db.id} backed up · ${fmtBytes(j.size)}`);
+        } else {
+          j.log.push([j.end, 'server', 'restore complete · ' + j.target]);
+          toast(`Restored ${j.target} from ${j.db.id}`);
+        }
+        if (route === 'job' && jobRef === j.id) render(); else if (route !== 'job') render();
+      };
+      tick();
     }
 
-    modeBtns.forEach((b) => b.addEventListener('click', () => {
-      mode = b.dataset.mode;
-      modeBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      run(++runId);
-    }));
-    if ('IntersectionObserver' in window) new IntersectionObserver(([e]) => (visible = e.isIntersecting)).observe(consoleEl);
-    run(++runId);
-  }
-
-  /* ================= Topology ================= */
-  const topoTabs = $$('[data-topo]');
-  const setTopo = (m) => {
-    topoTabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.topo === m)));
-    $$('[data-topo-copy]').forEach((c) => (c.hidden = c.dataset.topoCopy !== m));
-    const hot = m === 'direct' ? ['direct', 'store-d', 'meta'] : ['agent', 'agent2', 'store-a', 'meta'];
-    $$('.tp-path').forEach((p) => {
-      const on = hot.includes(p.dataset.p);
-      p.classList.toggle('hot', on && p.dataset.p !== 'meta');
-      p.classList.toggle('off', !on);
-    });
-    $$('.tp-lbl').forEach((l) => l.classList.toggle('off', !hot.includes(l.dataset.l)));
-    $$('.tp-dim').forEach((n) => n.classList.toggle('off', n.dataset.tp !== m));
-  };
-  topoTabs.forEach((t, i) => {
-    t.addEventListener('click', () => setTopo(t.dataset.topo));
-    t.addEventListener('keydown', (e) => {
-      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-      const n = topoTabs[(i + 1) % topoTabs.length];
-      n.focus(); setTopo(n.dataset.topo);
-    });
-  });
-  if (topoTabs.length) setTopo('agent');
-
-  /* ================= Schedule preview ================= */
-  const sched = $('[data-sched-runs]');
-  if (sched) {
-    const PRESETS = {
-      hourly: { cron: '0 * * * *', m: (p) => p.minute === 0 },
-      '6h': { cron: '0 */6 * * *', m: (p) => p.minute === 0 && p.hour % 6 === 0 },
-      daily: { cron: '0 2 * * *', m: (p) => p.minute === 0 && p.hour === 2 },
-      weekly: { cron: '30 3 * * 0', m: (p) => p.minute === 30 && p.hour === 3 && p.weekday === 'Sun' },
-      monthly: { cron: '0 4 1 * *', m: (p) => p.minute === 0 && p.hour === 4 && p.day === 1 },
-    };
-    let preset = 'daily';
-    const tzSel = $('[data-sched-tz]');
-    try {
-      const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (local && !$$('option', tzSel).some((o) => o.value === local)) tzSel.insertAdjacentHTML('afterbegin', `<option>${esc(local)}</option>`);
-      if (local) tzSel.value = local;
-    } catch (e) {}
-
-    const render = () => {
-      const tz = tzSel.value;
-      const P = PRESETS[preset];
-      $('[data-sched-cron]').textContent = P.cron;
-      const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, weekday: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-      const label = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
-      let t = Math.ceil(Date.now() / 9e5) * 9e5; // next quarter hour
-      const out = [];
-      for (let i = 0; i < 4 * 24 * 45 && out.length < 4; i++, t += 9e5) {
-        const o = {};
-        parts.formatToParts(new Date(t)).forEach((x) => (o[x.type] = x.value));
-        const p = { minute: +o.minute, hour: +o.hour % 24, day: +o.day, weekday: o.weekday };
-        if (P.m(p)) out.push(t);
-      }
-      const rel = (ms) => { const h = (ms - Date.now()) / 36e5; return h < 1 ? 'in ' + Math.max(1, Math.round(h * 60)) + ' min' : h < 48 ? 'in ' + Math.round(h) + ' h' : 'in ' + Math.round(h / 24) + ' d'; };
-      sched.innerHTML = out.map((ms) => `<li><span>${esc(label.format(new Date(ms)))}</span><span>${rel(ms)}</span></li>`).join('');
-    };
-    $$('[data-preset]').forEach((b) => b.addEventListener('click', () => {
-      preset = b.dataset.preset;
-      $$('[data-preset]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      render();
-    }));
-    tzSel.addEventListener('change', render);
-    render();
-  }
-
-  /* ================= Retention ================= */
-  const retRow = $('[data-ret]');
-  if (retRow) {
-    // newest first. f = failed
-    const history = ['ok', 'ok', 'f', 'ok', 'ok', 'ok', 'ok', 'f', 'ok', 'ok', 'ok', 'ok', 'ok', 'ok'];
-    retRow.innerHTML = history.map(() => '<i></i>').join('');
-    const cells = $$('i', retRow);
-    const slider = $('[data-ret-n]');
-    const render = () => {
-      const n = +slider.value;
-      let kept = 0, pruned = 0;
-      history.forEach((h, i) => {
-        let k;
-        if (h === 'f') k = 'fail';
-        else { kept++; k = kept === 1 ? 'newest' : kept <= n ? 'keep' : 'del'; if (k === 'del') pruned++; }
-        cells[i].dataset.k = k;
+    // Update the open job view in place so the log doesn't flicker.
+    function patch(j) {
+      if (route !== 'job' || jobRef !== j.id) return;
+      const st = $('[data-j-stages]', view);
+      if (!st) return;
+      $$('.stage', st).forEach((el, k) => {
+        const s = j.stages[k];
+        el.dataset.s = s.p >= 1 ? 'done' : s.p > 0 ? 'active' : '';
+        $('i', el).style.width = Math.round(s.p * 100) + '%';
       });
-      $('[data-ret-label]').textContent = `keep last ${n}`;
-      $('[data-ret-freed]').textContent = `${pruned} pruned`;
-    };
-    slider.addEventListener('input', render);
-    render();
-  }
-
-  /* ================= Restore confirm ================= */
-  const confirmIn = $('[data-confirm]');
-  if (confirmIn) {
-    const btn = $('[data-confirm-btn]');
-    confirmIn.addEventListener('input', () => (btn.disabled = confirmIn.value.trim() !== 'orders'));
-    btn.addEventListener('click', () => { window.dsToast('Restore queued · orders ← backup 02:00'); confirmIn.value = ''; btn.disabled = true; });
-  }
-
-  /* ================= Product tour ================= */
-  const TOUR = [
-    ['overview', 'Overview', '/', 'Health at a glance: databases needing attention, success rate, agents online, storage used and a 14-day backup history.'],
-    ['databases', 'Databases', '/databases', 'Every database with its executor, schedule, time zone, retention and last result. Labels work as filters.'],
-    ['backup-detail', 'Backup detail', '/backups/4f2a…', 'The full lifecycle of one job: stages, typed error codes, checksum, storage path and the streamed execution log.'],
-    ['restore', 'Restore', '/backups/4f2a…/restore', 'Pick a target, choose options, type the name to confirm. Runs directly or through an agent.'],
-    ['agents', 'Agents', '/agents/eu-private-vpc', 'Each agent with its heartbeat, host, PostgreSQL clients, local connections, credential and restore permission.'],
-    ['agent-onboarding', 'Add agent', '/agents/new', 'A guided wizard: name it, get a single-use token and ready-made docker, Compose, Kubernetes or systemd snippets.'],
-    ['storage', 'Storage', '/storage', 'S3, R2, MinIO and S3-compatible buckets with a built-in write/read/delete test.'],
-  ];
-  const tabsEl = $('[data-tour-tabs]');
-  if (tabsEl) {
-    const imgs = $('[data-tour-imgs]');
-    tabsEl.innerHTML = TOUR.map(([id, name], i) => `<button role="tab" type="button" aria-selected="${i === 0}" aria-controls="tour-img" data-tour="${i}">${name}</button>`).join('');
-    imgs.id = 'tour-img';
-    imgs.setAttribute('role', 'tabpanel');
-    imgs.innerHTML = TOUR.map(([id, name], i) => `<img src="/assets/shots/${id}.webp" alt="DumpStation ${name} screen" width="1440" height="900" ${i === 0 ? 'data-on' : 'loading="lazy"'} decoding="async" />`).join('');
-    const btns = $$('button', tabsEl);
-    const pics = $$('img', imgs);
-    let cur = 0, timer;
-    const show = (i, user) => {
-      cur = i;
-      btns.forEach((b, j) => b.setAttribute('aria-selected', String(i === j)));
-      pics.forEach((p, j) => (i === j ? p.setAttribute('data-on', '') : p.removeAttribute('data-on')));
-      $('[data-tour-url]').textContent = 'backups.example.com' + TOUR[i][2];
-      $('[data-tour-cap]').textContent = TOUR[i][3];
-      if (user) clearInterval(timer);
-    };
-    btns.forEach((b, i) => b.addEventListener('click', () => show(i, true)));
-    show(0);
-    if (!reduced) {
-      let inView = false;
-      new IntersectionObserver(([e]) => (inView = e.isIntersecting)).observe(imgs);
-      timer = setInterval(() => { if (inView && !document.hidden) show((cur + 1) % TOUR.length); }, 5200);
+      $('[data-j-size]', view).textContent = fmtBytes(j.size);
+      $('[data-j-dur]', view).textContent = dur(now() - j.start);
+      const log = $('[data-j-log]', view);
+      if (log.childElementCount !== j.log.length) {
+        log.innerHTML = j.log.map(logLine).join('');
+        log.scrollTop = log.scrollHeight;
+        $('[data-j-lines]', view).textContent = j.log.length + ' lines';
+      }
     }
+
+    function runBackup(dbId) {
+      const db = byId(dbId);
+      const l = lastOf(db);
+      if (l && l.status === 'run') return;
+      firstRun = false;
+      const j = { id: hex(4), kind: 'backup', db, trigger: 'manual', sha: hex(32), size: 0 };
+      jobRef = j.id;
+      startJob(j, BACKUP_ST);
+      render('job');
+    }
+
+    /* ---------- dialogs ---------- */
+    function openModal(html, onMount) {
+      modal.innerHTML = html; modal.hidden = false;
+      const first = $('input, select, button', modal); if (first) first.focus();
+      onMount && onMount();
+    }
+    const closeModal = () => { modal.hidden = true; modal.innerHTML = ''; };
+    modal.addEventListener('click', (e) => { if (e.target === modal || e.target.closest('[data-close]')) closeModal(); });
+    app.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+    function restoreDialog(j) {
+      openModal(`<div class="dlg" role="dialog" aria-modal="true" aria-label="Restore backup">
+        <div class="dlg-bd">
+          <h4>Restore ${esc(j.db.id)}</h4>
+          <p>From the backup taken ${ago(j.end)} · ${fmtBytes(j.size)}</p>
+          <label class="fld">Target<select data-r-target><option value="${j.db.id}">${j.db.id} (original)</option><option value="${j.db.id}_staging">${j.db.id}_staging</option></select></label>
+          <label class="chk"><input type="checkbox" data-r-clean checked />Drop existing objects first (--clean)</label>
+          <label class="fld" data-r-confirm-wrap><span>Type <b style="color:var(--a-fg);font-family:var(--font-mono)" data-r-name>${esc(j.db.id)}</b> to confirm</span><input data-r-confirm autocomplete="off" spellcheck="false" placeholder="${esc(j.db.id)}" /></label>
+        </div>
+        <div class="dlg-ft"><button class="a-btn" data-close>Cancel</button><button class="a-btn danger" data-r-go disabled>Restore</button></div>
+      </div>`, () => {
+        const tgt = $('[data-r-target]', modal), clean = $('[data-r-clean]', modal), inp = $('[data-r-confirm]', modal), go = $('[data-r-go]', modal), wrap = $('[data-r-confirm-wrap]', modal);
+        const sync = () => {
+          const destructive = clean.checked || tgt.value === j.db.id;
+          wrap.hidden = !destructive;
+          $('[data-r-name]', modal).textContent = tgt.value; inp.placeholder = tgt.value;
+          go.disabled = destructive && inp.value.trim() !== tgt.value;
+          go.className = 'a-btn ' + (destructive ? 'danger' : 'pri');
+        };
+        [tgt, clean, inp].forEach((el) => el.addEventListener('input', sync));
+        sync();
+        go.addEventListener('click', () => {
+          const r = { id: hex(4), kind: 'restore', db: j.db, trigger: 'manual', sha: j.sha, size: j.size, target: tgt.value, clean: clean.checked };
+          closeModal(); jobRef = r.id; startJob(r, RESTORE_ST); render('job');
+        });
+      });
+    }
+
+    function addAgentDialog() {
+      const name = 'us-east-office';
+      openModal(`<div class="dlg" role="dialog" aria-modal="true" aria-label="Add agent">
+        <div class="dlg-bd">
+          <h4>Add agent</h4>
+          <label class="fld">Name<input data-a-name value="${name}" autocomplete="off" spellcheck="false" /></label>
+          <p>Run this on a host that can reach the database. The token is single-use and expires in an hour.</p>
+          <pre class="snip" data-a-snip></pre>
+          <div class="wait" data-a-wait><i></i><span>Waiting for the agent to connect…</span></div>
+        </div>
+        <div class="dlg-ft"><button class="a-btn" data-close>Close</button></div>
+      </div>`, () => {
+        const inp = $('[data-a-name]', modal), snip = $('[data-a-snip]', modal), wait = $('[data-a-wait]', modal);
+        const draw = () => (snip.textContent = `docker run -d --name ${inp.value.replace(/[^a-z0-9-]/gi, '') || 'agent'} \\\n  -e DUMPSTATION_SERVER_URL=https://backups.example.com \\\n  -e DUMPSTATION_ENROLLMENT_TOKEN=dse_${hex(6)}… \\\n  ghcr.io/monzim/dumpstation-agent:latest`);
+        inp.addEventListener('input', draw); draw();
+        setTimeout(() => {
+          if (modal.hidden || !wait.isConnected) return;
+          const n = (inp.value.replace(/[^a-z0-9-]/gi, '') || 'agent').slice(0, 32);
+          wait.classList.add('ok'); $('span', wait).textContent = `Connected · ${n} is online`;
+          agents.push({ name: n, host: 'office-nas', version: 'v2.0.0', clients: '12 – 18', conns: 'CRM', seen: now(), online: true, fresh: true });
+          toast(`Agent ${n} connected`);
+          if (route === 'agents') render();
+        }, reduced ? 800 : 2600);
+      });
+    }
+
+    function testStorage(btn) {
+      const items = $$('[data-checks] li', view);
+      btn.disabled = true;
+      items.forEach((li) => { li.dataset.s = ''; $('small', li).textContent = ''; });
+      let k = 0;
+      const step = () => {
+        if (k > 0) { items[k - 1].dataset.s = 'ok'; $('small', items[k - 1]).textContent = 60 + Math.round(Math.random() * 140) + ' ms'; }
+        if (k === items.length) { btn.disabled = false; toast('Storage test passed'); return; }
+        items[k].dataset.s = 'run'; k++;
+        setTimeout(step, reduced ? 150 : 550);
+      };
+      step();
+    }
+
+    /* ---------- events ---------- */
+    app.addEventListener('click', (e) => {
+      const nav = e.target.closest('[data-nav], [data-nav-to]');
+      if (nav) return render(nav.dataset.nav || nav.dataset.navTo);
+      const act = e.target.closest('[data-act]');
+      if (act) {
+        const a = act.dataset.act;
+        if (a === 'run') return runBackup(act.dataset.db);
+        if (a === 'restore') return restoreDialog(jobs.find((j) => j.id === act.dataset.job));
+        if (a === 'add-agent') return addAgentDialog();
+        if (a === 'test-storage') return testStorage(act);
+      }
+      const row = e.target.closest('[data-job]');
+      if (row) { jobRef = row.dataset.job; render('job'); }
+    });
+
+    // Heartbeats tick while the agents view is open.
+    setInterval(() => {
+      agents.forEach((a) => { if (now() - a.seen > 15e3) a.seen = now() - Math.random() * 1500; });
+      if (route === 'databases') { const u = $('[data-upcoming]', view); if (u) u.innerHTML = upcoming(); }
+      if (route === 'agents') $$('[data-seen]', view).forEach((el) => (el.textContent = ago(agents[+el.dataset.seen].seen)));
+    }, 1000);
+
+    render();
   }
 
   /* ================= Deploy configurator ================= */
@@ -295,9 +407,7 @@ DUMPSTATION_SECRET_KEY=${secrets.key}
 PUBLIC_URL=https://${d}
 SYSTEM_USERNAME=admin
 SYSTEM_EMAIL=admin@${d.replace(/:\d+$/, '')}
-APP_ENV=production
-# Optional: post sign-in codes to Discord instead of the log
-DISCORD_WEBHOOK_URL=`],
+APP_ENV=production`],
       ],
       [
         ['terminal', 'bash', `docker compose up -d
@@ -331,17 +441,14 @@ docker compose logs dumpstation | grep "OTP not sent"`],
       DUMPSTATION_ENROLLMENT_TOKEN: ${secrets.token}   # from Agents → Add agent
       DUMPSTATION_CONN_ORDERS: postgres://backup_user@db.internal:5432/orders
       DUMPSTATION_CONN_ORDERS_PASSWORD_FILE: /run/secrets/orders_password
-      DUMPSTATION_TRANSFER_MODE: auto
     secrets: [orders_password]
     volumes:
       - agent_state:/var/lib/dumpstation-agent
-      - agent_tmp:/tmp/dumpstation
 secrets:
   orders_password:
     file: ./orders_password.txt
 volumes:
-  agent_state:
-  agent_tmp:`],
+  agent_state:`],
         ['kubectl', 'bash', `kubectl create namespace dumpstation
 kubectl -n dumpstation create secret generic dumpstation-agent \\
   --from-literal=enrollment-token=${secrets.token} \\
