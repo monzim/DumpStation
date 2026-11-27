@@ -8,7 +8,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.10.0
 	github.com/lib/pq v1.10.9
 	github.com/pquerna/otp v1.5.0
 	github.com/robfig/cron/v3 v3.0.1
@@ -17,8 +17,8 @@ require (
 	github.com/swaggo/swag v1.16.6
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/time v0.15.0
-	gorm.io/driver/postgres v1.6.0
-	gorm.io/gorm v1.31.1
+	gorm.io/driver/postgres v1.6.3
+	gorm.io/gorm v1.31.2
 )
 
 require (
