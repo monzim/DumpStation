@@ -1,77 +1,100 @@
 <div align="center">
-  <img src="docs/assets/logo.svg" alt="DumpStation logo" width="96" height="96" />
+
+<img src="docs/assets/banner.png" alt="DumpStation: PostgreSQL backups you can actually restore" width="100%" />
+
+<br />
+
+<img src="docs/assets/logo.svg" alt="" width="56" height="56" />
 
 # DumpStation
 
-**Self-hosted PostgreSQL backup manager**
+**Self-hosted PostgreSQL backups you can actually restore.**
 
-Scheduled `pg_dump` backups to S3-compatible storage, guided restores, and
-outbound-only agents for databases in private networks.
+Scheduled `pg_dump` to any S3-compatible bucket, verified on upload, restorable
+in a few clicks, with outbound-only agents for databases in private networks.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
-[![Live demo](https://img.shields.io/badge/Live-Demo-success)](https://dumpstation.monzim.com)
+[Website](https://dumpstation.monzim.com) ·
+[Live demo](https://dumpstation.monzim.com/demo/) ·
+[Docs](https://dumpstation.monzim.com/docs/) ·
+[Quick start](#quick-start) ·
+[Roadmap](ROADMAP.md)
 
-<img src="web/public/images/og.webp" alt="DumpStation" />
+[![License: MIT](https://img.shields.io/badge/license-MIT-ededed?style=flat-square&labelColor=0a0a0a)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white&labelColor=0a0a0a)](https://go.dev/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white&labelColor=0a0a0a)](https://react.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12%E2%80%9318-4169E1?style=flat-square&logo=postgresql&logoColor=white&labelColor=0a0a0a)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/ghcr.io-monzim%2Fdumpstation-2496ED?style=flat-square&logo=docker&logoColor=white&labelColor=0a0a0a)](https://github.com/monzim/DumpStation/pkgs/container/dumpstation)
 
 </div>
 
 ---
 
-## Overview
+## Why DumpStation
 
-DumpStation is a single Go server with a built-in web UI. It stores its own
-configuration in PostgreSQL, runs `pg_dump` on a schedule, uploads the result
-to object storage, verifies it, applies retention and notifies you.
+Most backups are only tested on the worst day of the year. DumpStation runs
+`pg_dump` on a schedule, ships every artifact to your bucket, proves it got
+there, and gives you a guided way back. It is one Go server with a built-in
+web UI and one Docker image. Your backups are plain `pg_dump` files: you can
+restore them with or without DumpStation.
 
-Version 2 adds two things:
-
-- **DumpStation Agents.** A small worker you run next to a database that the
-  server cannot reach (private subnet, another cloud, a laptop behind NAT).
-  The agent only makes outbound HTTPS requests to the server; you open no
-  inbound ports and need no VPN.
-- **A redesigned UI** built on Meta's Astryx design system, served directly by
-  the server (one image, one origin).
+<img src="docs/screenshots/overview.png" alt="Overview: protected databases, failures, success rate, running jobs, agents, backup history and upcoming runs" width="100%" />
 
 ## Features
 
-- **Two ways to back up.** *Direct*: the server connects to the database
-  itself. *Agent*: a remote agent runs `pg_dump` inside the private network.
-  Both share one job lifecycle, one history and the same retention and
-  notification rules.
-- **Unified backup history** with filters (database, agent, status, executor,
-  trigger, date range, search) and a per-job execution log that shows every
-  stage, including lines reported by agents.
-- **Scheduling with time zones.** Cron expressions or presets (hourly, every
-  N hours, daily, weekly, monthly), an IANA time zone per database, and a
-  preview of the next runs. Missed runs (for example while the server was
-  down) are detected and reported.
-- **Retention that never deletes the newest valid backup.** Keep the last N
-  backups or everything from the last N days; the most recent successful
-  backup always survives.
+**Backups**
+- **Two ways to reach a database.** *Direct*: the server connects itself.
+  *Agent*: a small worker inside the private network runs `pg_dump` there.
+  Both share one job lifecycle, history, retention and alerting.
+- **Schedules with time zones.** Cron or presets per database, an IANA time
+  zone, a preview of the next runs and missed-run detection.
 - **Verified artifacts.** SHA-256 computed while dumping, object size checked
-  in storage before a backup is marked successful, checksum re-checked before
+  in storage before a backup counts as successful, checksum re-checked before
   every restore.
-- **Guided restore** into the original database, another configured database
-  or a custom target, directly or through an agent, with an optional `--clean`
-  and a typed confirmation for anything destructive.
-- **Storage:** AWS S3, Cloudflare R2, MinIO and other S3-compatible services.
-  Each backup stays pinned to the storage it was written to.
-- **Notifications** to Discord webhooks and Telegram bots, per database.
-- **Sign-in** with a one-time code (posted to a Discord webhook, or written to
-  the server log), GitHub OAuth for one allowed account, TOTP two-factor
-  authentication (enforced for GitHub sign-ins too) and optional Cloudflare
-  Turnstile.
-- **Roles and tenant isolation.** Every resource belongs to a user;
-  administrators can see all and manage roles; a read-only demo account is
-  optional.
-- **Activity log** of logins, configuration changes, backups, restores and
-  agent events (kept 60 days).
-- **DB Explorer** for browsing PostgreSQL servers: databases, tables, rows,
-  ER diagrams, roles and grants.
-- PostgreSQL client tools 12 to 18 are bundled; the right `pg_dump` is chosen
-  for each server version.
+- **Retention that never deletes the newest good backup.** Keep the last N or
+  everything from the last N days.
+- **The right client, every time.** `pg_dump` and `pg_restore` 12 to 18 are
+  bundled and matched to each server's version.
+
+**Restores**
+- **Guided restore wizard** into the original database, another configured
+  database or a custom target, directly or through an agent.
+- `--clean` and anything destructive sits behind a typed confirmation.
+
+**Storage and alerts**
+- AWS S3, Cloudflare R2, MinIO and other S3-compatible services. Each backup
+  stays pinned to the storage it was written to.
+- Discord and Telegram notifications per database, with typed error codes
+  such as `auth_failed`, `version_mismatch` or `agent_lost`.
+
+**Agents**
+- Outbound HTTPS only: no inbound ports, no VPN.
+- Database passwords can stay on the agent host; the server only sees a
+  connection name.
+- Single-use enrollment tokens, revocable credentials, restores disabled unless
+  enabled on both sides.
+
+**Security and operations**
+- Secrets encrypted at rest with AES-256-GCM under your own key.
+- Passwordless sign-in (one-time code via Discord or the server log), GitHub
+  OAuth for one allowed account, TOTP 2FA and optional Cloudflare Turnstile.
+- Roles and tenant isolation, an optional read-only demo account, an activity
+  log kept 60 days, and downloads behind a one-time code.
+- DB Explorer for databases, tables, rows, roles and ER diagrams; a ⌘K command
+  menu; light, dark and pitch-black themes.
+
+## Screenshots
+
+| | |
+| --- | --- |
+| <img src="docs/screenshots/databases.png" alt="Databases" /> **Databases** with health, schedule and storage | <img src="docs/screenshots/database-detail.png" alt="Database detail" /> **Database detail** and its configuration |
+| <img src="docs/screenshots/backups.png" alt="Backups" /> **Backup history** with filters | <img src="docs/screenshots/backup-detail.png" alt="Backup detail" /> **Backup detail**, lifecycle and execution log |
+| <img src="docs/screenshots/restore.png" alt="Restore wizard" /> **Guided restore** | <img src="docs/screenshots/add-database.png" alt="Add database" /> **Add database**, direct or through an agent |
+| <img src="docs/screenshots/agents.png" alt="Backup agents" /> **Backup agents** | <img src="docs/screenshots/agent-onboarding.png" alt="Agent onboarding" /> **Agent onboarding** with ready-made snippets |
+| <img src="docs/screenshots/schedules.png" alt="Schedules" /> **Schedules** across databases | <img src="docs/screenshots/storage.png" alt="Storage" /> **Storage** destinations |
+| <img src="docs/screenshots/system.png" alt="System health" /> **System health** | <img src="docs/screenshots/settings.png" alt="Settings" /> **Settings** |
+
+Screenshots are from the [live demo](https://dumpstation.monzim.com/demo/),
+which runs the real interface against sample data in your browser.
 
 ## Architecture
 
@@ -89,7 +112,7 @@ Version 2 adds two things:
  ┌──────────────┐               ┌────────┴───────────────────────────┐
  │ PostgreSQL   │               │ private network                    │
  │ (metadata)   │               │  ┌──────────────────┐   ┌────────┐ │
- └──────────────┘               │  │ DumpStation Agent│──▶│ Postgres│ │
+ └──────────────┘               │  │ DumpStation Agent│──▶│Postgres│ │
                                 │  └────────┬─────────┘   └────────┘ │
                                 └───────────┼────────────────────────┘
                                             │ presigned PUT/GET (direct transfer)
@@ -100,9 +123,10 @@ Version 2 adds two things:
 ```
 
 The server decides *what* runs and *where*; executors (the server itself or
-agents) only run whitelisted job kinds. Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+agents) only run whitelisted job kinds. Details:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Quick start (5 minutes)
+## Quick start
 
 Requirements: Docker with Compose v2.
 
@@ -138,21 +162,23 @@ docker compose logs dumpstation | grep "OTP not sent"
 
 Then, in the UI:
 
-1. **Storage** → add a bucket (S3, R2, MinIO or S3-compatible) and run the test.
-2. **Databases** → add a database, choose **Direct**, test the connection,
+1. **Storage**: add a bucket (S3, R2, MinIO or S3-compatible) and run the test.
+2. **Databases**: add a database, choose **Direct**, test the connection,
    pick a schedule, time zone and retention.
 3. Click **Back up now** and follow the job log.
 
 Enable two-factor authentication under **Settings** before exposing the
-server. For production (TLS, reverse proxy, sizing) see
-[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+server. For TLS, reverse proxies and sizing see
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) or the
+[web docs](https://dumpstation.monzim.com/docs/), which also generate a
+ready-to-use `.env` and Caddyfile for your domain.
 
-## Add a private database with an agent
+## Back up a private database with an agent
 
 1. In the UI open **Backup Agents → Add agent**, name it and create it. You get
    a single-use enrollment token (valid 1 hour by default) and ready-made
-   deployment snippets.
-2. On a host that can reach the database (and reach `PUBLIC_URL` over HTTPS):
+   Docker, Compose, Kubernetes and systemd snippets.
+2. On a host that can reach the database and your `PUBLIC_URL` over HTTPS:
 
    ```bash
    docker run -d --name dumpstation-agent --restart unless-stopped \
@@ -169,15 +195,16 @@ server. For production (TLS, reverse proxy, sizing) see
    choose **Agent**, pick the agent and the `orders` connection, test it and
    save.
 
-Compose, Kubernetes and binary installs, password files and restores through
-agents are covered in [docs/AGENTS.md](docs/AGENTS.md).
+Password files, YAML connections and restores through agents are covered in
+[docs/AGENTS.md](docs/AGENTS.md).
 
 ## Documentation
 
 | Document | Contents |
 | --- | --- |
+| [Web docs](https://dumpstation.monzim.com/docs/) | Install, every environment variable, reverse proxies, agents, error codes |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, job lifecycle, agent protocol, data transfer, failure handling |
-| [docs/AGENTS.md](docs/AGENTS.md) | Installing and operating agents, connections, restore enablement, env reference |
+| [docs/AGENTS.md](docs/AGENTS.md) | Installing and operating agents, connections, restore enablement |
 | [docs/BACKUP_AND_RESTORE.md](docs/BACKUP_AND_RESTORE.md) | Databases, storage providers, schedules, retention, downloads, restores |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deployment topologies, reverse proxy, full server env reference |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model and security controls |
@@ -187,24 +214,35 @@ agents are covered in [docs/AGENTS.md](docs/AGENTS.md).
 | [docs/TURNSTILE_INTEGRATION.md](docs/TURNSTILE_INTEGRATION.md) | Cloudflare Turnstile on the login page |
 | [configs/README.md](configs/README.md) | The production Compose bundle and helper scripts |
 | [server/README.md](server/README.md) | Developer setup, tests, building |
-| [site/README.md](site/README.md) | The landing page and web docs (Cloudflare Worker) |
+| [site/README.md](site/README.md) | The website, web docs and live demo (Cloudflare Worker) |
 | [ROADMAP.md](ROADMAP.md) | What shipped and what is next |
 
-## Screenshots
+## Repository layout
 
-| | |
-| --- | --- |
-| ![Overview](docs/screenshots/overview.png) Overview | ![Databases](docs/screenshots/databases.png) Databases |
-| ![Database detail](docs/screenshots/database-detail.png) Database detail | ![Add database](docs/screenshots/add-database.png) Add database |
-| ![Backups](docs/screenshots/backups.png) Backup history | ![Backup detail](docs/screenshots/backup-detail.png) Backup detail and job log |
-| ![Restore](docs/screenshots/restore.png) Guided restore | ![Agents](docs/screenshots/agents.png) Backup agents |
-| ![Agent onboarding](docs/screenshots/agent-onboarding.png) Agent onboarding | ![Storage](docs/screenshots/storage.png) Storage |
-| ![Settings](docs/screenshots/settings.png) Settings | |
+```
+server/     Go server and agent (cmd/server, cmd/agent)
+web/        React UI on the Astryx design system, served by the server
+site/       Website, web docs and live demo (Cloudflare Workers)
+configs/    Production Docker Compose bundle and helper scripts
+deploy/     Agent Compose files and Kubernetes manifest
+docs/       Guides, screenshots and assets
+```
 
 ## Contributing
 
-Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md)
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
 and [server/README.md](server/README.md) for the development setup.
+
+## Author
+
+<a href="https://monzim.com"><img src="site/public/assets/me/azraf-160.webp" alt="Azraf Al Monzim" width="64" height="64" align="left" style="border-radius:50%" /></a>
+
+Built and maintained by **[Azraf Al Monzim](https://monzim.com)**, a platform
+engineer in Dhaka. [monzim.com](https://monzim.com) ·
+[GitHub](https://github.com/monzim) ·
+[LinkedIn](https://www.linkedin.com/in/monzim)
+
+<br clear="left" />
 
 ## License
 
