@@ -142,7 +142,7 @@ function DatabasesPage() {
         key: 'name',
         header: 'Database',
         sortable: true,
-        width: { type: 'proportional', value: 1.6, minWidth: 170 },
+        width: { type: 'proportional', value: 1.7, minWidth: 170 },
         renderCell: (d) => (
           <VStack gap={0.5}>
             <Link href={`/databases/${d.id}`}>
@@ -162,7 +162,7 @@ function DatabasesPage() {
         key: 'health',
         header: 'Health',
         sortable: true,
-        width: { type: 'pixel', value: 160 },
+        width: { type: 'proportional', value: 1.6, minWidth: 160 },
         renderCell: (d) => (
           <VStack gap={0.5} hAlign="start">
             {d.active_backup ? <BackupStatusBadge status={d.active_backup.status} stage={d.active_backup.stage} /> : <HealthBadge health={d.health} />}
@@ -172,28 +172,28 @@ function DatabasesPage() {
       {
         key: 'executor',
         header: 'Execution',
-        width: { type: 'proportional', value: 1.2, minWidth: 180 },
+        width: { type: 'proportional', value: 1.8, minWidth: 180 },
         renderCell: (d) => <ExecutorLabel mode={d.execution_mode} agentName={d.agent_id ? agentName.get(d.agent_id) : undefined} />,
       },
       {
         key: 'version',
         header: 'PostgreSQL',
         sortable: true,
-        width: { type: 'pixel', value: 110 },
+        width: { type: 'proportional', value: 1.1, minWidth: 110 },
         renderCell: (d) => <Text color={d.postgres_version && d.postgres_version !== 'latest' ? undefined : 'secondary'}>{pgVersionLabel(d)}</Text>,
       },
       {
         key: 'last_success',
         header: 'Last success',
         sortable: true,
-        width: { type: 'pixel', value: 120 },
+        width: { type: 'proportional', value: 1.2, minWidth: 120 },
         renderCell: (d) => <When value={d.last_success_at} empty="Never" />,
       },
       {
         key: 'next_run',
         header: 'Next backup',
         sortable: true,
-        width: { type: 'proportional', value: 1.3, minWidth: 160 },
+        width: { type: 'proportional', value: 1.6, minWidth: 160 },
         renderCell: (d) => (
           <VStack gap={0}>
             {d.paused ? (
@@ -213,14 +213,14 @@ function DatabasesPage() {
       {
         key: 'storage',
         header: 'Storage',
-        width: { type: 'proportional', value: 1, minWidth: 110 },
+        width: { type: 'proportional', value: 1.1, minWidth: 110 },
         renderCell: (d) => <Text maxLines={1}>{storageName.get(d.storage_id) ?? '—'}</Text>,
       },
       {
         key: 'actions',
         header: '',
         align: 'end',
-        width: { type: 'pixel', value: 56 },
+        width: { type: 'proportional', value: 0.56, minWidth: 56 },
         renderCell: (d) => (
           <MoreMenu
             label={`Actions for ${d.name}`}

@@ -1,6 +1,8 @@
 package database
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log"
 	"math/rand"
 	"os"
@@ -95,7 +97,7 @@ func SeedDemoData(repo *repository.Repository) error {
 
 			// Seed backup history for each database
 			for _, db := range databases {
-				err := seedDemoBackups(repo, db.ID)
+				err := seedDemoBackups(repo, db.ID, db.StorageID)
 				if err != nil {
 					log.Printf("[DEMO] ⚠️  Failed to seed backups for %s: %v", db.Name, err)
 				}
@@ -239,8 +241,10 @@ func seedDemoDatabases(repo *repository.Repository, userID uuid.UUID, storageID 
 	return created, nil
 }
 
-func seedDemoBackups(repo *repository.Repository, databaseID uuid.UUID) error {
-	// Create a mix of successful and failed backups over the past 14 days
+func seedDemoBackups(repo *repository.Repository, databaseID, storageID uuid.UUID) error {
+	// A mix of successful and failed daily backups over the past 14 days,
+	// each with a realistic, backdated timeline so the history chart, stage
+	// stepper and timing facts read like a real deployment.
 	now := time.Now()
 
 	backups := []struct {
@@ -265,28 +269,39 @@ func seedDemoBackups(repo *repository.Repository, databaseID uuid.UUID) error {
 	}
 
 	for _, b := range backups {
-		timestamp := now.Add(-time.Duration(b.daysAgo) * 24 * time.Hour)
-		timestamp = timestamp.Add(-time.Duration(rand.Intn(4)) * time.Hour) // Add some randomness
+		queued := now.Add(-time.Duration(b.daysAgo)*24*time.Hour - time.Duration(1+rand.Intn(4))*time.Hour)
+		started := queued.Add(time.Duration(1+rand.Intn(3)) * time.Second)
 
 		backup, err := repo.CreateBackup(databaseID, models.BackupStatusPending)
 		if err != nil {
 			return err
 		}
 
-		var errMsg *string
-		storagePath := ""
-		var sizeBytes *int64
-
-		if b.status == models.BackupStatusSuccess {
-			storagePath = "backups/" + backup.Name + ".sql.gz"
-			sizeBytes = &b.size
-		} else {
-			msg := "Connection timeout: unable to connect to database server"
-			errMsg = &msg
+		fields := map[string]any{
+			"status":         b.status,
+			"trigger":        models.BackupTrigger("scheduled"),
+			"started_at":     queued,
+			"run_started_at": started,
+			"dump_format":    models.DumpFormatCustom,
 		}
-
-		err = repo.UpdateBackupStatus(backup.ID, b.status, sizeBytes, storagePath, errMsg)
-		if err != nil {
+		if b.status == models.BackupStatusSuccess {
+			completed := started.Add(time.Duration(90+rand.Intn(120)) * time.Second)
+			sum := sha256.Sum256([]byte(backup.ID.String()))
+			fields["stage"] = ""
+			fields["completed_at"] = completed
+			fields["size_bytes"] = b.size
+			fields["storage_id"] = storageID
+			fields["storage_path"] = "backups/" + backup.Name + ".dump"
+			fields["checksum_sha256"] = hex.EncodeToString(sum[:])
+			fields["postgres_version"] = "16.4"
+		} else {
+			// The connection attempt times out while preparing the dump.
+			fields["stage"] = models.StagePreparing
+			fields["completed_at"] = started.Add(30 * time.Second)
+			fields["error_code"] = "host_unreachable"
+			fields["error_message"] = "Connection timeout: unable to connect to database server"
+		}
+		if err := repo.UpdateBackupFields(backup.ID, fields); err != nil {
 			return err
 		}
 	}

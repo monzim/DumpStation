@@ -41,7 +41,7 @@ export function DetailBackups({ databaseId, onBackupNow }: { databaseId: string;
       {
         key: 'status',
         header: 'Status',
-        width: { type: 'pixel', value: 180 },
+        width: { type: 'proportional', value: 1.8, minWidth: 180 },
         renderCell: (b) => (
           <VStack gap={0.5} hAlign="start">
             <BackupStatusBadge status={b.status} stage={b.stage} />
@@ -52,35 +52,35 @@ export function DetailBackups({ databaseId, onBackupNow }: { databaseId: string;
       {
         key: 'trigger',
         header: 'Trigger',
-        width: { type: 'pixel', value: 100 },
+        width: { type: 'proportional', value: 1, minWidth: 100 },
         renderCell: (b) => <Text type="supporting">{b.trigger === 'manual' ? 'Manual' : 'Scheduled'}</Text>,
       },
-      { key: 'started', header: 'Started', width: { type: 'pixel', value: 120 }, renderCell: (b) => <When value={b.run_started_at ?? b.timestamp} /> },
+      { key: 'started', header: 'Started', width: { type: 'proportional', value: 1.2, minWidth: 120 }, renderCell: (b) => <When value={b.run_started_at ?? b.timestamp} /> },
       {
         key: 'duration',
         header: 'Duration',
         align: 'end',
-        width: { type: 'pixel', value: 90 },
+        width: { type: 'proportional', value: 0.9, minWidth: 90 },
         renderCell: (b) => <Text hasTabularNumbers>{duration(b.duration_ms)}</Text>,
       },
       {
         key: 'size',
         header: 'Size',
         align: 'end',
-        width: { type: 'pixel', value: 90 },
+        width: { type: 'proportional', value: 0.9, minWidth: 90 },
         renderCell: (b) => <Text hasTabularNumbers>{bytes(b.size_bytes)}</Text>,
       },
       {
         key: 'executor',
         header: 'Executor',
-        width: { type: 'proportional', value: 1, minWidth: 120 },
+        width: { type: 'proportional', value: 1.2, minWidth: 120 },
         renderCell: (b) => <ExecutorLabel mode={b.executor} agentName={b.agent_name} />,
       },
       {
         key: 'actions',
         header: '',
         align: 'end',
-        width: { type: 'pixel', value: 56 },
+        width: { type: 'proportional', value: 0.56, minWidth: 56 },
         renderCell: (b) => (
           <MoreMenu
             label={`Actions for ${b.name}`}

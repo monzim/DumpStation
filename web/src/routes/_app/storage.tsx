@@ -97,11 +97,13 @@ function StorageTable({ list, onEdit }: { list: StorageConfig[]; onEdit: (s: Sto
                 key: 'endpoint',
                 header: 'Region / endpoint',
                 renderCell: (s) => (
-                  <VStack gap={0}>
+                  <VStack gap={0} style={{ minWidth: 0 }}>
                     <Text>{s.region || (s.provider === 'r2' ? 'auto' : '—')}</Text>
                     {s.endpoint && (
-                      <Text type="supporting" color="secondary" className="ds-mono">
-                        {s.endpoint}
+                      <Text type="supporting" color="secondary" maxLines={1}>
+                        <span className="ds-mono" title={s.endpoint}>
+                          {s.endpoint.replace(/^https?:\/\//, '')}
+                        </span>
                       </Text>
                     )}
                   </VStack>
@@ -133,7 +135,7 @@ function StorageTable({ list, onEdit }: { list: StorageConfig[]; onEdit: (s: Sto
               {
                 key: 'actions',
                 header: '',
-                width: { type: 'pixel', value: 56 },
+                width: { type: 'proportional', value: 0.56, minWidth: 56 },
                 align: 'end',
                 renderCell: (s) => (
                   <MoreMenu

@@ -139,7 +139,7 @@ function ChannelTable({ list, onEdit }: { list: NotificationConfig[]; onEdit: (n
               {
                 key: 'actions',
                 header: '',
-                width: { type: 'pixel', value: 56 },
+                width: { type: 'proportional', value: 0.56, minWidth: 56 },
                 align: 'end',
                 renderCell: (n) => (
                   <MoreMenu

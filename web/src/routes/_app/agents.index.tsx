@@ -66,7 +66,7 @@ function AgentsTable({ agents }: { agents: Agent[] }) {
             {
               key: 'name',
               header: 'Agent',
-              width: { type: 'proportional', value: 2, minWidth: 180 },
+              width: { type: 'proportional', value: 1.8, minWidth: 180 },
               renderCell: (a) => (
                 <VStack gap={0.5}>
                   <Link href={`/agents/${a.id}`}>
@@ -80,7 +80,7 @@ function AgentsTable({ agents }: { agents: Agent[] }) {
                 </VStack>
               ),
             },
-            { key: 'connectivity', header: 'Status', width: { type: 'pixel', value: 170 }, renderCell: (a) => <AgentConnectivityBadge status={a.status} connectivity={a.connectivity} /> },
+            { key: 'connectivity', header: 'Status', width: { type: 'proportional', value: 1.7, minWidth: 170 }, renderCell: (a) => <AgentConnectivityBadge status={a.status} connectivity={a.connectivity} /> },
             { key: 'version', header: 'Version', renderCell: (a) => <Text className="ds-mono">{a.version || '—'}</Text> },
             { key: 'last_seen_at', header: 'Last heartbeat', renderCell: (a) => <When value={a.last_seen_at} empty="Never" /> },
             { key: 'enrolled_at', header: 'Registered', renderCell: (a) => <When value={a.enrolled_at} empty="Not yet" /> },

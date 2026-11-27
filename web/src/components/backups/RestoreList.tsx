@@ -38,7 +38,7 @@ export function RestoreList({
       {
         key: 'id',
         header: 'Restore',
-        width: { type: 'proportional', value: 1.2, minWidth: 130 },
+        width: { type: 'proportional', value: 1.3, minWidth: 130 },
         renderCell: (r) => (
           <VStack gap={0}>
             <Link href={`/restores/${r.id}`}>
@@ -55,7 +55,7 @@ export function RestoreList({
       {
         key: 'status',
         header: 'Status',
-        width: { type: 'pixel', value: 180 },
+        width: { type: 'proportional', value: 1.8, minWidth: 180 },
         renderCell: (r) => (
           <VStack gap={0.5} hAlign="start">
             <BackupStatusBadge status={r.status} stage={r.stage} />
@@ -68,7 +68,7 @@ export function RestoreList({
       cols.push({
         key: 'backup',
         header: 'Source backup',
-        width: { type: 'proportional', value: 1.6, minWidth: 170 },
+        width: { type: 'proportional', value: 1.7, minWidth: 170 },
         renderCell: (r) => (
           <VStack gap={0}>
             <Link href={`/backups/${r.backup_id}`}>{r.backup_name ?? shortId(r.backup_id)}</Link>
@@ -84,7 +84,7 @@ export function RestoreList({
       {
         key: 'target',
         header: 'Target',
-        width: { type: 'proportional', value: 2, minWidth: 180 },
+        width: { type: 'proportional', value: 1.8, minWidth: 180 },
         renderCell: (r) =>
           r.target !== 'custom' && r.target_database_id ? (
             <Link href={`/databases/${r.target_database_id}`}>{restoreTargetLabel(r)}</Link>
@@ -95,20 +95,20 @@ export function RestoreList({
       {
         key: 'executor',
         header: 'Executor',
-        width: { type: 'proportional', value: 1.2, minWidth: 160 },
+        width: { type: 'proportional', value: 1.6, minWidth: 160 },
         renderCell: (r) => <ExecutorLabel mode={r.executor} agentName={r.agent_name} />,
       },
       {
         key: 'clean',
         header: 'Clean',
-        width: { type: 'pixel', value: 90 },
+        width: { type: 'proportional', value: 0.9, minWidth: 90 },
         renderCell: (r) => (r.clean_target ? <Badge variant="warning" label="--clean" /> : <Text color="secondary">No</Text>),
       },
       {
         key: 'duration',
         header: 'Duration',
         align: 'end',
-        width: { type: 'pixel', value: 90 },
+        width: { type: 'proportional', value: 0.9, minWidth: 90 },
         renderCell: (r) => <Text hasTabularNumbers>{duration(restoreDurationMs(r))}</Text>,
       },
     )

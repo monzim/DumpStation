@@ -98,7 +98,7 @@ function BackupsPage() {
       {
         key: 'name',
         header: 'Backup',
-        width: { type: 'proportional', value: 2, minWidth: 170 },
+        width: { type: 'proportional', value: 1.7, minWidth: 170 },
         renderCell: (b) => (
           <VStack gap={0}>
             <Link href={`/backups/${b.id}`}>
@@ -119,7 +119,7 @@ function BackupsPage() {
       {
         key: 'status',
         header: 'Status',
-        width: { type: 'pixel', value: 190 },
+        width: { type: 'proportional', value: 1.9, minWidth: 190 },
         renderCell: (b) => (
           <VStack gap={0.5} hAlign="start">
             <BackupStatusBadge status={b.status} stage={b.stage} />
@@ -130,16 +130,16 @@ function BackupsPage() {
       {
         key: 'executor',
         header: 'Executor',
-        width: { type: 'proportional', value: 1.3, minWidth: 160 },
+        width: { type: 'proportional', value: 1.6, minWidth: 160 },
         renderCell: (b) => <ExecutorLabel mode={b.executor} agentName={b.agent_name} />,
       },
-      { key: 'started', header: 'Started', sortable: true, width: { type: 'pixel', value: 115 }, renderCell: (b) => <When value={b.run_started_at ?? b.timestamp} /> },
+      { key: 'started', header: 'Started', sortable: true, width: { type: 'proportional', value: 1.15, minWidth: 115 }, renderCell: (b) => <When value={b.run_started_at ?? b.timestamp} /> },
       {
         key: 'duration',
         header: 'Duration',
         sortable: true,
         align: 'end',
-        width: { type: 'pixel', value: 100 },
+        width: { type: 'proportional', value: 1, minWidth: 100 },
         renderCell: (b) => <Text hasTabularNumbers>{duration(b.duration_ms)}</Text>,
       },
       {
@@ -147,20 +147,20 @@ function BackupsPage() {
         header: 'Size',
         sortable: true,
         align: 'end',
-        width: { type: 'pixel', value: 90 },
+        width: { type: 'proportional', value: 0.9, minWidth: 90 },
         renderCell: (b) => <Text hasTabularNumbers>{bytes(b.size_bytes)}</Text>,
       },
       {
         key: 'storage',
         header: 'Storage',
-        width: { type: 'proportional', value: 1, minWidth: 90 },
+        width: { type: 'proportional', value: 0.9, minWidth: 90 },
         renderCell: (b) => <Text color={b.storage_name ? undefined : 'secondary'}>{b.storage_name ?? '—'}</Text>,
       },
       {
         key: 'actions',
         header: '',
         align: 'end',
-        width: { type: 'pixel', value: 56 },
+        width: { type: 'proportional', value: 0.56, minWidth: 56 },
         renderCell: (b) => {
           const active = !isTerminal(b.status)
           return (

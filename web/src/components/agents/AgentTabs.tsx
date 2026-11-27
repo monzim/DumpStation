@@ -183,7 +183,7 @@ export function ConnectionsTab({ agent }: { agent: Agent }) {
             { key: 'name', header: 'Name', renderCell: (c) => <span className="ds-mono">{c.name}</span> },
             { key: 'database', header: 'Database', renderCell: (c) => c.database || '—' },
             { key: 'host', header: 'Host', renderCell: (c) => <span className="ds-mono">{c.host || '—'}</span> },
-            { key: 'test', header: 'Test', width: { type: 'proportional', value: 2, minWidth: 260 }, renderCell: (c) => <ConnectionTest agentId={agent.id} name={c.name} disabled={!canTest} /> },
+            { key: 'test', header: 'Test', width: { type: 'proportional', value: 2.6, minWidth: 260 }, renderCell: (c) => <ConnectionTest agentId={agent.id} name={c.name} disabled={!canTest} /> },
           ]}
         />
       </div>
@@ -324,13 +324,13 @@ export function ActivityTab({ agent }: { agent: Agent }) {
           {
             key: 'created_at',
             header: 'When',
-            width: { type: 'pixel', value: 170 },
+            width: { type: 'proportional', value: 1.7, minWidth: 170 },
             renderCell: (l) => <When value={l.created_at} />,
           },
           {
             key: 'level',
             header: 'Level',
-            width: { type: 'pixel', value: 110 },
+            width: { type: 'proportional', value: 1.1, minWidth: 110 },
             renderCell: (l) => <Badge variant={LEVEL_VARIANT[l.level] ?? 'neutral'} label={l.level} />,
           },
           { key: 'description', header: 'Event', renderCell: (l) => <Text>{l.description}</Text> },
@@ -372,7 +372,7 @@ export function ConfigurationTab({ agent }: { agent: Agent }) {
               {
                 key: 'name',
                 header: 'Variable',
-                width: { type: 'proportional', value: 2, minWidth: 260 },
+                width: { type: 'proportional', value: 2.6, minWidth: 260 },
                 renderCell: (v) => (
                   <VStack gap={0.5}>
                     <span className="ds-mono">{v.name}</span>
@@ -380,8 +380,8 @@ export function ConfigurationTab({ agent }: { agent: Agent }) {
                   </VStack>
                 ),
               },
-              { key: 'default', header: 'Default', width: { type: 'proportional', value: 1, minWidth: 140 }, renderCell: (v) => <span className="ds-mono">{v.default ?? '—'}</span> },
-              { key: 'description', header: 'Description', width: { type: 'proportional', value: 3, minWidth: 280 }, renderCell: (v) => <Text>{v.description}</Text> },
+              { key: 'default', header: 'Default', width: { type: 'proportional', value: 1.4, minWidth: 140 }, renderCell: (v) => <span className="ds-mono">{v.default ?? '—'}</span> },
+              { key: 'description', header: 'Description', width: { type: 'proportional', value: 2.8, minWidth: 280 }, renderCell: (v) => <Text>{v.description}</Text> },
             ]}
           />
         </div>

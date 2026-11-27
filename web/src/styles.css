@@ -58,6 +58,41 @@
     color: var(--color-text-primary);
   }
 
+  /* Side nav search trigger that opens the command menu (Ctrl/⌘+K). */
+  .ds-search-trigger {
+    all: unset;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    width: 100%;
+    height: 32px;
+    padding: 0 var(--spacing-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-element);
+    background: var(--color-background-muted);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+  }
+  .ds-search-trigger:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-border-emphasized);
+  }
+  .ds-search-trigger:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+  .ds-search-trigger[data-collapsed] {
+    justify-content: center;
+    width: 32px;
+    padding: 0;
+    margin-inline: auto;
+  }
+  .ds-search-trigger-label {
+    flex: 1;
+  }
+
   .ds-wordmark-logo {
     display: block;
     flex: none;

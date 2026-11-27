@@ -25,12 +25,15 @@ import {
   MoonStar,
   Sun,
   LogOut,
+  Search,
   TableProperties,
 } from 'lucide-react'
 import { displayName, useSession } from '@/lib/auth/session'
 import { useThemeMode } from '@/lib/theme/mode'
 import { useOverview } from '@/lib/api/hooks'
 import { Wordmark } from '../Wordmark'
+import { Kbd } from '@astryxdesign/core/Kbd'
+import { CommandMenu, useCommandMenuShortcut } from './CommandMenu'
 
 const NAV_KEY = 'ds.sidenav.collapsed'
 
@@ -79,6 +82,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const name = displayName(user)
   const collapse = useNavCollapse()
   const collapsed = collapse.isCollapsed
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  useCommandMenuShortcut(setPaletteOpen)
+  const { isCollapsed: navCollapsed, onCollapsedChange } = collapse
+  const toggleSidebar = useCallback(() => onCollapsedChange(!navCollapsed), [navCollapsed, onCollapsedChange])
   const themeItem = (m: typeof mode, label: string, icon: ReactNode) => ({
     label,
     icon,
@@ -91,6 +98,25 @@ export function AppLayout({ children }: { children: ReactNode }) {
       aria-label="Primary"
       collapsible={{ ...collapse, buttonLabel: collapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)' }}
       header={<SideNavHeading heading="DumpStation" icon={<img className="ds-wordmark-logo" src="/logo.svg" alt="" width={22} height={22} aria-hidden />} headingHref="/" />}
+      topContent={
+        <button
+          type="button"
+          className="ds-search-trigger"
+          data-collapsed={collapsed || undefined}
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Search and run commands"
+          aria-keyshortcuts="Control+K Meta+K"
+          title={collapsed ? 'Search (Ctrl+K)' : undefined}
+        >
+          <Search size={16} aria-hidden />
+          {!collapsed && (
+            <>
+              <span className="ds-search-trigger-label">Search…</span>
+              <Kbd keys="mod+k" />
+            </>
+          )}
+        </button>
+      }
       footer={
         <DropdownMenu
           menuWidth={220}
@@ -204,6 +230,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       }
     >
       {children}
+      <CommandMenu isOpen={paletteOpen} onOpenChange={setPaletteOpen} onToggleSidebar={toggleSidebar} />
     </AppShell>
   )
 }

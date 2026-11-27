@@ -43,7 +43,9 @@ export function LifecycleStepper({
   let reached = -1
   for (const e of events ?? []) reached = Math.max(reached, stageIndex(stages, e.stage))
   const live = status === 'pending' || status === 'running'
-  const current = live ? Math.max(stageIndex(stages, stage), reached, 0) : reached
+  // A finished job keeps the stage it stopped in; use it when the log is
+  // missing (e.g. pruned events) so a failure is not blamed on "Queued".
+  const current = live ? Math.max(stageIndex(stages, stage), reached, 0) : Math.max(stageIndex(stages, stage), reached)
 
   const labels = stages.map((s) => (s === 'queued' && waited ? 'Queued / waiting for agent' : STAGE_LABEL[s as Exclude<BackupStage, ''>]))
   const doneLabel = kind === 'backup' ? 'Completed' : 'Restored'

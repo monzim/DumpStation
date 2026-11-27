@@ -54,7 +54,7 @@ function SchedulesPage() {
       {
         key: 'name',
         header: 'Database',
-        width: { type: 'proportional', value: 1.3, minWidth: 160 },
+        width: { type: 'proportional', value: 1.6, minWidth: 160 },
         renderCell: (d) => (
           <Link href={`/databases/${d.id}?tab=schedule`}>
             <Text weight="medium">{d.name}</Text>
@@ -64,7 +64,7 @@ function SchedulesPage() {
       {
         key: 'schedule',
         header: 'Schedule',
-        width: { type: 'proportional', value: 1.6, minWidth: 200 },
+        width: { type: 'proportional', value: 2, minWidth: 200 },
         renderCell: (d) => (
           <VStack gap={0}>
             <Text maxLines={1}>{describeSchedule(d.schedule)}</Text>
@@ -77,7 +77,7 @@ function SchedulesPage() {
       {
         key: 'timezone',
         header: 'Time zone',
-        width: { type: 'proportional', value: 1, minWidth: 140 },
+        width: { type: 'proportional', value: 1.4, minWidth: 140 },
         renderCell: (d) => (
           <Text type="supporting" color={d.timezone ? undefined : 'secondary'}>
             {zoneLabel(d.timezone, serverZone)}
@@ -87,13 +87,13 @@ function SchedulesPage() {
       {
         key: 'next',
         header: 'Next run',
-        width: { type: 'pixel', value: 120 },
+        width: { type: 'proportional', value: 1.2, minWidth: 120 },
         renderCell: (d) => (d.paused ? <Text color="secondary">Paused</Text> : <When value={d.next_run_at} />),
       },
       {
         key: 'active',
         header: 'Active',
-        width: { type: 'pixel', value: 90 },
+        width: { type: 'proportional', value: 0.9, minWidth: 90 },
         renderCell: (d) => (
           <Switch
             label={d.paused ? `Resume scheduled backups for ${d.name}` : `Pause scheduled backups for ${d.name}`}
@@ -109,20 +109,20 @@ function SchedulesPage() {
       {
         key: 'retention',
         header: 'Retention',
-        width: { type: 'pixel', value: 130 },
+        width: { type: 'proportional', value: 1.3, minWidth: 130 },
         renderCell: (d) => <Text type="supporting">{describeRetention(d.rotation_policy)}</Text>,
       },
       {
         key: 'executor',
         header: 'Execution',
-        width: { type: 'proportional', value: 1.2, minWidth: 180 },
+        width: { type: 'proportional', value: 1.8, minWidth: 180 },
         renderCell: (d) => <ExecutorLabel mode={d.execution_mode} agentName={d.agent_id ? agentName.get(d.agent_id) : undefined} />,
       },
       {
         key: 'edit',
         header: '',
         align: 'end',
-        width: { type: 'pixel', value: 80 },
+        width: { type: 'proportional', value: 0.8, minWidth: 80 },
         renderCell: (d) => <Button label="Edit" size="sm" variant="ghost" onClick={() => setEditing(d.id)} isDisabled={isDemo} />,
       },
     ],

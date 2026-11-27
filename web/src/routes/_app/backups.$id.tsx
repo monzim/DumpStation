@@ -9,7 +9,7 @@ import { Banner } from '@astryxdesign/core/Banner'
 import { Download, RotateCcw, Square } from 'lucide-react'
 import { Page } from '@/components/Page'
 import { PageHeader } from '@/components/PageHeader'
-import { ConfirmDialog, CopyValue, Facts, Panel, When, useNotify } from '@/components/common'
+import { ConfirmDialog, CopyValue, Facts, Panel, useNotify } from '@/components/common'
 import { BackupStatusBadge, ExecutorLabel } from '@/components/status'
 import { BlockSkeleton, ErrorState } from '@/components/states'
 import { ExecutionLog, FailureExplanation, LifecycleStepper } from '@/components/backups/lifecycle'
@@ -156,7 +156,6 @@ function BackupDetail({ b }: { b: Backup }) {
               },
               { label: 'Object key', value: b.storage_path ? <CopyValue value={b.storage_path} label="Copy object key" /> : <Text color="secondary">Not uploaded</Text> },
               { label: 'Restorable', value: b.restorable ? 'Yes' : 'No' },
-              { label: 'Started', value: <When value={b.run_started_at ?? b.timestamp} /> },
             ]}
           />
         </Panel>
