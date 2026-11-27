@@ -10,6 +10,8 @@
 @import '@astryxdesign/core/reset.css';
 @import '@astryxdesign/core/astryx.css';
 @import '@astryxdesign/theme-neutral/theme.css';
+/* Pitch-black dark theme, built from src/theme/black.ts (pnpm theme:build). */
+@import './theme/built/black.css';
 
 @layer app {
   :root {

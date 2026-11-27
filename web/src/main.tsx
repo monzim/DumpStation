@@ -4,9 +4,8 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { Theme } from '@astryxdesign/core/theme'
-import { neutralTheme } from '@astryxdesign/theme-neutral/built'
 import { routeTree } from './routeTree.gen'
-import { ThemeModeProvider } from './lib/theme/mode'
+import { ThemeModeProvider, resolveTheme } from './lib/theme/mode'
 import { SessionProvider } from './lib/auth/session'
 import { ApiError } from './lib/api/client'
 
@@ -37,13 +36,16 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeModeProvider>
-        {(mode) => (
-          <Theme theme={neutralTheme} mode={mode}>
-            <SessionProvider>
-              <RouterProvider router={router} />
-            </SessionProvider>
-          </Theme>
-        )}
+        {(mode) => {
+          const { theme, colorMode } = resolveTheme(mode)
+          return (
+            <Theme theme={theme} mode={colorMode}>
+              <SessionProvider>
+                <RouterProvider router={router} />
+              </SessionProvider>
+            </Theme>
+          )
+        }}
       </ThemeModeProvider>
     </QueryClientProvider>
   </StrictMode>,

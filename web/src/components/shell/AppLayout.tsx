@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { AppShell } from '@astryxdesign/core/AppShell'
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from '@astryxdesign/core/SideNav'
@@ -22,6 +22,7 @@ import {
   Users,
   Monitor,
   Moon,
+  MoonStar,
   Sun,
   LogOut,
   TableProperties,
@@ -30,6 +31,39 @@ import { displayName, useSession } from '@/lib/auth/session'
 import { useThemeMode } from '@/lib/theme/mode'
 import { useOverview } from '@/lib/api/hooks'
 import { Wordmark } from '../Wordmark'
+
+const NAV_KEY = 'ds.sidenav.collapsed'
+
+/** Side nav collapse state, persisted per browser; Ctrl/⌘+B toggles it. */
+function useNavCollapse() {
+  const [isCollapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(NAV_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const onCollapsedChange = useCallback((next: boolean) => {
+    setCollapsed(next)
+    try {
+      localStorage.setItem(NAV_KEY, next ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'b' || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      e.preventDefault()
+      onCollapsedChange(!isCollapsed)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isCollapsed, onCollapsedChange])
+  return { isCollapsed, onCollapsedChange }
+}
 
 function useActive() {
   const path = useRouterState({ select: (s) => s.location.pathname })
@@ -43,10 +77,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const overview = useOverview()
   const ov = overview.data
   const name = displayName(user)
+  const collapse = useNavCollapse()
+  const collapsed = collapse.isCollapsed
+  const themeItem = (m: typeof mode, label: string, icon: ReactNode) => ({
+    label,
+    icon,
+    onClick: () => setMode(m),
+    endContent: mode === m ? <Badge label="On" /> : undefined,
+  })
 
   const nav = (
     <SideNav
       aria-label="Primary"
+      collapsible={{ ...collapse, buttonLabel: collapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)' }}
       header={<SideNavHeading heading="DumpStation" icon={<img className="ds-wordmark-logo" src="/logo.svg" alt="" width={22} height={22} aria-hidden />} headingHref="/" />}
       footer={
         <DropdownMenu
@@ -61,12 +104,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 cursor: 'pointer',
                 display: 'block',
                 width: '100%',
-                padding: 'var(--spacing-2)',
+                padding: collapsed ? 'var(--spacing-1)' : 'var(--spacing-2)',
                 borderRadius: 'var(--radius-element)',
                 boxSizing: 'border-box',
               }}
               aria-label="Account and preferences"
+              title={collapsed ? name || 'Account' : undefined}
             >
+              {collapsed ? (
+                <HStack hAlign="center">
+                  <Avatar name={name || 'User'} src={user?.avatar_url} size="sm" tooltip={false} />
+                </HStack>
+              ) : (
               <HStack gap={2} vAlign="center">
                 <Avatar name={name || 'User'} src={user?.avatar_url} size="sm" tooltip={false} />
                 <StackItem size="fill">
@@ -80,6 +129,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   </VStack>
                 </StackItem>
               </HStack>
+              )}
             </button>
           )}
           items={[
@@ -87,9 +137,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
               type: 'section',
               title: 'Theme',
               items: [
-                { label: 'System', icon: <Monitor size={16} />, onClick: () => setMode('system'), endContent: mode === 'system' ? <Badge label="On" /> : undefined },
-                { label: 'Light', icon: <Sun size={16} />, onClick: () => setMode('light'), endContent: mode === 'light' ? <Badge label="On" /> : undefined },
-                { label: 'Dark', icon: <Moon size={16} />, onClick: () => setMode('dark'), endContent: mode === 'dark' ? <Badge label="On" /> : undefined },
+                themeItem('system', 'System', <Monitor size={16} />),
+                themeItem('light', 'Light', <Sun size={16} />),
+                themeItem('dark', 'Dark', <Moon size={16} />),
+                themeItem('black', 'Black', <MoonStar size={16} />),
               ],
             },
             { type: 'divider' },

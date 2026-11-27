@@ -9,7 +9,9 @@
     "preview": "vite preview --port 7511",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "astryx": "node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs"
+    "astryx": "node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs",
+    "theme:build": "astryx theme build src/theme/black.ts --out src/theme/built/black.css",
+    "theme:check": "astryx theme build src/theme/black.ts --out src/theme/built/black.css --check"
   },
   "dependencies": {
     "@astryxdesign/core": "0.7.17",
