@@ -61,8 +61,11 @@ cd site
 npm run deploy            # builds the demo, then wrangler deploy
 ```
 
-The Worker is named `dumpstation-site` (see `wrangler.jsonc`). Attach a custom
-domain in the Cloudflare dashboard or add a `routes` entry.
+The Worker is named `dumpstation` (see `wrangler.jsonc`) and serves the
+custom domain `dumpstation.monzim.com`, attached in the Cloudflare dashboard.
+If Workers Builds is connected to this repository, set its root directory to
+`site`, the build command to `npm --prefix ../web ci && npm run build` and the
+deploy command to `npx wrangler deploy`.
 
 ## Screenshots
 

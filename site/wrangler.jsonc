@@ -6,7 +6,7 @@
 //   Deploy:          npm run deploy
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
-  "name": "dumpstation-site",
+  "name": "dumpstation",
   "main": "src/index.js",
   "compatibility_date": "2026-11-01",
   "assets": {
