@@ -20,6 +20,10 @@ import { bytes, timeOnly } from '@/lib/format'
  * directly so a mistyped code only shows an inline error.
  */
 async function verifyCode(backupId: string, otpId: string, code: string): Promise<DownloadURLResponse> {
+  if (__DEMO__) {
+    const { demoApi } = await import('@/demo/api')
+    return demoApi<DownloadURLResponse>(`/backups/${backupId}/download/verify`, { body: { otp_id: otpId, code } })
+  }
   const headers: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/json' }
   const t = session.token()
   if (t) headers.Authorization = `Bearer ${t}`

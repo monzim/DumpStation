@@ -101,7 +101,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
     <SideNav
       aria-label="Primary"
       collapsible={{ ...collapse, hasButton: false }}
-      header={<SideNavHeading heading="DumpStation" icon={<img className="ds-wordmark-logo" src="/logo.svg" alt="" width={22} height={22} aria-hidden />} headingHref="/" />}
+      header={<SideNavHeading heading="DumpStation" icon={<img className="ds-wordmark-logo" src={`${import.meta.env.BASE_URL}logo.svg`} alt="" width={22} height={22} aria-hidden />} headingHref="/" />}
       topContent={
         <button
           type="button"

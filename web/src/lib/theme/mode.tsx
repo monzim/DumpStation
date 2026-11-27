@@ -26,7 +26,7 @@ function read(): ThemeMode {
   } catch {
     /* ignore */
   }
-  return 'system'
+  return __DEMO__ ? 'black' : 'system'
 }
 
 export function ThemeModeProvider({ children }: { children: (mode: ThemeMode) => ReactNode }) {

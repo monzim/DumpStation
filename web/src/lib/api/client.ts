@@ -25,7 +25,7 @@ function safeSet(store: Storage, key: string, value: string | null) {
 }
 
 export const session = {
-  token: () => safeGet(localStorage, TOKEN_KEY),
+  token: () => (__DEMO__ ? 'demo' : safeGet(localStorage, TOKEN_KEY)),
   tokenExpiresAt: () => {
     const v = safeGet(localStorage, TOKEN_EXP_KEY)
     return v ? new Date(v) : null
@@ -93,6 +93,10 @@ export function buildUrl(path: string, query?: RequestOptions['query']) {
 }
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  if (__DEMO__) {
+    const { demoApi } = await import('@/demo/api')
+    return demoApi<T>(path, opts)
+  }
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
   if (opts.twoFactor) {

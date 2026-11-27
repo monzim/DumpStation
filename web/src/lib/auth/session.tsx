@@ -20,8 +20,8 @@ function goToLogin(reason: 'expired' | 'manual') {
   const here = window.location.pathname + window.location.search
   const params = new URLSearchParams()
   if (reason === 'expired') params.set('expired', '1')
-  if (here && !here.startsWith('/login')) params.set('redirect', here)
-  window.location.assign(`/login${params.toString() ? `?${params}` : ''}`)
+  if (here && !here.includes('/login')) params.set('redirect', here)
+  window.location.assign(`${import.meta.env.BASE_URL}login${params.toString() ? `?${params}` : ''}`)
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {

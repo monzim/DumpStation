@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --port 7511",
     "build": "tsc --noEmit && vite build",
+    "build:demo": "tsc --noEmit && vite build --mode demo",
+    "dev:demo": "vite --mode demo --port 7512",
     "preview": "vite preview --port 7511",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
