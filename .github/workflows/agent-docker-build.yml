@@ -80,7 +80,7 @@ jobs:
 
             - name: Build and Push by digest
               id: build
-              uses: docker/build-push-action@v6
+              uses: docker/build-push-action@v7
               with:
                   context: ./server
                   file: ./server/Dockerfile.agent
