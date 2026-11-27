@@ -1,13 +1,19 @@
-// Static landing page + docs for DumpStation, served by Workers static assets.
-// Deploy: npx wrangler deploy   ·   Local: npx wrangler dev
+// Landing page, docs and the in-browser demo for DumpStation, served by
+// Workers static assets. A tiny Worker (src/index.js) handles the demo's
+// client-side routes and the 404 page.
+//   Build the demo:  npm run build        (needs `npm ci` in ../web once)
+//   Local:           npx wrangler dev
+//   Deploy:          npm run deploy
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "dumpstation-site",
+  "main": "src/index.js",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./public",
+    "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
-    "not_found_handling": "404-page"
+    "not_found_handling": "none"
   },
   "observability": { "enabled": true }
 }

@@ -8,10 +8,49 @@
   <meta name="theme-color" content="#000000" />
   <link rel="canonical" href="https://dumpstation.monzim.com/docs/" />
   <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <meta property="og:title" content="DumpStation docs" />
-  <meta property="og:description" content="Install, configure and operate self-hosted PostgreSQL backups." />
+  <meta name="author" content="Azraf Al Monzim" />
+  <link rel="author" href="https://monzim.com/" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="DumpStation" />
+  <meta property="og:url" content="https://dumpstation.monzim.com/docs/" />
+  <meta property="og:title" content="DumpStation docs: install, configure and operate" />
+  <meta property="og:description" content="Docker Compose install, every environment variable, reverse proxies, agents for private databases and every error code." />
   <meta property="og:image" content="https://dumpstation.monzim.com/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="DumpStation docs" />
+  <meta name="twitter:description" content="Install, configure and operate self-hosted PostgreSQL backups." />
+  <meta name="twitter:image" content="https://dumpstation.monzim.com/assets/og.png" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "headline": "Run DumpStation: install, configure and operate",
+        "description": "Install DumpStation with Docker Compose, configure it with environment variables, put it behind a reverse proxy, deploy agents for private databases, and troubleshoot every error code.",
+        "url": "https://dumpstation.monzim.com/docs/",
+        "inLanguage": "en",
+        "dateModified": "2026-11-27",
+        "image": "https://dumpstation.monzim.com/assets/og.png",
+        "about": { "@id": "https://dumpstation.monzim.com/#software" },
+        "author": { "@type": "Person", "@id": "https://monzim.com/#person", "name": "Azraf Al Monzim", "url": "https://monzim.com/" },
+        "isPartOf": { "@id": "https://dumpstation.monzim.com/#website" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "DumpStation", "item": "https://dumpstation.monzim.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://dumpstation.monzim.com/docs/" }
+        ]
+      }
+    ]
+  }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400;500&display=swap" />
@@ -41,7 +80,8 @@
   <div class="wrap hdr-in" style="max-width:1320px">
     <a class="brand" href="/" aria-label="DumpStation home"><img src="/assets/logo.svg" alt="" width="28" height="28" />DumpStation <span class="dim" style="font-weight:450">Docs</span></a>
     <nav class="nav" aria-label="Primary">
-      <a href="/#how">Product</a>
+      <a href="/#product">Product</a>
+      <a href="/demo/">Live demo</a>
       <a href="/docs/" aria-current="page">Docs</a>
       <a href="https://github.com/monzim/DumpStation/releases" rel="noopener">Releases</a>
     </nav>
