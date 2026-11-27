@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DumpStation — Self-hosted PostgreSQL backups to S3, R2 and MinIO</title>
+  <meta name="description" content="Open-source PostgreSQL backup manager. Scheduled pg_dump to any S3-compatible bucket, SHA-256 verified, guided restores and outbound-only agents for private databases. One Docker image." />
+  <meta name="author" content="Azraf Al Monzim" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="theme-color" content="#090909" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="canonical" href="https://dumpstation.monzim.com/" />
+  <link rel="author" href="https://monzim.com/" />
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="alternate" type="text/plain" title="LLM summary" href="/llms.txt" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="DumpStation" />
+  <meta property="og:title" content="DumpStation — PostgreSQL backups you can actually restore" />
+  <meta property="og:description" content="Self-hosted pg_dump scheduling, verified artifacts, guided restores and outbound-only agents. Open source, one Docker image." />
+  <meta property="og:url" content="https://dumpstation.monzim.com/" />
+  <meta property="og:image" content="https://dumpstation.monzim.com/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="DumpStation overview: protected databases, backup history, running jobs and agents" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="DumpStation — PostgreSQL backups you can actually restore" />
+  <meta name="twitter:description" content="Self-hosted pg_dump scheduling, verified artifacts, guided restores and outbound-only agents." />
+  <meta name="twitter:image" content="https://dumpstation.monzim.com/assets/og.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap" />
+  <link rel="preload" as="image" href="/assets/ui/overview.webp" imagesrcset="/assets/ui/overview.webp 1280w, /assets/ui/overview@2x.webp 2560w" imagesizes="(min-width: 1240px) 1180px, 100vw" />
+  <link rel="stylesheet" href="/assets/site.css" />
+  <link rel="stylesheet" href="/assets/home.css" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://dumpstation.monzim.com/#website",
+        "url": "https://dumpstation.monzim.com/",
+        "name": "DumpStation",
+        "description": "Self-hosted PostgreSQL backup manager",
+        "inLanguage": "en",
+        "publisher": { "@id": "https://monzim.com/#person" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://dumpstation.monzim.com/#software",
+        "name": "DumpStation",
+        "url": "https://dumpstation.monzim.com/",
+        "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "Database backup",
+        "operatingSystem": "Linux, Docker, Kubernetes",
+        "softwareVersion": "2.0",
+        "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "codeRepository": "https://github.com/monzim/DumpStation",
+        "installUrl": "https://dumpstation.monzim.com/docs/#quick-start",
+        "screenshot": "https://dumpstation.monzim.com/assets/ui/overview@2x.webp",
+        "image": "https://dumpstation.monzim.com/assets/og.png",
+        "description": "Open-source PostgreSQL backup manager: scheduled pg_dump to S3-compatible storage, SHA-256 verified artifacts, guided restores and outbound-only agents for databases in private networks.",
+        "featureList": [
+          "Scheduled pg_dump with cron and per-database time zones",
+          "AWS S3, Cloudflare R2, MinIO and S3-compatible storage",
+          "SHA-256 checksums and size verification",
+          "Retention that keeps the newest successful backup",
+          "Guided restores with typed confirmation",
+          "Outbound-only agents for private networks",
+          "Discord and Telegram notifications",
+          "Passwordless sign-in, TOTP 2FA, roles and activity log"
+        ],
+        "author": { "@id": "https://monzim.com/#person" }
+      },
+      {
+        "@type": "Person",
+        "@id": "https://monzim.com/#person",
+        "name": "Azraf Al Monzim",
+        "url": "https://monzim.com/",
+        "image": "https://dumpstation.monzim.com/assets/me/azraf-600.jpg",
+        "jobTitle": "Platform Engineer",
+        "address": { "@type": "PostalAddress", "addressLocality": "Dhaka", "addressCountry": "BD" },
+        "sameAs": ["https://github.com/monzim", "https://www.linkedin.com/in/monzim"]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Is DumpStation free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. DumpStation is MIT licensed and fully self-hosted. You pay only for your server and your object storage." } },
+          { "@type": "Question", "name": "What does a DumpStation backup contain?", "acceptedAnswer": { "@type": "Answer", "text": "A pg_dump custom-format archive of one database. It restores with plain pg_restore, with or without DumpStation." } },
+          { "@type": "Question", "name": "Which PostgreSQL versions are supported?", "acceptedAnswer": { "@type": "Answer", "text": "PostgreSQL 12 through 18. Every client version is bundled and the right pg_dump is chosen for each server." } },
+          { "@type": "Question", "name": "Do agents need a VPN or open ports?", "acceptedAnswer": { "@type": "Answer", "text": "No. Agents only make outbound HTTPS requests to your DumpStation server. Database passwords can stay on the agent host." } },
+          { "@type": "Question", "name": "Can I upgrade from DumpStation v1?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Pull the v2 image and recreate the container; migrations run on start and existing secrets keep working." } }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body class="home">
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></symbol>
+    <symbol id="i-in" viewBox="0 0 24 24"><path fill="currentColor" d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9.75h4V21H3V9.75Zm6.5 0h3.8v1.6h.06c.53-1 1.83-2.05 3.77-2.05 4.03 0 4.77 2.65 4.77 6.1V21h-4v-4.98c0-1.19-.02-2.72-1.66-2.72-1.66 0-1.91 1.3-1.91 2.63V21h-4V9.75Z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14 9l2 2"/></symbol>
+    <symbol id="i-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+    <symbol id="i-table" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></symbol>
+    <symbol id="i-cmd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6Z"/></symbol>
+  </defs>
+</svg>
+
+<header class="hdr" id="hdr">
+  <div class="wrap hdr-in">
+    <a class="brand" href="/" aria-label="DumpStation home"><img src="/assets/logo.svg" alt="" width="24" height="24" />DumpStation</a>
+    <nav class="nav" aria-label="Primary">
+      <a href="#product">Product</a>
+      <a href="#agents">Agents</a>
+      <a href="#deploy">Self-host</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="/docs/">Docs</a>
+    </nav>
+    <div class="hdr-act">
+      <a class="gh-stars" href="https://github.com/monzim/DumpStation" rel="noopener" aria-label="DumpStation on GitHub"><svg><use href="#i-gh"/></svg><span>GitHub</span><span class="dim" data-stars hidden></span></a>
+      <a class="btn btn-accent btn-sm" href="/docs/#quick-start">Get started</a>
+      <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mnav" data-menu><svg><use href="#i-menu"/></svg></button>
+    </div>
+  </div>
+</header>
+<nav class="mnav" id="mnav" aria-label="Mobile">
+  <a href="#product">Product</a>
+  <a href="#agents">Agents</a>
+  <a href="#deploy">Self-host</a>
+  <a href="#roadmap">Roadmap</a>
+  <a href="/docs/">Docs</a>
+  <a href="/demo/">Live demo</a>
+  <a class="btn btn-accent" href="/docs/#quick-start">Get started</a>
+</nav>
+
+<main id="main">
+
+<!-- ================= Hero ================= -->
+<section class="hero">
+  <div class="wrap">
+    <h1 class="h1 rise">PostgreSQL backups<br /><span class="mute">you can actually restore.</span></h1>
+    <p class="hero-sub rise d1">Scheduled <span class="mono">pg_dump</span> to any S3 bucket. Verified on upload, restorable in a few clicks, even for databases behind your firewall. Self-hosted and open source.</p>
+    <div class="hero-cta rise d2">
+      <a class="btn btn-light" href="/docs/#quick-start">Deploy in 5 minutes</a>
+      <a class="btn btn-ghost" href="/demo/" target="_blank" rel="noopener">Open live demo <svg><use href="#i-ext"/></svg></a>
+    </div>
+  </div>
+
+  <div class="stage stage-hero rise d3">
+    <div class="stage-bg" aria-hidden="true"></div>
+    <div class="wrap">
+      <figure class="win win-live" data-live>
+        <div class="win-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="url">backups.acme.dev</span>
+          <span class="live-tag"><i></i>Live demo · click around</span>
+          <a class="win-open" href="/demo/" target="_blank" rel="noopener">Full screen <svg><use href="#i-ext"/></svg></a>
+        </div>
+        <div class="win-body">
+          <img class="poster" src="/assets/ui/overview.webp" srcset="/assets/ui/overview.webp 1280w, /assets/ui/overview@2x.webp 2560w" sizes="(min-width: 1240px) 1180px, 100vw" width="1280" height="800" alt="DumpStation overview with protected databases, failed backups, success rate, running jobs, agents and storage used" fetchpriority="high" />
+          <button class="poster-play" type="button" data-live-start hidden><span>Try the live demo</span></button>
+        </div>
+        <figcaption class="sr">The real DumpStation interface running against sample data in your browser.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Works with ================= -->
+<section class="logos" aria-label="Works with">
+  <div class="wrap logos-in">
+    <span>PostgreSQL 12–18</span><span>AWS S3</span><span>Cloudflare R2</span><span>MinIO</span><span>Backblaze B2</span><span>Docker</span><span>Kubernetes</span><span>Discord</span><span>Telegram</span>
+  </div>
+</section>
+
+<!-- ================= Problem ================= -->
+<section class="sec" id="product">
+  <div class="wrap">
+    <h2 class="h2 reveal">Most backups are tested on the worst day of the year.<br /><span class="mute">DumpStation tests them every night.</span></h2>
+    <div class="trio reveal">
+      <article>
+        <div class="shot-crop"><img src="/assets/ui/q-lifecycle.webp" srcset="/assets/ui/q-lifecycle.webp 560w, /assets/ui/q-lifecycle@2x.webp 1120w" sizes="(min-width: 880px) 370px, 100vw" width="560" height="350" loading="lazy" decoding="async" alt="Backup lifecycle: queued and preparing done, creating backup in progress" /></div>
+        <h3>Did last night's dump finish?</h3>
+        <p>Every job has stages, a live log and a typed error when it fails.</p>
+      </article>
+      <article>
+        <div class="shot-crop"><img src="/assets/ui/q-health.webp" srcset="/assets/ui/q-health.webp 560w, /assets/ui/q-health@2x.webp 1120w" sizes="(min-width: 880px) 370px, 100vw" width="560" height="350" loading="lazy" decoding="async" alt="Databases with health badges: healthy, failing and paused" /></div>
+        <h3>Which database is quietly failing?</h3>
+        <p>Health, last success and next run for every database on one page.</p>
+      </article>
+      <article>
+        <div class="shot-crop"><img src="/assets/ui/q-restore.webp" srcset="/assets/ui/q-restore.webp 560w, /assets/ui/q-restore@2x.webp 1120w" sizes="(min-width: 880px) 370px, 100vw" width="560" height="350" loading="lazy" decoding="async" alt="Restore wizard showing the source backup and its steps" /></div>
+        <h3>Can anyone restore it at 3 a.m.?</h3>
+        <p>A guided restore that checks the checksum and asks you to type the name.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Walkthrough ================= -->
+<section class="sec sec-flush">
+  <div class="wrap">
+    <div class="row reveal">
+      <div class="row-copy">
+        <span class="num">01</span>
+        <h2 class="h3">Every database on its own clock</h2>
+        <p>Cron or presets, in the database's own time zone, with a preview of the next runs. Missed runs are detected and reported.</p>
+        <a class="more" href="/docs/#schedules">Schedules &amp; retention <svg><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="stage stage-sm"><div class="stage-bg v2" aria-hidden="true"></div>
+        <figure class="win"><div class="win-bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="url">/schedules</span></div>
+          <img src="/assets/ui/schedules.webp" srcset="/assets/ui/schedules.webp 1280w, /assets/ui/schedules@2x.webp 2560w" sizes="(min-width: 1000px) 680px, 100vw" width="1280" height="800" loading="lazy" decoding="async" alt="Schedules page listing each database with its cron, time zone, next run and retention" /></figure>
+      </div>
+    </div>
+
+    <div class="row row-rev reveal">
+      <div class="row-copy">
+        <span class="num">02</span>
+        <h2 class="h3">Success means it's in the bucket</h2>
+        <p>SHA-256 is computed while dumping and the object's size is checked in storage before a backup is marked successful.</p>
+        <a class="more" href="/docs/#first-backup">Your first backup <svg><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="stage stage-sm"><div class="stage-bg v3" aria-hidden="true"></div>
+        <figure class="win"><div class="win-bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="url">/backups/gentle-canyon-20261127</span></div>
+          <img src="/assets/ui/job-live.webp" srcset="/assets/ui/job-live.webp 1280w, /assets/ui/job-live@2x.webp 2560w" sizes="(min-width: 1000px) 680px, 100vw" width="1280" height="800" loading="lazy" decoding="async" alt="A running backup with its lifecycle stages, details and execution log" /></figure>
+      </div>
+    </div>
+
+    <div class="row reveal">
+      <div class="row-copy">
+        <span class="num">03</span>
+        <h2 class="h3">Restores you can rehearse</h2>
+        <p>Into the original database, another one or a scratch target. Directly or through an agent, with <span class="mono">--clean</span> behind a typed confirmation.</p>
+        <a class="more" href="/docs/#restore">Restoring <svg><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="stage stage-sm"><div class="stage-bg v4" aria-hidden="true"></div>
+        <figure class="win"><div class="win-bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="url">/backups/…/restore</span></div>
+          <img src="/assets/ui/restore.webp" srcset="/assets/ui/restore.webp 1280w, /assets/ui/restore@2x.webp 2560w" sizes="(min-width: 1000px) 680px, 100vw" width="1280" height="800" loading="lazy" decoding="async" alt="Restore wizard: backup, destination, options, validate and review steps" /></figure>
+      </div>
+    </div>
+
+    <div class="row row-rev reveal" id="agents">
+      <div class="row-copy">
+        <span class="num">04</span>
+        <h2 class="h3">Reach the databases you can't</h2>
+        <p>Run one small agent next to a private database. It dials out over HTTPS: no inbound ports, no VPN, and the password never leaves that host.</p>
+        <div class="cmd">
+          <code id="cmd-agent">docker run -d ghcr.io/monzim/dumpstation-agent</code>
+          <button class="copy" type="button" data-copy="#cmd-agent" aria-label="Copy command"><svg><use href="#i-copy"/></svg></button>
+        </div>
+        <a class="more" href="/docs/#agents">How agents work <svg><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="stage stage-sm"><div class="stage-bg v1" aria-hidden="true"></div>
+        <figure class="win"><div class="win-bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="url">/agents/new</span></div>
+          <img src="/assets/ui/enroll.webp" srcset="/assets/ui/enroll.webp 1280w, /assets/ui/enroll@2x.webp 2560w" sizes="(min-width: 1000px) 680px, 100vw" width="1280" height="800" loading="lazy" decoding="async" alt="Add agent wizard showing a single-use enrollment token and a docker run command" /></figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Everything else ================= -->
+<section class="sec">
+  <div class="wrap">
+    <div class="sec-hd reveal">
+      <h2 class="h2">Everything you need to sleep through the night</h2>
+      <a class="btn btn-ghost btn-sm" href="/docs/">Read the docs</a>
+    </div>
+    <div class="bento reveal">
+      <article>
+        <div class="b-img"><img src="/assets/ui/notifications-crop.webp" srcset="/assets/ui/notifications-crop.webp 1008w, /assets/ui/notifications-crop@2x.webp 2016w" sizes="(min-width: 980px) 360px, 100vw" width="1008" height="560" loading="lazy" decoding="async" alt="Notification channels for Discord and Telegram" /></div>
+        <h3>Alerts that explain</h3>
+        <p>Discord and Telegram per database, with the error code and the stage it failed at.</p>
+      </article>
+      <article>
+        <div class="b-img"><img src="/assets/ui/system-crop.webp" srcset="/assets/ui/system-crop.webp 1008w, /assets/ui/system-crop@2x.webp 2016w" sizes="(min-width: 980px) 360px, 100vw" width="1008" height="560" loading="lazy" decoding="async" alt="System health: server version, PostgreSQL clients 12 to 18, metadata database" /></div>
+        <h3>Right pg_dump, every time</h3>
+        <p>Clients 12 through 18 are bundled and matched to each server's version.</p>
+      </article>
+      <article>
+        <div class="b-img"><img src="/assets/ui/activity-crop.webp" srcset="/assets/ui/activity-crop.webp 1008w, /assets/ui/activity-crop@2x.webp 2016w" sizes="(min-width: 980px) 360px, 100vw" width="1008" height="560" loading="lazy" decoding="async" alt="Activity log of sign-ins, backups, restores and agent events" /></div>
+        <h3>An audit trail</h3>
+        <p>Sign-ins, configuration changes, backups, restores and agent events, kept 60 days.</p>
+      </article>
+    </div>
+    <ul class="mini reveal">
+      <li><svg><use href="#i-layers"/></svg><div><b>Safe retention</b><span>The newest good backup always survives.</span></div></li>
+      <li><svg><use href="#i-lock"/></svg><div><b>Encrypted secrets</b><span>AES-256-GCM under your own key.</span></div></li>
+      <li><svg><use href="#i-key"/></svg><div><b>2FA and roles</b><span>Passwordless sign-in, TOTP, tenant isolation.</span></div></li>
+      <li><svg><use href="#i-dl"/></svg><div><b>Download codes</b><span>Pulling a dump needs a one-time code.</span></div></li>
+      <li><svg><use href="#i-table"/></svg><div><b>DB Explorer</b><span>Tables, rows, roles and ER diagrams.</span></div></li>
+      <li><svg><use href="#i-cmd"/></svg><div><b>Keyboard first</b><span>⌘K for every page and action.</span></div></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= Self-host ================= -->
+<section class="sec" id="deploy">
+  <div class="wrap">
+    <div class="sec-hd reveal"><h2 class="h2">Free, self-hosted, yours.<br /><span class="mute">Running in five minutes.</span></h2></div>
+    <div class="deploy reveal">
+      <div class="plan">
+        <div class="plan-hd"><span class="eyebrow">Self-hosted</span><span class="price">Free <small>MIT licensed</small></span></div>
+        <p>One Docker image runs the server, API and UI. Backups land in your bucket as plain <span class="mono">pg_dump</span> files you can restore with or without DumpStation.</p>
+        <ul class="ticks">
+          <li><svg><use href="#i-check"/></svg>Unlimited databases, agents and storage</li>
+          <li><svg><use href="#i-check"/></svg>Docker Compose, Kubernetes or a binary</li>
+          <li><svg><use href="#i-check"/></svg>Linux amd64 and arm64</li>
+          <li><svg><use href="#i-check"/></svg>No telemetry, no account</li>
+        </ul>
+        <label class="field"><span>Your domain</span><input class="input" value="backups.example.com" autocomplete="off" spellcheck="false" data-domain aria-describedby="domain-hint" /></label>
+        <p class="hint" id="domain-hint">Commands on the right update as you type. Secrets are generated in your browser.</p>
+      </div>
+      <div class="code">
+        <div class="code-hd">
+          <div class="code-tabs" role="tablist" aria-label="Setup steps" data-deploy-tabs></div>
+          <button class="copy" type="button" data-copy-active><svg><use href="#i-copy"/></svg><span>Copy</span></button>
+        </div>
+        <div data-deploy-panes></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= Roadmap ================= -->
+<section class="sec" id="roadmap">
+  <div class="wrap">
+    <div class="sec-hd reveal"><h2 class="h2">Built in the open</h2><a class="btn btn-ghost btn-sm" href="https://github.com/monzim/DumpStation/blob/main/ROADMAP.md" rel="noopener">Full roadmap</a></div>
+    <ol class="timeline reveal">
+      <li class="done"><span class="when">Shipped</span><b>v2.0 · Agents</b><p>Outbound-only workers, enrollment tokens and restores through agents.</p></li>
+      <li class="done"><span class="when">Shipped</span><b>v2.0 · New interface</b><p>Rebuilt on Astryx with a command menu and pitch-black theme.</p></li>
+      <li><span class="when">Next</span><b>Restore verification</b><p>Scheduled test restores into a scratch database, with a report.</p></li>
+      <li><span class="when">Next</span><b>Metrics</b><p>A Prometheus endpoint and a Grafana dashboard.</p></li>
+      <li><span class="when">Later</span><b>Client-side encryption</b><p>Encrypt artifacts before they leave the machine.</p></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ================= Maker ================= -->
+<section class="sec" id="maker">
+  <div class="wrap maker reveal">
+    <div class="maker-art">
+      <img src="/assets/me/azraf-illustration-720.webp" srcset="/assets/me/azraf-illustration-720.webp 720w, /assets/me/azraf-illustration-1254.webp 1254w" sizes="(min-width: 900px) 480px, 100vw" width="720" height="720" loading="lazy" decoding="async" alt="Illustration of Azraf Al Monzim working on a laptop on a rooftop with a cat in sunglasses" />
+    </div>
+    <div class="maker-copy">
+      <span class="eyebrow">Who's behind it</span>
+      <h2 class="h2">Built by Azraf Al Monzim</h2>
+      <p>I'm a platform engineer in Dhaka, working on distributed systems, cloud infrastructure and developer tools. I build DumpStation in the open because a backup only counts if someone can restore it.</p>
+      <div class="who">
+        <img src="/assets/me/azraf-160.webp" srcset="/assets/me/azraf-160.webp 1x, /assets/me/azraf-320.webp 2x" width="48" height="48" alt="Azraf Al Monzim" loading="lazy" />
+        <div><b>Azraf Al Monzim</b><span>Platform Engineer · Dhaka</span></div>
+      </div>
+      <div class="links">
+        <a class="btn btn-light btn-sm" href="https://monzim.com/" rel="author noopener"><svg><use href="#i-globe"/></svg>monzim.com</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/monzim" rel="me noopener"><svg><use href="#i-gh"/></svg>GitHub</a>
+        <a class="btn btn-ghost btn-sm" href="https://www.linkedin.com/in/monzim" rel="me noopener"><svg><use href="#i-in"/></svg>LinkedIn</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section class="sec" id="faq">
+  <div class="wrap faq-wrap">
+    <h2 class="h2 reveal">Questions</h2>
+    <div class="faq reveal">
+      <details><summary>Is it free?</summary><div><p>Yes. MIT licensed and fully self-hosted. You pay only for your server and your storage.</p></div></details>
+      <details><summary>What does a backup contain?</summary><div><p>A <code>pg_dump</code> custom-format archive of one database. It restores with plain <code>pg_restore</code>, with or without DumpStation.</p></div></details>
+      <details><summary>Which PostgreSQL versions work?</summary><div><p>12 through 18. Every client version is bundled and the right one is picked for each server.</p></div></details>
+      <details><summary>Do agents need a VPN or open ports?</summary><div><p>No. Agents only make outbound HTTPS requests to your server. Database passwords can stay on the agent host.</p></div></details>
+      <details><summary>Can I upgrade from v1?</summary><div><p>Yes. Pull the v2 image and recreate the container; migrations run on start. See the <a href="/docs/#upgrading">upgrade guide</a>.</p></div></details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CTA ================= -->
+<section class="end">
+  <div class="end-bg" aria-hidden="true"></div>
+  <div class="wrap end-in reveal">
+    <h2 class="h2">Make your next restore boring.</h2>
+    <div class="hero-cta">
+      <a class="btn btn-light" href="/docs/#quick-start">Read the install guide</a>
+      <a class="btn btn-ghost" href="https://github.com/monzim/DumpStation" rel="noopener"><svg><use href="#i-gh"/></svg>Star on GitHub</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="ftr">
+  <div class="wrap">
+    <div class="ftr-grid">
+      <div class="ftr-brand">
+        <a class="brand" href="/"><img src="/assets/logo.svg" alt="" width="22" height="22" />DumpStation</a>
+        <p>Self-hosted PostgreSQL backups. Made in Dhaka by <a href="https://monzim.com/" rel="author">Azraf Al Monzim</a>.</p>
+      </div>
+      <div><h4>Product</h4><ul><li><a href="/demo/">Live demo</a></li><li><a href="#agents">Agents</a></li><li><a href="#roadmap">Roadmap</a></li><li><a href="https://github.com/monzim/DumpStation/releases" rel="noopener">Releases</a></li></ul></div>
+      <div><h4>Docs</h4><ul><li><a href="/docs/#quick-start">Quick start</a></li><li><a href="/docs/#compose">Docker Compose</a></li><li><a href="/docs/#configuration">Configuration</a></li><li><a href="/docs/#troubleshooting">Troubleshooting</a></li></ul></div>
+      <div><h4>Project</h4><ul><li><a href="https://github.com/monzim/DumpStation" rel="noopener">GitHub</a></li><li><a href="https://github.com/monzim/DumpStation/issues" rel="noopener">Issues</a></li><li><a href="https://github.com/monzim/DumpStation/blob/main/LICENSE" rel="noopener">MIT License</a></li><li><a href="https://monzim.com/" rel="author">monzim.com</a></li></ul></div>
+    </div>
+    <div class="ftr-mark" aria-hidden="true">DumpStation</div>
+    <div class="ftr-bottom"><span>© <span data-year>2026</span> Azraf Al Monzim</span><span>Open source under the MIT License</span></div>
+  </div>
+</footer>
+
+<div class="toast" role="status" aria-live="polite" data-toast></div>
+<script src="/assets/site.js" defer></script>
+<script src="/assets/home.js" defer></script>
+</body>
+</html>

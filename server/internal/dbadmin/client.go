@@ -42,9 +42,33 @@ type Client struct {
 	db   *sql.DB
 }
 
+// HostPolicy, when set, validates the target host and returns the IP the
+// connection is pinned to (the server's DIRECT_ALLOWED_CIDRS policy).
+var HostPolicy func(host string) (string, error)
+
+func applyPolicy(opts Options) (Options, error) {
+	if HostPolicy == nil {
+		return opts, nil
+	}
+	ip, err := HostPolicy(opts.Host)
+	if err != nil {
+		return opts, err
+	}
+	if ip != "" {
+		// The admin explorer's ssl modes (require/prefer/disable) do not
+		// verify the server name, so connecting by IP is equivalent.
+		opts.Host = ip
+	}
+	return opts, nil
+}
+
 // New opens a small connection pool to the given target and pings it. Callers
 // must Close the client to release the pool.
 func New(opts Options) (*Client, error) {
+	opts, err := applyPolicy(opts)
+	if err != nil {
+		return nil, err
+	}
 	if opts.DBName == "" {
 		opts.DBName = MaintenanceDB
 	}
@@ -97,6 +121,10 @@ type TestResult struct {
 // latency. The caller's preferred SSLMode (if non-empty) is tried first and
 // its outcome short-circuits the ladder.
 func TryConnect(ctx context.Context, opts Options) (TestResult, error) {
+	opts, err := applyPolicy(opts)
+	if err != nil {
+		return TestResult{}, err
+	}
 	if opts.DBName == "" {
 		opts.DBName = MaintenanceDB
 	}

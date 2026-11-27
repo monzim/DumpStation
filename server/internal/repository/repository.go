@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"time"
 
@@ -195,16 +196,22 @@ func (r *Repository) CreatePurposeOTP(userID uuid.UUID, otpCode string, purpose 
 // VerifyPurposeOTP validates an OTP that was issued with CreatePurposeOTP.
 // Lookup is keyed by the OTP id (handed back at issue time) so download
 // codes from different backups never collide, even within the same user.
-func (r *Repository) VerifyPurposeOTP(otpID uuid.UUID, userID uuid.UUID, code string, purpose models.OTPPurpose) (OTPVerifyResult, error) {
+func (r *Repository) VerifyPurposeOTP(otpID uuid.UUID, userID uuid.UUID, code string, purpose models.OTPPurpose, entityID *uuid.UUID) (OTPVerifyResult, error) {
 	now := time.Now()
 	var result OTPVerifyResult
 
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var token models.OTPToken
-		err := tx.Where(
+		q := tx.Where(
 			"id = ? AND user_id = ? AND purpose = ? AND used = ? AND expires_at > ?",
 			otpID, userID, purpose, false, now,
-		).First(&token).Error
+		)
+		// Purpose OTPs are bound to the entity they were issued for (e.g. one
+		// backup), so a code for backup A cannot unlock backup B.
+		if entityID != nil {
+			q = q.Where("entity_id = ?", *entityID)
+		}
+		err := q.First(&token).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return nil
@@ -218,7 +225,7 @@ func (r *Repository) VerifyPurposeOTP(otpID uuid.UUID, userID uuid.UUID, code st
 			return nil
 		}
 
-		if token.OTPCode == code {
+		if subtle.ConstantTimeCompare([]byte(token.OTPCode), []byte(code)) == 1 {
 			if err := tx.Model(&models.OTPToken{}).
 				Where("id = ?", token.ID).
 				Updates(map[string]any{
@@ -1250,9 +1257,7 @@ func (r *Repository) CreateRestoreJob(backupID uuid.UUID, req *models.RestoreReq
 		if req.TargetUser != "" {
 			job.TargetUser = &req.TargetUser
 		}
-		if req.TargetPassword != "" {
-			job.TargetPassword = &req.TargetPassword
-		}
+		job.TargetPassword = req.TargetPassword
 	}
 
 	result := r.db.Create(job)

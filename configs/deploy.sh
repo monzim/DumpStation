@@ -78,7 +78,7 @@ check_env_file() {
             print_warning "Required values:"
             echo "   - POSTGRES_PASSWORD"
             echo "   - JWT_SECRET"
-            echo "   - DISCORD_WEBHOOK_URL"
+            echo "   - DUMPSTATION_SECRET_KEY"
             echo ""
             read -p "Press Enter when you've configured the .env file..."
         else
@@ -110,9 +110,9 @@ validate_env() {
         errors=$((errors + 1))
     fi
     
-    # Check DISCORD_WEBHOOK_URL
-    if [ -z "$DISCORD_WEBHOOK_URL" ] || [[ "$DISCORD_WEBHOOK_URL" =~ "YOUR_WEBHOOK" ]]; then
-        print_error "DISCORD_WEBHOOK_URL is not set or using placeholder value"
+    # Check DUMPSTATION_SECRET_KEY
+    if [ -z "$DUMPSTATION_SECRET_KEY" ] || [[ "$DUMPSTATION_SECRET_KEY" =~ "CHANGE_ME" ]]; then
+        print_error "DUMPSTATION_SECRET_KEY is not set (openssl rand -base64 32)"
         errors=$((errors + 1))
     fi
     
@@ -149,7 +149,7 @@ check_health() {
         attempt=$((attempt + 1))
         
         # Check if backend is healthy
-        if docker compose -f "$COMPOSE_FILE" ps | grep -q "dumpstation_backend.*healthy"; then
+        if docker compose -f "$COMPOSE_FILE" ps | grep -q "dumpstation.*healthy"; then
             print_success "All services are healthy!"
             return 0
         fi
@@ -175,8 +175,8 @@ show_status() {
 show_access_info() {
     source "$ENV_FILE"
     
-    BACKEND_PORT=${BACKEND_PORT:-8080}
-    WEB_PORT=${WEB_PORT:-3000}
+    BACKEND_PORT=${DUMPSTATION_PORT:-8080}
+    WEB_PORT=${DUMPSTATION_PORT:-8080}
     
     echo ""
     echo "============================================"
@@ -198,8 +198,8 @@ show_access_info() {
     echo ""
     echo "🔐 Next Steps:"
     echo "   1. Open http://localhost:$WEB_PORT in your browser"
-    echo "   2. Click 'Login with Discord'"
-    echo "   3. Check your Discord channel for the OTP code"
+    echo "   2. Sign in with GitHub, or with SYSTEM_USERNAME (code via Discord webhook or the server log)"
+    echo "   3. Add storage, then your first database"
     echo "   4. Start adding your databases!"
     echo ""
     echo "📚 Documentation:"
@@ -211,7 +211,7 @@ show_access_info() {
     echo "   - Configure proper firewall rules"
     echo "   - Set up regular backups of postgres_data volume"
     echo "   - Monitor container logs and resource usage"
-    echo "   - Update CORS_ALLOWED_ORIGINS to your actual domain"
+    echo "   - Set PUBLIC_URL to the HTTPS URL agents and browsers use"
     echo ""
 }
 

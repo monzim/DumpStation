@@ -1,0 +1,19 @@
+# DumpStation
+
+> Open-source, self-hosted PostgreSQL backup manager. One Go server with a built-in web UI schedules pg_dump, uploads each artifact to S3-compatible storage (AWS S3, Cloudflare R2, MinIO, Backblaze B2 and others), verifies it with SHA-256 and a size check, applies retention, sends Discord or Telegram alerts, and restores through a guided wizard. Outbound-only agents back up databases in private networks without inbound ports or a VPN. MIT licensed. Built by Azraf Al Monzim (https://monzim.com/).
+
+## Docs
+
+- [Quick start](https://dumpstation.monzim.com/docs/#quick-start): Docker Compose install in about five minutes
+- [Docker Compose file](https://dumpstation.monzim.com/docs/#compose)
+- [Environment variables](https://dumpstation.monzim.com/docs/#configuration)
+- [Reverse proxy and TLS](https://dumpstation.monzim.com/docs/#reverse-proxy): Caddy, nginx, Traefik
+- [Agents](https://dumpstation.monzim.com/docs/#agents): install with Docker, Compose, Kubernetes or systemd
+- [Troubleshooting](https://dumpstation.monzim.com/docs/#troubleshooting): every error code and its fix
+- [Upgrading from v1](https://dumpstation.monzim.com/docs/#upgrading)
+
+## Links
+
+- [Source code](https://github.com/monzim/DumpStation)
+- [Live demo](https://dumpstation.monzim.com/demo/): the real UI with sample data, running in the browser
+- [Roadmap](https://github.com/monzim/DumpStation/blob/main/ROADMAP.md)

@@ -1,0 +1,4 @@
+node_modules/
+.wrangler/
+# built from ../web by `npm run build`
+public/demo/

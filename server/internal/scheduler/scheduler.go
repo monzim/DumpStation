@@ -1,129 +1,135 @@
+// Package scheduler fires scheduled backups. The scheduler only decides
+// *when* a backup should exist; the jobs orchestrator decides where it runs
+// (directly on the server or on an agent).
 package scheduler
 
 import (
+	"errors"
 	"log"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/monzim/db_proxy/v1/internal/backup"
+	"github.com/monzim/db_proxy/v1/internal/jobs"
 	"github.com/monzim/db_proxy/v1/internal/models"
 	"github.com/monzim/db_proxy/v1/internal/repository"
 	"github.com/robfig/cron/v3"
 )
 
-// Scheduler manages scheduled backups. jobMap is guarded by mu because
-// configuration changes from the API can race with cron-fired callbacks.
+// Scheduler manages cron entries per database.
 type Scheduler struct {
-	mu        sync.Mutex
-	cron      *cron.Cron
-	repo      *repository.Repository
-	backupSvc *backup.Service
-	jobMap    map[uuid.UUID]cron.EntryID // Maps database ID to cron entry ID
+	mu     sync.Mutex
+	cron   *cron.Cron
+	repo   *repository.Repository
+	orch   *jobs.Orchestrator
+	jobMap map[uuid.UUID]cron.EntryID
 }
 
-// NewScheduler creates a new scheduler
-func NewScheduler(repo *repository.Repository, backupSvc *backup.Service) *Scheduler {
+// NewScheduler creates a scheduler.
+func NewScheduler(repo *repository.Repository, orch *jobs.Orchestrator) *Scheduler {
 	return &Scheduler{
-		cron:      cron.New(),
-		repo:      repo,
-		backupSvc: backupSvc,
-		jobMap:    make(map[uuid.UUID]cron.EntryID),
+		cron:   cron.New(cron.WithChain(cron.Recover(cron.DefaultLogger))),
+		repo:   repo,
+		orch:   orch,
+		jobMap: make(map[uuid.UUID]cron.EntryID),
 	}
 }
 
-// Start starts the scheduler and loads all database configurations
+// Start loads every enabled database and starts the cron runner.
 func (s *Scheduler) Start() error {
-	log.Println("Starting backup scheduler...")
-
-	// Load all database configurations
 	configs, err := s.repo.ListDatabaseConfigs()
 	if err != nil {
 		return err
 	}
-
-	// Schedule each database
-	for _, config := range configs {
-		if config.Enabled && !config.Paused {
-			if err := s.AddJob(config); err != nil {
-				log.Printf("Failed to schedule backup for %s: %v", config.Name, err)
-			}
+	for _, c := range configs {
+		if err := s.AddJob(c); err != nil {
+			log.Printf("[scheduler] %s: %v", c.Name, err)
 		}
 	}
-
 	s.cron.Start()
-	log.Printf("Scheduler started with %d active jobs", len(s.jobMap))
-
+	log.Printf("[scheduler] started with %d active schedules", len(s.jobMap))
 	return nil
 }
 
-// Stop stops the scheduler
-func (s *Scheduler) Stop() {
-	log.Println("Stopping backup scheduler...")
-	s.cron.Stop()
-}
+// Stop stops firing new jobs.
+func (s *Scheduler) Stop() { <-s.cron.Stop().Done() }
 
-// AddJob adds a new backup job to the scheduler
+// AddJob (re)registers the schedule for a database.
 func (s *Scheduler) AddJob(config *models.DatabaseConfig) error {
-	// Remove existing job if any
 	s.RemoveJob(config.ID)
-
 	if !config.Enabled || config.Paused {
 		return nil
 	}
-
-	// Capture config in closure
-	dbConfig := config
-
-	entryID, err := s.cron.AddFunc(config.Schedule, func() {
-		runJobWithRecover(dbConfig.Name, func() error {
-			log.Printf("Executing scheduled backup for: %s", dbConfig.Name)
-			return s.backupSvc.ExecuteBackup(dbConfig)
-		})
-	})
-
+	sched, err := jobs.ParseSchedule(config.Schedule, config.Timezone)
 	if err != nil {
 		return err
 	}
-
+	dbID := config.ID
+	entryID := s.cron.Schedule(sched, cron.FuncJob(func() {
+		runJobWithRecover(dbID.String(), func() error { return s.fire(dbID) })
+	}))
 	s.mu.Lock()
 	s.jobMap[config.ID] = entryID
 	s.mu.Unlock()
-	log.Printf("Scheduled backup for %s with cron: %s", config.Name, config.Schedule)
-
 	return nil
 }
 
-// RemoveJob removes a backup job from the scheduler
+// fire loads the current configuration (not a stale snapshot) and enqueues.
+func (s *Scheduler) fire(dbID uuid.UUID) error {
+	db, err := s.repo.GetDatabaseConfig(dbID)
+	if err != nil {
+		return err
+	}
+	if db == nil || !db.Enabled || db.Paused {
+		s.RemoveJob(dbID)
+		return nil
+	}
+	_, err = s.orch.EnqueueBackup(db, models.TriggerScheduled, nil)
+	if errors.Is(err, jobs.ErrBackupInProgress) {
+		log.Printf("[scheduler] skipping %s: previous backup still active", db.Name)
+		return nil
+	}
+	return err
+}
+
+// RemoveJob removes a database's schedule.
 func (s *Scheduler) RemoveJob(dbID uuid.UUID) {
 	s.mu.Lock()
 	entryID, exists := s.jobMap[dbID]
-	if exists {
-		delete(s.jobMap, dbID)
-	}
+	delete(s.jobMap, dbID)
 	s.mu.Unlock()
 	if exists {
 		s.cron.Remove(entryID)
-		log.Printf("Removed backup job for database ID: %s", dbID)
 	}
 }
 
-// UpdateJob updates an existing backup job
-func (s *Scheduler) UpdateJob(config *models.DatabaseConfig) error {
-	s.RemoveJob(config.ID)
-	return s.AddJob(config)
+// UpdateJob re-registers a database's schedule.
+func (s *Scheduler) UpdateJob(config *models.DatabaseConfig) error { return s.AddJob(config) }
+
+// NextRun returns the next fire time of a database, if scheduled.
+func (s *Scheduler) NextRun(dbID uuid.UUID) *time.Time {
+	s.mu.Lock()
+	id, ok := s.jobMap[dbID]
+	s.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	e := s.cron.Entry(id)
+	if e.Next.IsZero() {
+		return nil
+	}
+	n := e.Next
+	return &n
 }
 
-// runJobWithRecover runs fn and contains any panic so the calling cron
-// goroutine survives. Without this, a panic in user-supplied backup logic
-// would kill the cron runner and silently stop ALL scheduled jobs.
+// runJobWithRecover runs fn and contains any panic so the cron goroutine survives.
 func runJobWithRecover(name string, fn func() error) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("PANIC in scheduled job %q: %v\n%s", name, r, debug.Stack())
 		}
 	}()
-
 	if err := fn(); err != nil {
 		log.Printf("Scheduled job %q failed: %v", name, err)
 	}

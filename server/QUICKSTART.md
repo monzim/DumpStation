@@ -1,242 +1,122 @@
-# Quick Start Guide
+# Developer quick start
 
-This guide will help you get the PostgreSQL Backup Service up and running in minutes.
+From a clean checkout to a working local server, UI and agent in about ten
+minutes. For production deployment see [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md);
+for details see [README.md](README.md).
 
-## Prerequisites
-
-- Go 1.21+ installed
-- PostgreSQL installed (with `pg_dump` and `psql` tools)
-- Access to AWS S3 or Cloudflare R2
-- Discord webhook URL (optional, for notifications)
-
-## Step 1: Setup Database
-
-Create a PostgreSQL database for the service:
+## 1. Metadata database
 
 ```bash
-createdb backup_service
+docker run -d --name dumpstation-pg -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=backup_service -p 5432:5432 postgres:16-alpine
 ```
 
-## Step 2: Configure Environment
-
-Copy the example environment file and edit it:
+## 2. Server
 
 ```bash
-cp .env.example .env
+cd server
+cat > .env <<EOF
+DB_HOST=localhost
+DB_PASSWORD=postgres
+DB_NAME=backup_service
+JWT_SECRET=dev-only-change-me
+DUMPSTATION_SECRET_KEY=$(openssl rand -base64 32)
+PUBLIC_URL=http://localhost:8080
+SYSTEM_USERNAME=root
+EOF
+set -a && . ./.env && set +a
+go run ./cmd/server
 ```
 
-Edit `.env` and set at minimum:
+Keep the generated `DUMPSTATION_SECRET_KEY`: secrets saved with one key cannot
+be read with another.
+
+Check it: `curl localhost:8080/api/v1/health` → `{"status":"healthy"}`.
+
+## 3. Web UI
+
+Either build it and let the server serve it:
 
 ```bash
-# Database Configuration
-DB_PASSWORD=your_postgres_password
-
-# JWT Configuration (generate a strong secret!)
-JWT_SECRET=$(openssl rand -base64 32)
-
-# Discord Configuration (optional)
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/your_webhook_here
+(cd ../web && pnpm install && pnpm build)
+WEB_DIR=../web/dist go run ./cmd/server      # UI at http://localhost:8080
 ```
 
-## Step 3: Build and Run
-
-### Option A: Using Make (Recommended)
+or run Vite with hot reload (proxies `/api` to the server):
 
 ```bash
-# Download dependencies
-make deps
-
-# Run the service
-make dev
+cd web && pnpm install && pnpm dev           # UI at http://localhost:7511
+# other server address: DUMPSTATION_API=http://host:8080 pnpm dev
 ```
 
-### Option B: Using Go Directly
+## 4. Sign in
+
+Enter `root` on the login page and request a code. With no
+`DISCORD_WEBHOOK_URL` the code is printed by the server:
+
+```
+[WARNING] ⚠️  Discord notifier not configured, OTP not sent: 123456
+```
+
+Or use **Explore the read-only demo** (enabled outside production).
+
+## 5. First backup
+
+1. Start MinIO for storage:
+
+   ```bash
+   docker run -d --name minio -p 9000:9000 -p 9001:9001 \
+     -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio123 \
+     minio/minio server /data --console-address :9001
+   ```
+
+   Create a bucket `backups` in the console (<http://localhost:9001>).
+2. **Storage → Add storage**: provider MinIO, endpoint
+   `http://localhost:9000`, bucket `backups`, keys `minio` / `minio123`.
+   **Test**.
+3. **Databases → Add database**: Direct, host `localhost`, port `5432`,
+   database `backup_service`, user `postgres`, password `postgres`.
+   **Test connection**, save.
+4. **Back up now** and open the backup to watch the execution log.
+
+Local `pg_dump` must be at least as new as the server (16 here). Check
+**System Health → PostgreSQL clients**.
+
+## 6. Agent
+
+1. **Backup Agents → Add agent**, copy the token.
+2. Run it:
+
+   ```bash
+   cd server
+   DUMPSTATION_SERVER_URL=http://localhost:8080 \
+   DUMPSTATION_ENROLLMENT_TOKEN=dse_... \
+   DUMPSTATION_STATE_DIR=$PWD/tmp/agent-state \
+   DUMPSTATION_TEMP_DIR=$PWD/tmp/agent-tmp \
+   DUMPSTATION_CONN_LOCAL='postgres://postgres:postgres@localhost:5432/backup_service?sslmode=disable' \
+   go run ./cmd/agent run
+   ```
+
+3. The wizard shows the agent online. Add a database with execution
+   **Agent**, pick the agent and the `local` connection.
+
+## 7. Tests
 
 ```bash
-# Download dependencies
-go mod download
-
-# Run the service
-source .env
-go run cmd/server/main.go
+cd server
+go vet ./... && go test ./...
+TEST_PG_URL='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable' go test ./internal/pgexec/...
+cd ../web && pnpm typecheck && pnpm test
 ```
-
-### Option C: Using Docker Compose
-
-```bash
-# Start everything with Docker
-docker-compose up -d
-
-# View logs
-docker-compose logs -f backup-service
-```
-
-## Step 4: Authenticate
-
-The service will start on `http://localhost:8080`.
-
-### Get an OTP
-
-```bash
-# Simple - no body required
-curl -X POST http://localhost:8080/api/v1/auth/login
-```
-
-Check your Discord channel for the OTP code (sent via webhook).
-
-### Verify OTP and Get JWT
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/verify \
-  -H "Content-Type: application/json" \
-  -d '{"otp": "123456"}'
-```
-
-Save the JWT token returned in the response.
-
-## Step 5: Configure Your First Backup
-
-Export your JWT token for convenience:
-
-```bash
-export TOKEN="your-jwt-token-here"
-```
-
-### 5.1 Add Storage Configuration
-
-For Cloudflare R2:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/storage \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My R2 Bucket",
-    "provider": "r2",
-    "bucket": "my-backups",
-    "region": "auto",
-    "endpoint": "https://your-account-id.r2.cloudflarestorage.com",
-    "access_key": "your-r2-access-key",
-    "secret_key": "your-r2-secret-key"
-  }'
-```
-
-For AWS S3:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/storage \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My S3 Bucket",
-    "provider": "s3",
-    "bucket": "my-backups",
-    "region": "us-east-1",
-    "access_key": "your-aws-access-key",
-    "secret_key": "your-aws-secret-key"
-  }'
-```
-
-Save the `id` from the response - you'll need it in the next step.
-
-### 5.2 Add Notification Configuration (Optional)
-
-```bash
-curl -X POST http://localhost:8080/api/v1/notifications \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "DevOps Alerts",
-    "discord_webhook_url": "https://discord.com/api/webhooks/your-webhook"
-  }'
-```
-
-Save the `id` from the response.
-
-### 5.3 Configure Database for Backup
-
-```bash
-curl -X POST http://localhost:8080/api/v1/databases \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "My Database",
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "mydb",
-    "user": "postgres",
-    "password": "postgres",
-    "schedule": "0 2 * * *",
-    "storage_id": "storage-id-from-step-5.1",
-    "notification_id": "notification-id-from-step-5.2",
-    "rotation_policy": {
-      "type": "days",
-      "value": 30
-    }
-  }'
-```
-
-The schedule `"0 2 * * *"` means daily at 2:00 AM.
-
-## Step 6: Trigger a Manual Backup (Optional)
-
-Test your configuration with a manual backup:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/databases/{database-id}/backup \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Replace `{database-id}` with the ID from step 5.3.
-
-## Step 7: View Backup History
-
-```bash
-curl -X GET http://localhost:8080/api/v1/databases/{database-id}/backups \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-## Common Cron Schedules
-
-- `"0 2 * * *"` - Daily at 2:00 AM
-- `"0 */6 * * *"` - Every 6 hours
-- `"0 0 * * 0"` - Weekly on Sunday at midnight
-- `"0 3 1 * *"` - Monthly on the 1st at 3:00 AM
-- `"*/30 * * * *"` - Every 30 minutes
-
-## Next Steps
-
-- Review the full [README.md](README.md) for complete documentation
-- Explore the API using the [swag.json](swag.json) OpenAPI specification
-- Set up monitoring using the `/stats` endpoint
-- Configure additional databases for backup
 
 ## Troubleshooting
 
-### "Failed to connect to database"
-- Ensure PostgreSQL is running
-- Check DB_PASSWORD in .env
-- Verify database exists: `psql -l`
+| Problem | Fix |
+| --- | --- |
+| `DUMPSTATION_SECRET_KEY is required` | Add it to `.env` and re-source it |
+| `open secret: ...` | The key changed; restore the old one or recreate the database |
+| `version_mismatch` on backup | Install a newer `postgresql-client` or set `PG_BIN_DIRS` |
+| UI shows network errors under `pnpm dev` | Server not on `localhost:8080`; set `DUMPSTATION_API` |
+| Agent: `enrollment rejected` | Tokens are single-use; issue a new one from the agent page |
 
-### "pg_dump: command not found"
-- Install PostgreSQL client tools
-- macOS: `brew install postgresql`
-- Ubuntu: `apt-get install postgresql-client`
-
-### "OTP not received"
-- Verify DISCORD_WEBHOOK_URL is correct
-- Check Discord webhook permissions
-- Look for service logs for errors
-
-### "Invalid or expired token"
-- Request a new OTP
-- Check JWT_SECRET is set correctly
-- Ensure token hasn't expired (default: 24 hours)
-
-## Getting Help
-
-- Check the logs: `docker-compose logs -f` or view stdout
-- Review the [README.md](README.md)
-- Open an issue on GitHub
-
-Enjoy automated PostgreSQL backups! 🎉
+More in [../docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md).

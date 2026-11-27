@@ -1,537 +1,124 @@
-# 🚀 DumpStation Production Deployment
+# Production Compose bundle
 
-This directory contains production-ready Docker Compose configuration for deploying DumpStation.
+This directory runs DumpStation v2 with Docker Compose: one server container
+(API + web UI) and its PostgreSQL metadata database. Agents for private
+databases are deployed separately, next to those databases; see
+[`../deploy/agent/`](../deploy/agent/) and [docs/AGENTS.md](../docs/AGENTS.md).
 
-## 📦 What's Included
+| File | Purpose |
+| --- | --- |
+| `compose.yml` | Services `postgres` (metadata) and `dumpstation` (`ghcr.io/monzim/dumpstation`) |
+| `.env.example` | Template for `.env` |
+| `deploy.sh` | Interactive first deployment: checks Docker, validates `.env`, pulls, starts |
+| `manage.sh` | Day-2 helper: start/stop/logs/update/backup/restore of the metadata DB |
 
-- **compose.yml** - Production-ready Docker Compose configuration
-- **.env.example** - Environment variable template
-- **deploy.sh** - Automated deployment script
-
-## 🏗️ Architecture
-
-The production setup includes:
+## Layout
 
 ```
-┌─────────────────────────────────────────┐
-│         dumpstation_external             │  (Public Network)
-│  ┌──────────────┐    ┌──────────────┐   │
-│  │   Backend    │    │      Web     │   │
-│  │   :8080      │    │     :3000    │   │
-│  └──────┬───────┘    └──────────────┘   │
-└─────────┼──────────────────────────────┘
-          │
-┌─────────┼──────────────────────────────┐
-│         │  dumpstation_internal         │  (Internal Network)
-│  ┌──────┴───────┐                       │
-│  │  PostgreSQL  │                       │
-│  │    :5432     │                       │
-│  └──────────────┘                       │
-└──────────────────────────────────────────┘
+            dumpstation_external                     dumpstation_internal (internal: true)
+ :8080 ──▶ ┌─────────────────────────────┐          ┌──────────────────────┐
+           │ dumpstation                 │ ───────▶ │ postgres:16-alpine   │
+           │  UI + /api/v1 + /agent/v1   │          │ volume: dumpstation_ │
+           │  volume: dumpstation_       │          │   postgres_data      │
+           │    backup_tmp (/tmp/...)    │          └──────────────────────┘
+           └─────────────────────────────┘
 ```
 
-### Services
+The metadata database is not reachable from outside the Compose project.
+Only the server publishes a port (`${DUMPSTATION_PORT:-8080}`); put a TLS
+reverse proxy in front of it ([docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md#reverse-proxy)).
 
-1. **PostgreSQL** (Internal Database)
-
-   - Image: `postgres:15-alpine`
-   - Purpose: Stores DumpStation's internal data
-   - Network: Internal only (not exposed to internet)
-   - Volume: `postgres_data` for persistence
-
-2. **Backend API** (DumpStation Server)
-
-   - Image: `ghcr.io/monzim/dumpstation:latest`
-   - Port: `8080` (configurable)
-   - Networks: Both internal (DB access) and external (API access)
-   - Features: JWT auth, Discord integration, backup management
-
-3. **Web Frontend** (React UI)
-
-   - Image: `ghcr.io/monzim/dumpstation/web:latest`
-   - Port: `3000` (configurable)
-   - Network: External only
-   - Features: Modern UI, responsive design, real-time updates
-
-4. **MinIO** (Optional, commented out)
-   - Purpose: Local S3-compatible storage for testing
-   - Ports: `9000` (API), `9001` (Console)
-   - Uncomment in compose.yml to enable
-
-### Networks
-
-- **dumpstation_internal** (`172.20.0.0/16`)
-
-  - Internal-only network for backend ↔ database communication
-  - Not exposed to external traffic
-  - Enhanced security
-
-- **dumpstation_external** (`172.21.0.0/16`)
-  - External network for public-facing services
-  - Backend API and Web frontend
-  - Connected to host ports
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Docker 20.10+ and Docker Compose 2.0+
-- Discord webhook URL ([Create one](https://support.discord.com/hc/en-us/articles/228383668))
-- (Optional) Domain name with SSL certificate for production
-
-### Option 1: Automated Deployment (Recommended)
+## First start
 
 ```bash
-cd configs
-./deploy.sh
-```
-
-The script will:
-
-1. Check Docker installation
-2. Create `.env` from template if needed
-3. Validate environment variables
-4. Pull latest images
-5. Start all services
-6. Wait for health checks
-7. Display access information
-
-### Option 2: Manual Deployment
-
-```bash
-# 1. Create environment file
-cd configs
 cp .env.example .env
+```
 
-# 2. Edit configuration (REQUIRED)
-nano .env
-# Set at minimum:
-# - POSTGRES_PASSWORD
-# - JWT_SECRET
-# - DISCORD_WEBHOOK_URL
+Required in `.env`:
 
-# 3. Pull latest images
-docker compose pull
+| Variable | How to generate |
+| --- | --- |
+| `POSTGRES_PASSWORD` | `openssl rand -base64 24` |
+| `JWT_SECRET` | `openssl rand -base64 64` |
+| `DUMPSTATION_SECRET_KEY` | `openssl rand -base64 32`. Encrypts stored secrets; back it up, never change it |
+| `PUBLIC_URL` | The URL users and agents reach, e.g. `https://backups.example.com` |
+| `SYSTEM_USERNAME` / `SYSTEM_EMAIL` | The initial administrator you sign in as |
 
-# 4. Start services
+Then either `./deploy.sh` or:
+
+```bash
 docker compose up -d
-
-# 5. Check status
-docker compose ps
-
-# 6. View logs
-docker compose logs -f
+docker compose logs -f dumpstation
 ```
 
-## ⚠️ Important Configuration Notes
-
-> **🔴 CRITICAL: Update These Variables for Your Setup**
->
-> Before deploying to production, you **MUST** update the following variables according to your actual setup:
->
-> 1. **`CORS_ALLOWED_ORIGINS`** - Update this in your `.env` file to match your frontend domain(s)
->
->    ```bash
->    # ❌ Don't use wildcard in production
->    CORS_ALLOWED_ORIGINS=*
->
->    # ✅ Use your actual domain(s)
->    CORS_ALLOWED_ORIGINS=https://dumpstation.yourdomain.com,https://www.yourdomain.com
->    ```
->
-> 2. **`VITE_API_BASE_URL`** - Update this in your `.env` file to point to your backend API
->
->    ```bash
->    # ❌ Don't use localhost in production
->    VITE_API_BASE_URL=http://localhost:8080
->
->    # ✅ Use your actual API domain
->    VITE_API_BASE_URL=https://api.yourdomain.com
->    ```
->
-> **Failure to update these values will result in:**
->
-> - CORS errors preventing frontend-backend communication
-> - API calls pointing to wrong/unreachable endpoints
-> - Security vulnerabilities from overly permissive CORS settings
-
-## ⚙️ Configuration
-
-### Required Environment Variables
-
-| Variable              | Description                            | Example                                |
-| --------------------- | -------------------------------------- | -------------------------------------- |
-| `POSTGRES_PASSWORD`   | PostgreSQL database password           | `MySecurePass123!`                     |
-| `JWT_SECRET`          | Secret for signing JWT tokens          | `openssl rand -base64 64`              |
-| `DISCORD_WEBHOOK_URL` | Discord webhook for auth/notifications | `https://discord.com/api/webhooks/...` |
-
-### Optional Environment Variables
-
-| Variable                 | Default     | Description                      |
-| ------------------------ | ----------- | -------------------------------- |
-| `BACKEND_PORT`           | `8080`      | Backend API port (external)      |
-| `WEB_PORT`               | `3000`      | Web frontend port (external)     |
-| `JWT_EXPIRATION_MINUTES` | `10`        | JWT token lifetime               |
-| `TURNSTILE_ENABLED`      | `false`     | Enable Cloudflare bot protection |
-| `CORS_ALLOWED_ORIGINS`   | `*`         | Allowed CORS origins             |
-| `SYSTEM_USERNAME`        | `admin`     | Initial admin username           |
-| `SYSTEM_EMAIL`           | `admin@...` | Initial admin email              |
-
-See [.env.example](.env.example) for complete configuration options.
-
-### Generating Secure Secrets
+Open `PUBLIC_URL` (or `http://localhost:8080`) and sign in with
+`SYSTEM_USERNAME`. Without `DISCORD_WEBHOOK_URL` the one-time code is printed
+in the server log:
 
 ```bash
-# Generate JWT secret
-openssl rand -base64 64
-
-# Generate PostgreSQL password
-openssl rand -base64 32
-
-# Generate MinIO password
-openssl rand -base64 24
+docker compose logs dumpstation | grep "OTP not sent"
 ```
 
-## 🔒 Security Best Practices
+## Variables passed by `compose.yml`
 
-### 1. **Change Default Values**
+| Group | Variables |
+| --- | --- |
+| Metadata DB | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` (mapped to `DB_*`) |
+| Secrets | `JWT_SECRET`, `DUMPSTATION_SECRET_KEY`, `JWT_EXPIRATION_MINUTES` |
+| URLs and proxy | `PUBLIC_URL`, `TRUST_PROXY_HEADERS` |
+| Sign-in | `SYSTEM_USERNAME`, `SYSTEM_EMAIL`, `DISCORD_WEBHOOK_URL`, `OTP_EXPIRATION_MINUTES`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_ALLOWED_LOGIN`, `GITHUB_REDIRECT_URL`, `TURNSTILE_ENABLED`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `APP_ENV` (default `production`), `DEMO_ENABLED` (default `false`) |
+| Execution | `BACKUP_CONCURRENCY`, `BACKUP_TIMEOUT_MINUTES`, `AGENT_JOB_QUEUE_TTL_MINUTES`, `DIRECT_ALLOWED_CIDRS` |
+| Image and port | `DUMPSTATION_VERSION` (tag, default `latest`), `DUMPSTATION_PORT` |
 
-Never use default passwords or secrets in production:
+Any other server variable (for example `TURNSTILE_TIMEOUT`,
+`CORS_ALLOWED_ORIGINS`, `AGENT_JOB_LEASE_SECONDS`, `AGENT_JOB_MAX_ATTEMPTS`,
+`BACKUP_MIN_FREE_MB`) must be added to the `environment:` block of the
+`dumpstation` service to take effect; setting it in `.env` alone is not
+enough. The full list is in
+[docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md#server-environment-reference).
+
+## GitHub sign-in
+
+Create an OAuth app at <https://github.com/settings/developers> with the
+callback `https://<your-host>/api/v1/auth/github/callback`, then set
+`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_ALLOWED_LOGIN` and
+`GITHUB_REDIRECT_URL` (same callback URL). `WEB_ORIGIN` is not needed: the UI
+is served by the same server.
+
+## manage.sh
 
 ```bash
-# Bad ❌
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-
-# Good ✅
-JWT_SECRET=$(openssl rand -base64 64)
+./manage.sh start | stop | restart | status
+./manage.sh logs [-f] [service]       # service: dumpstation or postgres
+./manage.sh update                    # pull, recreate, prune old images
+./manage.sh backup                    # pg_dump of the metadata DB to ./backups/*.sql.gz
+./manage.sh restore <file[.gz]>       # replay a dump into the metadata DB (asks for confirmation)
+./manage.sh shell dumpstation         # pass the service name explicitly
+./manage.sh health
+./manage.sh clean | reset             # reset destroys all data
 ```
 
-### 2. **Use Reverse Proxy with Traefik**
+`backup` and `restore` assume the default `postgres` user and
+`backup_service` database.
 
-Use Traefik as a reverse proxy with automatic SSL/TLS via Let's Encrypt:
-
-**Add Traefik labels to your services in `compose.yml`:**
-
-```yaml
-services:
-  backend:
-    image: ghcr.io/monzim/dumpstation:latest
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dumpstation-api.rule=Host(`api.yourdomain.com`)"
-      - "traefik.http.routers.dumpstation-api.entrypoints=websecure"
-      - "traefik.http.routers.dumpstation-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.dumpstation-api.loadbalancer.server.port=8080"
-    networks:
-      - dumpstation_internal
-      - dumpstation_external
-      - traefik # Add Traefik network
-
-  web:
-    image: ghcr.io/monzim/dumpstation/web:latest
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dumpstation-web.rule=Host(`dumpstation.yourdomain.com`)"
-      - "traefik.http.routers.dumpstation-web.entrypoints=websecure"
-      - "traefik.http.routers.dumpstation-web.tls.certresolver=letsencrypt"
-      - "traefik.http.services.dumpstation-web.loadbalancer.server.port=3000"
-    networks:
-      - dumpstation_external
-      - traefik # Add Traefik network
-
-networks:
-  traefik:
-    external: true # Assumes you have a Traefik network already set up
-```
-
-**Traefik Static Configuration Example (`traefik.yml`):**
-
-```yaml
-entryPoints:
-  web:
-    address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-  websecure:
-    address: ":443"
-
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: your-email@example.com
-      storage: /letsencrypt/acme.json
-      httpChallenge:
-        entryPoint: web
-
-providers:
-  docker:
-    exposedByDefault: false
-    network: traefik
-```
-
-### 3. **Configure CORS Properly**
+## Updating
 
 ```bash
-# Development (permissive)
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:7511
-
-# Production (restrictive)
-CORS_ALLOWED_ORIGINS=https://dumpstation.yourdomain.com,https://www.yourdomain.com
+docker compose pull && docker compose up -d
 ```
 
-### 4. **Enable Firewall**
-
-```bash
-# Allow only necessary ports
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 80/tcp    # HTTP (for Let's Encrypt)
-sudo ufw allow 443/tcp   # HTTPS
-sudo ufw enable
-
-# Backend and Web ports should NOT be exposed directly
-# Access them through reverse proxy only
-```
-
-### 5. **Enable Turnstile (Optional)**
-
-Protect against bots with Cloudflare Turnstile:
-
-```bash
-TURNSTILE_ENABLED=true
-TURNSTILE_SITE_KEY=your_site_key_here
-TURNSTILE_SECRET_KEY=your_secret_key_here
-```
-
-Get keys from: https://dash.cloudflare.com/?to=/:account/turnstile
-
-## 📊 Monitoring & Maintenance
-
-### View Logs
-
-```bash
-# All services
-docker compose logs -f
-
-# Specific service
-docker compose logs -f backend
-docker compose logs -f postgres
-docker compose logs -f web
-
-# Last 100 lines
-docker compose logs --tail=100 backend
-```
-
-### Check Service Health
-
-```bash
-# Service status
-docker compose ps
-
-# Resource usage
-docker stats
-
-# Health checks
-docker inspect dumpstation_backend | grep -A 5 Health
-```
-
-### Backup DumpStation Database
-
-```bash
-# Create backup directory
-mkdir -p backups
-
-# Backup PostgreSQL volume
-docker compose exec postgres pg_dump -U postgres backup_service > backups/dumpstation_$(date +%Y%m%d_%H%M%S).sql
-
-# Or backup entire volume
-docker run --rm -v dumpstation_postgres_data:/data -v $(pwd)/backups:/backup alpine tar czf /backup/postgres_data_$(date +%Y%m%d_%H%M%S).tar.gz -C /data .
-```
-
-### Update to Latest Version
-
-```bash
-# Pull latest images
-docker compose pull
-
-# Recreate containers (no data loss)
-docker compose up -d
-
-# Clean old images
-docker image prune -f
-```
-
-### Restart Services
-
-```bash
-# Restart all
-docker compose restart
-
-# Restart specific service
-docker compose restart backend
-
-# Full restart with fresh containers
-docker compose down
-docker compose up -d
-```
-
-## 🔧 Troubleshooting
-
-### Services Won't Start
-
-```bash
-# Check logs
-docker compose logs
-
-# Verify .env file
-cat .env | grep -v '^#' | grep -v '^$'
-
-# Validate compose file
-docker compose config
-```
-
-### Database Connection Issues
-
-```bash
-# Check if PostgreSQL is healthy
-docker compose ps postgres
-
-# Test database connection
-docker compose exec postgres pg_isready -U postgres
-
-# Connect to database
-docker compose exec postgres psql -U postgres -d backup_service
-```
-
-### Backend API Not Responding
-
-```bash
-# Check backend logs
-docker compose logs backend
-
-# Verify environment variables
-docker compose exec backend env | grep DB_
-
-# Test health endpoint
-curl http://localhost:8080/api/v1/health
-```
-
-### Web Frontend Not Loading
-
-```bash
-# Check web logs
-docker compose logs web
-
-# Verify API URL
-docker compose exec web env | grep VITE_API_BASE_URL
-
-# Test direct access
-curl http://localhost:3000
-```
-
-### Network Issues
-
-```bash
-# List networks
-docker network ls
-
-# Inspect networks
-docker network inspect dumpstation_internal
-docker network inspect dumpstation_external
-
-# Recreate networks
-docker compose down
-docker network prune
-docker compose up -d
-```
-
-### Permission Issues
-
-```bash
-# Fix volume permissions
-docker compose down
-docker volume rm dumpstation_postgres_data
-docker compose up -d
-```
-
-## 📈 Performance Tuning
-
-### PostgreSQL Optimization
-
-Add to compose.yml under postgres service:
-
-```yaml
-command:
-  - "postgres"
-  - "-c"
-  - "shared_buffers=256MB"
-  - "-c"
-  - "effective_cache_size=1GB"
-  - "-c"
-  - "max_connections=200"
-```
-
-### Resource Limits
-
-Add to services in compose.yml:
-
-```yaml
-deploy:
-  resources:
-    limits:
-      cpus: "2"
-      memory: 2G
-    reservations:
-      cpus: "1"
-      memory: 512M
-```
-
-### Log Rotation
-
-Already configured in compose.yml:
-
-```yaml
-logging:
-  driver: "json-file"
-  options:
-    max-size: "50m"
-    max-file: "5"
-```
-
-## 🌐 Production Deployment Checklist
-
-- [ ] Change all default passwords and secrets
-- [ ] Set up reverse proxy (Traefik) with SSL/TLS
-- [ ] Configure proper CORS origins (no wildcards)
-- [ ] Enable firewall and close unnecessary ports
-- [ ] Set up automated backups for postgres_data volume
-- [ ] Configure Discord webhook for notifications
-- [ ] Test backup and restore functionality
-- [ ] Set up monitoring and alerting
-- [ ] Document deployment for team
-- [ ] Test disaster recovery procedures
-- [ ] Update DNS records if using custom domain
-- [ ] Configure log aggregation (optional)
-- [ ] Set up health check monitoring (optional)
-- [ ] Enable Turnstile for bot protection (optional)
-
-## 📚 Additional Resources
-
-- **[Main README](../README.md)** - Project overview
-- **[Deployment Guide](../docs/DEPLOYMENT.md)** - Detailed deployment instructions
-- **[API Documentation](http://localhost:8080/swagger/)** - API reference (when running)
-- **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute
-- **[Roadmap](../ROADMAP.md)** - Future features
-
-## 🆘 Support
-
-- **Issues**: [GitHub Issues](https://github.com/monzim/dumpstation/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/monzim/dumpstation/discussions)
-- **Email**: [me@monzim.com](mailto:me@monzim.com)
-- **Live Demo**: [dumpstation.monzim.com](https://dumpstation.monzim.com)
-
----
-
-**Made with ❤️ for the open-source community**
+Migrations run automatically on start. Pin `DUMPSTATION_VERSION` to a release
+tag in production. Coming from v1 (separate `backend` and `web` services)?
+Read [docs/UPGRADING.md](../docs/UPGRADING.md) first; in particular, the v1
+bundle used `postgres:15-alpine` while this one uses `postgres:16-alpine`.
+
+## Production checklist
+
+- TLS reverse proxy with timeouts ≥ 60 s and no body limit for `/agent/`.
+- `PUBLIC_URL` set to the HTTPS URL; `TRUST_PROXY_HEADERS=true` behind your
+  proxy.
+- `DEMO_ENABLED=false`, two-factor authentication enabled for every user.
+- Regular `./manage.sh backup` of the metadata DB, stored off-host, and the
+  secret key stored separately.
+- Enough space in the `dumpstation_backup_tmp` volume for your largest
+  compressed dump times `BACKUP_CONCURRENCY`.

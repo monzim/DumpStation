@@ -17,9 +17,9 @@ import (
 // are populated when the user signs in via GitHub OAuth instead. A user row
 // may carry either, both, or — for demo accounts — neither real provider id.
 type User struct {
-	ID                     uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	DiscordUserID          string         `gorm:"type:varchar(255);uniqueIndex" json:"discord_user_id,omitempty"`
-	DiscordUsername        string         `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
+	ID              uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	DiscordUserID   string    `gorm:"type:varchar(255);uniqueIndex" json:"discord_user_id,omitempty"`
+	DiscordUsername string    `gorm:"type:varchar(255)" json:"discord_username,omitempty"`
 	// GitHub identifiers are NOT marked uniqueIndex: GORM's AutoMigrate
 	// tries to add a UNIQUE constraint when the column appears, which
 	// fails on a populated users table because every pre-existing row
@@ -30,23 +30,23 @@ type User struct {
 	GitHubUserID           int64          `gorm:"type:bigint;index" json:"github_user_id,omitempty"`
 	AvatarURL              string         `gorm:"type:varchar(500)" json:"avatar_url,omitempty"` // Remote avatar URL (e.g. GitHub)
 	Email                  string         `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
-	ProfilePictureData     []byte         `gorm:"type:bytea" json:"-"`                                    // Profile picture stored as binary data
-	ProfilePictureMimeType string         `gorm:"type:varchar(50)" json:"-"`                              // MIME type of profile picture (e.g., image/png)
-	IsDemo                 bool           `gorm:"default:false" json:"is_demo"`                           // Whether this is a demo account (read-only access)
-	IsAdmin                bool           `gorm:"default:false" json:"is_admin"`                          // Whether this user has admin privileges (can view all data)
-	TwoFactorSecret        string         `gorm:"type:text" json:"-"`                                     // Encrypted TOTP secret (active once 2FA enabled)
-	TwoFactorEnabled       bool           `gorm:"default:false" json:"two_factor_enabled"`                // Whether 2FA is enabled
-	TwoFactorBackupCodes   pq.StringArray `gorm:"type:text[]" json:"-"`                                   // Hashed backup recovery codes
-	TwoFactorVerifiedAt    *time.Time     `gorm:"type:timestamp" json:"two_factor_verified_at,omitempty"` // When 2FA was verified during setup
+	ProfilePictureData     []byte         `gorm:"type:bytea" json:"-"`                                      // Profile picture stored as binary data
+	ProfilePictureMimeType string         `gorm:"type:varchar(50)" json:"-"`                                // MIME type of profile picture (e.g., image/png)
+	IsDemo                 bool           `gorm:"default:false" json:"is_demo"`                             // Whether this is a demo account (read-only access)
+	IsAdmin                bool           `gorm:"default:false" json:"is_admin"`                            // Whether this user has admin privileges (can view all data)
+	TwoFactorSecret        string         `gorm:"type:text;serializer:secret" json:"-"`                     // Encrypted TOTP secret (active once 2FA enabled)
+	TwoFactorEnabled       bool           `gorm:"default:false" json:"two_factor_enabled"`                  // Whether 2FA is enabled
+	TwoFactorBackupCodes   pq.StringArray `gorm:"type:text[]" json:"-"`                                     // Hashed backup recovery codes
+	TwoFactorVerifiedAt    *time.Time     `gorm:"type:timestamptz" json:"two_factor_verified_at,omitempty"` // When 2FA was verified during setup
 	// PendingTwoFactorSecret holds an unverified TOTP secret produced by
 	// Setup2FA. It is promoted to TwoFactorSecret only after the user proves
 	// possession via VerifySetup2FA. Keeping it separate prevents an
 	// attacker who calls Setup2FA repeatedly from clobbering the active
 	// secret on a 2FA-enrolled account.
-	PendingTwoFactorSecret    string     `gorm:"type:text" json:"-"`
-	PendingTwoFactorExpiresAt *time.Time `gorm:"type:timestamp" json:"-"`
-	CreatedAt              time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt              time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	PendingTwoFactorSecret    string     `gorm:"type:text;serializer:secret" json:"-"`
+	PendingTwoFactorExpiresAt *time.Time `gorm:"type:timestamptz" json:"-"`
+	CreatedAt                 time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt                 time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // UserProfileResponse is the response DTO for user profile endpoints
@@ -122,7 +122,7 @@ type OTPToken struct {
 	ExpiresAt      time.Time  `gorm:"index;not null" json:"expires_at"`
 	Used           bool       `gorm:"default:false" json:"used"`
 	FailedAttempts int        `gorm:"not null;default:0" json:"-"`
-	LockedUntil    *time.Time `gorm:"type:timestamp" json:"-"`
+	LockedUntil    *time.Time `gorm:"type:timestamptz" json:"-"`
 	CreatedAt      time.Time  `gorm:"autoCreateTime" json:"created_at"`
 }
 
@@ -140,6 +140,10 @@ type StorageProvider string
 const (
 	StorageProviderS3 StorageProvider = "s3"
 	StorageProviderR2 StorageProvider = "r2"
+	// StorageProviderMinIO and StorageProviderS3Compatible cover self-hosted
+	// and third-party S3-compatible services (path-style addressing).
+	StorageProviderMinIO        StorageProvider = "minio"
+	StorageProviderS3Compatible StorageProvider = "s3_compatible"
 )
 
 // StorageConfig represents cloud storage configuration
@@ -148,12 +152,13 @@ type StorageConfig struct {
 	UserID    uuid.UUID       `gorm:"type:uuid;not null;index" json:"user_id"` // Owner of this storage config
 	User      User            `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Name      string          `gorm:"type:varchar(255);not null" json:"name"`
-	Provider  StorageProvider `gorm:"type:varchar(50);not null;check:provider IN ('s3','r2')" json:"provider"`
+	Provider  StorageProvider `gorm:"type:varchar(50);not null;check:chk_storage_provider_v2,provider IN ('s3','r2','minio','s3_compatible')" json:"provider"`
 	Bucket    string          `gorm:"type:varchar(255);not null" json:"bucket"`
 	Region    string          `gorm:"type:varchar(100)" json:"region,omitempty"`
 	Endpoint  string          `gorm:"type:varchar(500)" json:"endpoint,omitempty"`
-	AccessKey string          `gorm:"type:text;not null" json:"-"`
-	SecretKey string          `gorm:"type:text;not null" json:"-"`
+	AccessKey string          `gorm:"type:text;not null;serializer:secret" json:"-"`
+	SecretKey string          `gorm:"type:text;not null;serializer:secret" json:"-"`
+	IsDefault bool            `gorm:"not null;default:false" json:"is_default"`
 	Labels    []Label         `gorm:"many2many:storage_labels;foreignKey:ID;joinForeignKey:StorageID;References:ID;joinReferences:LabelID" json:"labels,omitempty"`
 	CreatedAt time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
@@ -169,13 +174,16 @@ func (s *StorageConfig) BeforeCreate(tx *gorm.DB) error {
 
 // StorageConfigInput for API requests
 type StorageConfigInput struct {
-	Name      string          `json:"name" validate:"required" example:"My R2 Bucket"`
-	Provider  StorageProvider `json:"provider" validate:"required,oneof=s3 r2" example:"r2"`
-	Bucket    string          `json:"bucket" validate:"required" example:"my-backup-bucket"`
-	Region    string          `json:"region" example:"auto"`
-	Endpoint  string          `json:"endpoint" example:"https://account-id.r2.cloudflarestorage.com"`
-	AccessKey string          `json:"access_key" validate:"required" example:"your-access-key"`
-	SecretKey string          `json:"secret_key" validate:"required" example:"your-secret-key"`
+	Name     string          `json:"name" validate:"required" example:"My R2 Bucket"`
+	Provider StorageProvider `json:"provider" validate:"required,oneof=s3 r2 minio s3_compatible" example:"r2"`
+	Bucket   string          `json:"bucket" validate:"required" example:"my-backup-bucket"`
+	Region   string          `json:"region" example:"auto"`
+	Endpoint string          `json:"endpoint" example:"https://account-id.r2.cloudflarestorage.com"`
+	// AccessKey/SecretKey are required on create; on update an empty value
+	// keeps the stored credential.
+	AccessKey string `json:"access_key,omitempty" example:"your-access-key"`
+	SecretKey string `json:"secret_key,omitempty" example:"your-secret-key"`
+	IsDefault bool   `json:"is_default,omitempty"`
 }
 
 // StorageConfigResponse is a secure DTO for API responses with masked sensitive storage details
@@ -188,9 +196,14 @@ type StorageConfigResponse struct {
 	Region    string          `json:"region,omitempty" example:"auto"`
 	Endpoint  string          `json:"endpoint,omitempty" example:"https://***.r2.cloudflarestorage.com"` // Masked endpoint
 	AccessKey string          `json:"access_key" example:"AKI***"`                                       // Masked access key (shows key type prefix)
+	IsDefault bool            `json:"is_default"`
 	Labels    []Label         `json:"labels,omitempty"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	// Usage, populated by the API layer.
+	DatabaseCount int       `json:"database_count"`
+	BackupCount   int64     `json:"backup_count"`
+	UsedBytes     int64     `json:"used_bytes"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // ToResponse converts a StorageConfig to a StorageConfigResponse with masked sensitive data
@@ -203,6 +216,7 @@ func (s *StorageConfig) ToResponse() *StorageConfigResponse {
 		Region:    s.Region,
 		Endpoint:  utils.MaskEndpoint(s.Endpoint),
 		AccessKey: utils.MaskAccessKey(s.AccessKey),
+		IsDefault: s.IsDefault,
 		Labels:    s.Labels,
 		CreatedAt: s.CreatedAt,
 		UpdatedAt: s.UpdatedAt,
@@ -226,8 +240,8 @@ type NotificationConfig struct {
 	UserID            uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"` // Owner of this notification config
 	User              User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Name              string    `gorm:"type:varchar(255);not null" json:"name"`
-	DiscordWebhookURL string    `gorm:"type:text" json:"-"`
-	TelegramBotToken  string    `gorm:"type:text" json:"-"`
+	DiscordWebhookURL string    `gorm:"type:text;serializer:secret" json:"-"`
+	TelegramBotToken  string    `gorm:"type:text;serializer:secret" json:"-"`
 	TelegramChatID    string    `gorm:"type:varchar(64)" json:"-"`
 	Labels            []Label   `gorm:"many2many:notification_labels;foreignKey:ID;joinForeignKey:NotificationID;References:ID;joinReferences:LabelID" json:"labels,omitempty"`
 	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
@@ -363,11 +377,11 @@ type DatabaseConfig struct {
 	UserID              uuid.UUID           `gorm:"type:uuid;not null;index" json:"user_id"` // Owner of this database config
 	User                User                `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Name                string              `gorm:"type:varchar(255);not null" json:"name"`
-	Host                string              `gorm:"type:varchar(255);not null" json:"host"`
+	Host                string              `gorm:"type:varchar(255);not null;default:''" json:"host"`
 	Port                int                 `gorm:"not null;default:5432" json:"port"`
-	DBName              string              `gorm:"column:dbname;type:varchar(255);not null" json:"dbname"`
-	Username            string              `gorm:"type:varchar(255);not null" json:"user"`
-	Password            string              `gorm:"type:text;not null" json:"-"`
+	DBName              string              `gorm:"column:dbname;type:varchar(255);not null;default:''" json:"dbname"`
+	Username            string              `gorm:"type:varchar(255);not null;default:''" json:"user"`
+	Password            string              `gorm:"type:text;not null;default:'';serializer:secret" json:"-"`
 	Schedule            string              `gorm:"type:varchar(100);not null" json:"schedule"`
 	StorageID           uuid.UUID           `gorm:"type:uuid;not null;index" json:"storage_id"`
 	Storage             StorageConfig       `gorm:"foreignKey:StorageID;constraint:OnDelete:RESTRICT" json:"-"`
@@ -376,12 +390,25 @@ type DatabaseConfig struct {
 	RotationPolicyType  RotationPolicyType  `gorm:"type:varchar(20);not null;check:rotation_policy_type IN ('count','days')" json:"-"`
 	RotationPolicyValue int                 `gorm:"not null" json:"-"`
 	PostgresVersion     string              `gorm:"type:varchar(20);default:'latest'" json:"postgres_version"`
-	VersionLastChecked  *time.Time          `gorm:"type:timestamp" json:"version_last_checked,omitempty"`
-	Enabled             bool                `gorm:"default:true" json:"enabled"`
-	Paused              bool                `gorm:"default:false" json:"paused"`
-	Labels              []Label             `gorm:"many2many:database_labels;foreignKey:ID;joinForeignKey:DatabaseID;References:ID;joinReferences:LabelID" json:"labels,omitempty"`
-	CreatedAt           time.Time           `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt           time.Time           `gorm:"autoUpdateTime" json:"updated_at"`
+	VersionLastChecked  *time.Time          `gorm:"type:timestamptz" json:"version_last_checked,omitempty"`
+	// ExecutionMode selects who runs pg_dump: the DumpStation server itself
+	// ("direct", the v1 behaviour and the default for upgraded rows) or a
+	// remote DumpStation Agent ("agent").
+	ExecutionMode ExecutionMode `gorm:"type:varchar(16);not null;default:'direct'" json:"execution_mode"`
+	AgentID       *uuid.UUID    `gorm:"type:uuid;index" json:"agent_id,omitempty"`
+	Agent         *Agent        `gorm:"foreignKey:AgentID;constraint:OnDelete:RESTRICT" json:"-"`
+	// AgentConnection names a connection defined in the agent's local
+	// configuration. When set, the server stores no credentials for this
+	// database: the agent resolves them locally.
+	AgentConnection string `gorm:"type:varchar(128);not null;default:''" json:"agent_connection,omitempty"`
+	// Timezone is the IANA zone the cron schedule is evaluated in. Empty
+	// means the server's local zone (v1 behaviour).
+	Timezone  string    `gorm:"type:varchar(64);not null;default:''" json:"timezone"`
+	Enabled   bool      `gorm:"default:true" json:"enabled"`
+	Paused    bool      `gorm:"default:false" json:"paused"`
+	Labels    []Label   `gorm:"many2many:database_labels;foreignKey:ID;joinForeignKey:DatabaseID;References:ID;joinReferences:LabelID" json:"labels,omitempty"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // BeforeCreate hook for DatabaseConfig
@@ -426,13 +453,19 @@ func (d *DatabaseConfig) MarshalJSON() ([]byte, error) {
 
 // DatabaseConfigInput for API requests
 type DatabaseConfigInput struct {
-	Name            string         `json:"name" validate:"required" example:"Production DB"`
-	Host            string         `json:"host" validate:"required" example:"db.example.com"`
-	Port            int            `json:"port" validate:"required,min=1,max=65535" example:"5432"`
-	DBName          string         `json:"dbname" validate:"required" example:"proddb"`
-	Username        string         `json:"user" validate:"required" example:"backup_user"`
-	Password        string         `json:"password" validate:"required" example:"secure_password"`
-	Schedule        string         `json:"schedule" validate:"required,cron" example:"0 2 * * *"`
+	Name            string        `json:"name" validate:"required,max=255" example:"Production DB"`
+	ExecutionMode   ExecutionMode `json:"execution_mode" validate:"omitempty,oneof=direct agent" example:"direct"`
+	AgentID         *uuid.UUID    `json:"agent_id,omitempty"`
+	AgentConnection string        `json:"agent_connection,omitempty" validate:"omitempty,max=128" example:"orders-primary"`
+	Host            string        `json:"host" validate:"omitempty,max=255" example:"db.example.com"`
+	Port            int           `json:"port" validate:"omitempty,min=1,max=65535" example:"5432"`
+	DBName          string        `json:"dbname" validate:"omitempty,max=255" example:"proddb"`
+	Username        string        `json:"user" validate:"omitempty,max=255" example:"backup_user"`
+	// Password is required when creating a direct database. On update an
+	// empty value keeps the stored password.
+	Password        string         `json:"password,omitempty" example:"secure_password"`
+	Schedule        string         `json:"schedule" validate:"required,max=100" example:"0 2 * * *"`
+	Timezone        string         `json:"timezone,omitempty" validate:"omitempty,max=64" example:"UTC"`
 	StorageID       uuid.UUID      `json:"storage_id" validate:"required"`
 	NotificationID  *uuid.UUID     `json:"notification_id,omitempty"`
 	PostgresVersion string         `json:"postgres_version" example:"14"` // Optional: "latest", "15", "14", "13", etc.
@@ -456,9 +489,38 @@ type DatabaseConfigResponse struct {
 	Enabled            bool           `json:"enabled" example:"true"`
 	Paused             bool           `json:"paused" example:"false"`
 	RotationPolicy     RotationPolicy `json:"rotation_policy"`
+	ExecutionMode      ExecutionMode  `json:"execution_mode" example:"direct"`
+	AgentID            *uuid.UUID     `json:"agent_id,omitempty"`
+	AgentConnection    string         `json:"agent_connection,omitempty"`
+	CentralCredentials bool           `json:"central_credentials"`
+	Timezone           string         `json:"timezone"`
 	Labels             []Label        `json:"labels,omitempty"`
 	CreatedAt          time.Time      `json:"created_at"`
 	UpdatedAt          time.Time      `json:"updated_at"`
+	// Runtime fields, populated by the API layer.
+	NextRunAt     *time.Time     `json:"next_run_at,omitempty"`
+	LastBackup    *BackupSummary `json:"last_backup,omitempty"`
+	LastSuccessAt *time.Time     `json:"last_success_at,omitempty"`
+	ActiveBackup  *BackupSummary `json:"active_backup,omitempty"`
+	Health        string         `json:"health,omitempty" example:"healthy"`
+}
+
+// BackupSummary is a compact view of a backup used inside other resources.
+type BackupSummary struct {
+	ID          uuid.UUID    `json:"id"`
+	Name        string       `json:"name"`
+	Status      BackupStatus `json:"status"`
+	Stage       string       `json:"stage,omitempty"`
+	StartedAt   time.Time    `json:"started_at"`
+	CompletedAt *time.Time   `json:"completed_at,omitempty"`
+	SizeBytes   *int64       `json:"size_bytes,omitempty"`
+	ErrorCode   string       `json:"error_code,omitempty"`
+}
+
+// Summary returns the compact representation of a backup.
+func (b *Backup) Summary() *BackupSummary {
+	return &BackupSummary{ID: b.ID, Name: b.Name, Status: b.Status, Stage: b.Stage,
+		StartedAt: b.StartedAt, CompletedAt: b.CompletedAt, SizeBytes: b.SizeBytes, ErrorCode: b.ErrorCode}
 }
 
 // ToResponse converts a DatabaseConfig to a DatabaseConfigResponse with masked sensitive data
@@ -478,6 +540,11 @@ func (d *DatabaseConfig) ToResponse() *DatabaseConfigResponse {
 		Enabled:            d.Enabled,
 		Paused:             d.Paused,
 		RotationPolicy:     d.GetRotationPolicy(),
+		ExecutionMode:      d.Mode(),
+		AgentID:            d.AgentID,
+		AgentConnection:    d.AgentConnection,
+		CentralCredentials: d.UsesCentralCredentials(),
+		Timezone:           d.Timezone,
 		Labels:             d.Labels,
 		CreatedAt:          d.CreatedAt,
 		UpdatedAt:          d.UpdatedAt,
@@ -505,6 +572,39 @@ const (
 	// removed by the rotation policy. The DB row is kept for audit history
 	// and cannot be restored from.
 	BackupStatusDeleted BackupStatus = "deleted"
+	// BackupStatusCancelled marks a job stopped by a user before completion.
+	BackupStatusCancelled BackupStatus = "cancelled"
+)
+
+// IsTerminal reports whether no further transitions are expected.
+func (s BackupStatus) IsTerminal() bool {
+	switch s {
+	case BackupStatusSuccess, BackupStatusFailed, BackupStatusDeleted, BackupStatusCancelled:
+		return true
+	}
+	return false
+}
+
+// Backup execution stages, reported while Status is pending/running. They
+// map 1:1 to steps the executors actually perform; no progress percentages
+// are invented.
+const (
+	StageQueued       = "queued"
+	StageWaitingAgent = "waiting_for_agent"
+	StagePreparing    = "preparing"
+	StageDumping      = "dumping"
+	StageUploading    = "uploading"
+	StageVerifying    = "verifying"
+	StageDownloading  = "downloading"
+	StageRestoring    = "restoring"
+)
+
+// BackupTrigger records why a backup ran.
+type BackupTrigger string
+
+const (
+	TriggerScheduled BackupTrigger = "scheduled"
+	TriggerManual    BackupTrigger = "manual"
 )
 
 // DumpFormat enumerates the pg_dump output formats this service produces.
@@ -518,18 +618,31 @@ const (
 
 // Backup represents a backup record
 type Backup struct {
-	ID           uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	Name         string         `gorm:"type:varchar(255);not null;default:''" json:"name"`
-	DatabaseID   uuid.UUID      `gorm:"type:uuid;not null;index" json:"database_id"`
-	Database     DatabaseConfig `gorm:"foreignKey:DatabaseID;constraint:OnDelete:CASCADE" json:"-"`
-	Status       BackupStatus   `gorm:"type:varchar(20);not null;default:'pending';check:status IN ('pending','running','success','failed','deleted');index" json:"status"`
-	SizeBytes    *int64         `gorm:"type:bigint" json:"size_bytes,omitempty"`
-	StoragePath  string         `gorm:"type:text" json:"storage_path,omitempty"`
-	DumpFormat   DumpFormat     `gorm:"type:varchar(20);not null;default:'plain'" json:"dump_format"`
-	ErrorMessage *string        `gorm:"type:text" json:"error_message,omitempty"`
-	StartedAt    time.Time      `gorm:"not null;default:now();index" json:"timestamp"`
-	CompletedAt  *time.Time     `json:"completed_at,omitempty"`
-	CreatedAt    time.Time      `gorm:"autoCreateTime" json:"-"`
+	ID         uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	Name       string         `gorm:"type:varchar(255);not null;default:''" json:"name"`
+	DatabaseID uuid.UUID      `gorm:"type:uuid;not null;index" json:"database_id"`
+	Database   DatabaseConfig `gorm:"foreignKey:DatabaseID;constraint:OnDelete:CASCADE" json:"-"`
+	Status     BackupStatus   `gorm:"type:varchar(20);not null;default:'pending';check:chk_backups_status_v2,status IN ('pending','running','success','failed','deleted','cancelled');index" json:"status"`
+	Stage      string         `gorm:"type:varchar(32);not null;default:''" json:"stage,omitempty"`
+	Trigger    BackupTrigger  `gorm:"type:varchar(16);not null;default:'scheduled'" json:"trigger"`
+	Executor   ExecutionMode  `gorm:"type:varchar(16);not null;default:'direct'" json:"executor"`
+	AgentID    *uuid.UUID     `gorm:"type:uuid;index" json:"agent_id,omitempty"`
+	// StorageID pins the destination the artifact was written to, so changing
+	// a database's storage later does not orphan earlier backups. NULL for
+	// rows created before v2 (resolved through the database config).
+	StorageID       *uuid.UUID `gorm:"type:uuid;index" json:"storage_id,omitempty"`
+	SizeBytes       *int64     `gorm:"type:bigint" json:"size_bytes,omitempty"`
+	StoragePath     string     `gorm:"type:text" json:"storage_path,omitempty"`
+	DumpFormat      DumpFormat `gorm:"type:varchar(20);not null;default:'plain'" json:"dump_format"`
+	ChecksumSHA256  string     `gorm:"type:varchar(64);not null;default:''" json:"checksum_sha256,omitempty"`
+	PostgresVersion string     `gorm:"type:varchar(32);not null;default:''" json:"postgres_version,omitempty"`
+	ErrorCode       string     `gorm:"type:varchar(64);not null;default:''" json:"error_code,omitempty"`
+	ErrorMessage    *string    `gorm:"type:text" json:"error_message,omitempty"`
+	CancelRequested bool       `gorm:"not null;default:false" json:"cancel_requested,omitempty"`
+	StartedAt       time.Time  `gorm:"not null;default:now();index" json:"timestamp"`
+	RunStartedAt    *time.Time `json:"run_started_at,omitempty"`
+	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	CreatedAt       time.Time  `gorm:"autoCreateTime" json:"-"`
 }
 
 // BeforeCreate hook for Backup
@@ -544,30 +657,68 @@ func (b *Backup) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-// RestoreRequest represents a restore operation request
+// RestoreTarget selects where a backup is restored to.
+type RestoreTarget string
+
+const (
+	// RestoreTargetOriginal restores into the database the backup came from,
+	// using that database's execution mode and credentials.
+	RestoreTargetOriginal RestoreTarget = "original"
+	// RestoreTargetDatabase restores into another configured database.
+	RestoreTargetDatabase RestoreTarget = "database"
+	// RestoreTargetCustom restores into ad-hoc connection details, executed
+	// either by the server (direct) or by an agent.
+	RestoreTargetCustom RestoreTarget = "custom"
+)
+
+// RestoreRequest represents a restore operation request.
+//
+// Legacy v1 clients send only the target_* fields; they map to
+// RestoreTargetCustom (or RestoreTargetOriginal when all are empty).
 type RestoreRequest struct {
-	TargetHost     string `json:"target_host,omitempty" example:"staging-db.example.com"`
-	TargetPort     int    `json:"target_port,omitempty" example:"5432"`
-	TargetDBName   string `json:"target_dbname,omitempty" example:"restored_db"`
-	TargetUser     string `json:"target_user,omitempty" example:"admin"`
-	TargetPassword string `json:"target_password,omitempty" example:"password"`
+	Target           RestoreTarget `json:"target,omitempty" example:"custom"`
+	TargetDatabaseID *uuid.UUID    `json:"target_database_id,omitempty"`
+	ExecutionMode    ExecutionMode `json:"execution_mode,omitempty" example:"direct"`
+	AgentID          *uuid.UUID    `json:"agent_id,omitempty"`
+	AgentConnection  string        `json:"agent_connection,omitempty"`
+	TargetHost       string        `json:"target_host,omitempty" example:"staging-db.example.com"`
+	TargetPort       int           `json:"target_port,omitempty" example:"5432"`
+	TargetDBName     string        `json:"target_dbname,omitempty" example:"restored_db"`
+	TargetUser       string        `json:"target_user,omitempty" example:"admin"`
+	TargetPassword   string        `json:"target_password,omitempty" example:"password"`
+	// CleanTarget drops existing objects before restoring (pg_restore
+	// --clean --if-exists). Destructive; never the default.
+	CleanTarget bool `json:"clean_target,omitempty"`
+	// Confirm must equal the target database name when restoring into an
+	// existing configured database or when CleanTarget is set.
+	Confirm string `json:"confirm,omitempty"`
 }
 
 // RestoreJob represents a restore job
 type RestoreJob struct {
-	ID             uuid.UUID    `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	BackupID       uuid.UUID    `gorm:"type:uuid;not null;index" json:"backup_id"`
-	Backup         Backup       `gorm:"foreignKey:BackupID;constraint:OnDelete:CASCADE" json:"-"`
-	TargetHost     *string      `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
-	TargetPort     *int         `json:"-"`                          // Hidden from API responses
-	TargetDBName   *string      `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
-	TargetUser     *string      `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
-	TargetPassword *string      `gorm:"type:text" json:"-"`
-	Status         BackupStatus `gorm:"type:varchar(20);not null;default:'pending';check:status IN ('pending','running','success','failed');index" json:"status"`
-	ErrorMessage   *string      `gorm:"type:text" json:"error_message,omitempty"`
-	StartedAt      time.Time    `gorm:"not null;default:now()" json:"started_at"`
-	CompletedAt    *time.Time   `json:"completed_at,omitempty"`
-	CreatedAt      time.Time    `gorm:"autoCreateTime" json:"created_at"`
+	ID               uuid.UUID     `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	BackupID         uuid.UUID     `gorm:"type:uuid;not null;index" json:"backup_id"`
+	Backup           Backup        `gorm:"foreignKey:BackupID;constraint:OnDelete:CASCADE" json:"-"`
+	TargetHost       *string       `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
+	TargetPort       *int          `json:"-"`                          // Hidden from API responses
+	TargetDBName     *string       `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
+	TargetUser       *string       `gorm:"type:varchar(255)" json:"-"` // Hidden from API responses
+	TargetPassword   string        `gorm:"type:text;serializer:secret" json:"-"`
+	UserID           *uuid.UUID    `gorm:"type:uuid;index" json:"user_id,omitempty"`
+	DatabaseID       *uuid.UUID    `gorm:"type:uuid;index" json:"database_id,omitempty"`
+	Target           RestoreTarget `gorm:"type:varchar(16);not null;default:'custom'" json:"target"`
+	TargetDatabaseID *uuid.UUID    `gorm:"type:uuid" json:"target_database_id,omitempty"`
+	Executor         ExecutionMode `gorm:"type:varchar(16);not null;default:'direct'" json:"executor"`
+	AgentID          *uuid.UUID    `gorm:"type:uuid;index" json:"agent_id,omitempty"`
+	AgentConnection  string        `gorm:"type:varchar(128);not null;default:''" json:"agent_connection,omitempty"`
+	CleanTarget      bool          `gorm:"not null;default:false" json:"clean_target"`
+	Stage            string        `gorm:"type:varchar(32);not null;default:''" json:"stage,omitempty"`
+	ErrorCode        string        `gorm:"type:varchar(64);not null;default:''" json:"error_code,omitempty"`
+	Status           BackupStatus  `gorm:"type:varchar(20);not null;default:'pending';check:chk_restore_jobs_status_v2,status IN ('pending','running','success','failed','cancelled');index" json:"status"`
+	ErrorMessage     *string       `gorm:"type:text" json:"error_message,omitempty"`
+	StartedAt        time.Time     `gorm:"not null;default:now()" json:"started_at"`
+	CompletedAt      *time.Time    `json:"completed_at,omitempty"`
+	CreatedAt        time.Time     `gorm:"autoCreateTime" json:"created_at"`
 }
 
 // BeforeCreate hook for RestoreJob
@@ -581,29 +732,47 @@ func (r *RestoreJob) BeforeCreate(tx *gorm.DB) error {
 // RestoreJobResponse is a secure DTO for API responses with masked target details
 // @Description Restore job with masked sensitive target connection details
 type RestoreJobResponse struct {
-	ID           uuid.UUID    `json:"id"`
-	BackupID     uuid.UUID    `json:"backup_id"`
-	TargetHost   string       `json:"target_host,omitempty" example:"***.example.com"` // Masked hostname
-	TargetPort   string       `json:"target_port,omitempty" example:"****"`            // Masked port
-	TargetDBName string       `json:"target_dbname,omitempty" example:"res***"`        // Masked database name
-	TargetUser   string       `json:"target_user,omitempty" example:"adm***"`          // Masked username
-	Status       BackupStatus `json:"status"`
-	ErrorMessage *string      `json:"error_message,omitempty"`
-	StartedAt    time.Time    `json:"started_at"`
-	CompletedAt  *time.Time   `json:"completed_at,omitempty"`
-	CreatedAt    time.Time    `json:"created_at"`
+	ID               uuid.UUID     `json:"id"`
+	BackupID         uuid.UUID     `json:"backup_id"`
+	TargetHost       string        `json:"target_host,omitempty" example:"***.example.com"` // Masked hostname
+	TargetPort       string        `json:"target_port,omitempty" example:"****"`            // Masked port
+	TargetDBName     string        `json:"target_dbname,omitempty" example:"res***"`        // Masked database name
+	TargetUser       string        `json:"target_user,omitempty" example:"adm***"`          // Masked username
+	DatabaseID       *uuid.UUID    `json:"database_id,omitempty"`
+	Target           RestoreTarget `json:"target"`
+	TargetDatabaseID *uuid.UUID    `json:"target_database_id,omitempty"`
+	Executor         ExecutionMode `json:"executor"`
+	AgentID          *uuid.UUID    `json:"agent_id,omitempty"`
+	AgentConnection  string        `json:"agent_connection,omitempty"`
+	CleanTarget      bool          `json:"clean_target"`
+	Stage            string        `json:"stage,omitempty"`
+	ErrorCode        string        `json:"error_code,omitempty"`
+	Status           BackupStatus  `json:"status"`
+	ErrorMessage     *string       `json:"error_message,omitempty"`
+	StartedAt        time.Time     `json:"started_at"`
+	CompletedAt      *time.Time    `json:"completed_at,omitempty"`
+	CreatedAt        time.Time     `json:"created_at"`
 }
 
 // ToResponse converts a RestoreJob to a RestoreJobResponse with masked sensitive data
 func (r *RestoreJob) ToResponse() *RestoreJobResponse {
 	response := &RestoreJobResponse{
-		ID:           r.ID,
-		BackupID:     r.BackupID,
-		Status:       r.Status,
-		ErrorMessage: r.ErrorMessage,
-		StartedAt:    r.StartedAt,
-		CompletedAt:  r.CompletedAt,
-		CreatedAt:    r.CreatedAt,
+		ID:               r.ID,
+		BackupID:         r.BackupID,
+		DatabaseID:       r.DatabaseID,
+		Target:           r.Target,
+		TargetDatabaseID: r.TargetDatabaseID,
+		Executor:         r.Executor,
+		AgentID:          r.AgentID,
+		AgentConnection:  r.AgentConnection,
+		CleanTarget:      r.CleanTarget,
+		Stage:            r.Stage,
+		ErrorCode:        r.ErrorCode,
+		Status:           r.Status,
+		ErrorMessage:     r.ErrorMessage,
+		StartedAt:        r.StartedAt,
+		CompletedAt:      r.CompletedAt,
+		CreatedAt:        r.CreatedAt,
 	}
 
 	if r.TargetHost != nil {
@@ -712,10 +881,28 @@ const (
 	ActionServerRoleGranted       ActivityLogAction = "server_role_granted"
 	ActionServerTableTruncated    ActivityLogAction = "server_table_truncated"
 	// Maintenance + download actions
-	ActionFailedBackupsPurged       ActivityLogAction = "failed_backups_purged"
+	ActionFailedBackupsPurged        ActivityLogAction = "failed_backups_purged"
 	ActionBackupDownloadOTPRequested ActivityLogAction = "backup_download_otp_requested"
 	ActionBackupDownloaded           ActivityLogAction = "backup_downloaded"
 	ActionSessionRefreshed           ActivityLogAction = "session_refreshed"
+
+	// v2: distributed execution and operations
+	ActionBackupCancelled       ActivityLogAction = "backup_cancelled"
+	ActionBackupJobAssigned     ActivityLogAction = "backup_job_assigned"
+	ActionBackupMissed          ActivityLogAction = "backup_missed"
+	ActionRetentionApplied      ActivityLogAction = "retention_applied"
+	ActionAgentCreated          ActivityLogAction = "agent_created"
+	ActionAgentUpdated          ActivityLogAction = "agent_updated"
+	ActionAgentDeleted          ActivityLogAction = "agent_deleted"
+	ActionAgentRegistered       ActivityLogAction = "agent_registered"
+	ActionAgentConnected        ActivityLogAction = "agent_connected"
+	ActionAgentDisconnected     ActivityLogAction = "agent_disconnected"
+	ActionAgentRevoked          ActivityLogAction = "agent_revoked"
+	ActionAgentDisabled         ActivityLogAction = "agent_disabled"
+	ActionAgentEnabled          ActivityLogAction = "agent_enabled"
+	ActionAgentEnrollmentIssued ActivityLogAction = "agent_enrollment_issued"
+	ActionStorageTestFailed     ActivityLogAction = "storage_test_failed"
+	ActionUserRoleChanged       ActivityLogAction = "user_role_changed"
 )
 
 // ActivityLogLevel represents the severity level of the log
@@ -772,9 +959,9 @@ type ActivityLogListParams struct {
 // Label represents a tag/category that can be applied to multiple entities
 type Label struct {
 	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	UserID      uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null;index;uniqueIndex:idx_labels_user_name,priority:1" json:"user_id"`
 	User        User      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-	Name        string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_user_label_name" json:"name"`
+	Name        string    `gorm:"type:varchar(100);not null;uniqueIndex:idx_labels_user_name,priority:2" json:"name"`
 	Color       string    `gorm:"type:varchar(7);not null;default:'#3b82f6'" json:"color"` // hex color
 	Description string    `gorm:"type:varchar(255)" json:"description,omitempty"`
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
@@ -966,14 +1153,14 @@ type ServerConnection struct {
 	Username string    `gorm:"type:varchar(255);not null" json:"user"`
 	// Password is the AES-GCM ciphertext produced by internal/crypto.
 	// JSON-excluded; the response DTO never returns it.
-	Password         string     `gorm:"type:text;not null" json:"-"`
-	SSLMode          string     `gorm:"type:varchar(20);default:'prefer'" json:"ssl_mode"`
-	LastTestedAt     *time.Time `gorm:"type:timestamp" json:"last_tested_at,omitempty"`
-	LastTestStatus   string     `gorm:"type:varchar(20)" json:"last_test_status,omitempty"`
-	LastTestError    string     `gorm:"type:text" json:"last_test_error,omitempty"`
-	LastTestSSLMode  string     `gorm:"type:varchar(20)" json:"last_test_ssl_mode,omitempty"`
-	CreatedAt        time.Time  `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt        time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+	Password        string     `gorm:"type:text;not null" json:"-"`
+	SSLMode         string     `gorm:"type:varchar(20);default:'prefer'" json:"ssl_mode"`
+	LastTestedAt    *time.Time `gorm:"type:timestamptz" json:"last_tested_at,omitempty"`
+	LastTestStatus  string     `gorm:"type:varchar(20)" json:"last_test_status,omitempty"`
+	LastTestError   string     `gorm:"type:text" json:"last_test_error,omitempty"`
+	LastTestSSLMode string     `gorm:"type:varchar(20)" json:"last_test_ssl_mode,omitempty"`
+	CreatedAt       time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt       time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // BeforeCreate ensures a UUID is assigned even when the caller didn't supply one.
@@ -1052,7 +1239,7 @@ type ServerDatabaseInfo struct {
 type ServerTableInfo struct {
 	Schema    string `json:"schema" example:"public"`
 	Name      string `json:"name" example:"users"`
-	RowCount  int64  `json:"row_count" example:"1234"`  // pg_class.reltuples estimate
+	RowCount  int64  `json:"row_count" example:"1234"` // pg_class.reltuples estimate
 	SizeBytes int64  `json:"size_bytes" example:"81920"`
 	SizeHuman string `json:"size_human" example:"80 kB"`
 }
@@ -1096,10 +1283,10 @@ type ServerGrantInput struct {
 
 // ServerConnectionTestResult is the response from the test endpoint.
 type ServerConnectionTestResult struct {
-	OK       bool   `json:"ok" example:"true"`
-	SSLMode  string `json:"ssl_mode" example:"require"`
-	Message  string `json:"message,omitempty"`
-	Latency  string `json:"latency,omitempty" example:"23ms"`
+	OK      bool   `json:"ok" example:"true"`
+	SSLMode string `json:"ssl_mode" example:"require"`
+	Message string `json:"message,omitempty"`
+	Latency string `json:"latency,omitempty" example:"23ms"`
 }
 
 // ServerColumnInfo is column-level metadata for a single table.

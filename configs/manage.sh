@@ -47,8 +47,8 @@ Commands:
 Examples:
     $0 start                # Start all services
     $0 logs -f              # Follow logs
-    $0 logs backend         # View backend logs
-    $0 shell backend        # Open shell in backend container
+    $0 logs dumpstation     # View server logs
+    $0 shell dumpstation    # Open shell in server container
     $0 backup               # Backup database
     $0 restore backup.sql   # Restore from backup
 
@@ -193,7 +193,7 @@ cmd_reset() {
 }
 
 cmd_shell() {
-    SERVICE="${1:-backend}"
+    SERVICE="${1:-dumpstation}"
     SHELL_CMD="${2:-sh}"
     
     print_info "Opening shell in $SERVICE container..."
@@ -211,18 +211,11 @@ cmd_health() {
         print_error "PostgreSQL: Unhealthy"
     fi
     
-    # Check Backend
-    if curl -sf http://localhost:8080/api/v1/health > /dev/null 2>&1; then
-        print_success "Backend API: Healthy"
+    # Check DumpStation (API + web UI)
+    if curl -sf http://localhost:${DUMPSTATION_PORT:-8080}/api/v1/health > /dev/null 2>&1; then
+        print_success "DumpStation: Healthy"
     else
-        print_error "Backend API: Unhealthy"
-    fi
-    
-    # Check Web
-    if curl -sf http://localhost:3000 > /dev/null 2>&1; then
-        print_success "Web Frontend: Healthy"
-    else
-        print_error "Web Frontend: Unhealthy"
+        print_error "DumpStation: Unhealthy"
     fi
     
     echo ""

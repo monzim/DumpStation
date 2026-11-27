@@ -85,9 +85,9 @@ func (c *Client) DropUser(ctx context.Context, username string) error {
 //
 // Presets are deliberately narrow:
 //   - readonly:   CONNECT on DB; USAGE on public; SELECT on existing and
-//                 future tables in public.
+//     future tables in public.
 //   - readwrite:  readonly + INSERT/UPDATE/DELETE on existing and future
-//                 tables and sequences in public.
+//     tables and sequences in public.
 //   - owner:      ALTER DATABASE OWNER TO role; this implies all rights.
 //
 // More granular per-table grants are intentionally not exposed.

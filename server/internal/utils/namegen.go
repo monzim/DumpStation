@@ -60,3 +60,17 @@ func GenerateBackupNameWithSuffix(suffix string) string {
 	noun := nouns[rand.Intn(len(nouns))]
 	return fmt.Sprintf("%s-%s-%s", adjective, noun, suffix)
 }
+
+// HumanBytes formats a byte count using binary units.
+func HumanBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := int64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}

@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/monzim/db_proxy/v1/internal/models"
 	"gorm.io/driver/postgres"
@@ -46,6 +47,22 @@ func New(dsn string) (*DB, error) {
 func (db *DB) AutoMigrate() error {
 	log.Println("Running GORM auto-migration...")
 
+	// v2: constraints whose allowed values changed are recreated under new
+	// names (chk_*_v2) by AutoMigrate; drop the v1 versions first.
+	for _, stmt := range []string{
+		`ALTER TABLE IF EXISTS backups DROP CONSTRAINT IF EXISTS chk_backups_status`,
+		`ALTER TABLE IF EXISTS restore_jobs DROP CONSTRAINT IF EXISTS chk_restore_jobs_status`,
+		`ALTER TABLE IF EXISTS storage_configs DROP CONSTRAINT IF EXISTS chk_storage_configs_provider`,
+		// Labels were accidentally globally unique by name; make them unique per user.
+		`DROP INDEX IF EXISTS idx_user_label_name`,
+	} {
+		if err := db.DB.Exec(stmt).Error; err != nil {
+			log.Printf("warning: pre-migration step failed (%s): %v", stmt, err)
+		}
+	}
+
+	convertNaiveTimestamps(db.DB)
+
 	err := db.DB.AutoMigrate(
 		&models.User{},
 		&models.OTPToken{},
@@ -60,6 +77,10 @@ func (db *DB) AutoMigrate() error {
 		&models.StorageLabel{},
 		&models.NotificationLabel{},
 		&models.ServerConnection{},
+		&models.Agent{},
+		&models.AgentEnrollment{},
+		&models.AgentJob{},
+		&models.JobEvent{},
 	)
 
 	if err != nil {
@@ -99,6 +120,21 @@ func (db *DB) AutoMigrate() error {
 		}
 	}
 
+	// v2 backfills (idempotent).
+	for _, stmt := range []string{
+		// Pin existing artifacts to the storage they were written to.
+		`UPDATE backups b SET storage_id = d.storage_id FROM database_configs d
+		  WHERE b.database_id = d.id AND b.storage_id IS NULL`,
+		// v1 rows never recorded how they ran.
+		`UPDATE database_configs SET execution_mode = 'direct' WHERE execution_mode IS NULL OR execution_mode = ''`,
+		`UPDATE restore_jobs SET status = 'failed', error_message = 'Restore status was not tracked before v2'
+		  WHERE status IN ('pending','running') AND executor = 'direct' AND user_id IS NULL`,
+	} {
+		if err := db.DB.Exec(stmt).Error; err != nil {
+			log.Printf("warning: v2 backfill failed: %v", err)
+		}
+	}
+
 	log.Println("Auto-migration completed successfully")
 	return nil
 }
@@ -110,4 +146,31 @@ func (db *DB) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+// convertNaiveTimestamps turns legacy "timestamp without time zone" columns
+// into timestamptz. Their values were written as the server's local wall
+// clock, so they are interpreted with the server's current UTC offset (UTC
+// in the official image). Idempotent: converted columns are skipped.
+func convertNaiveTimestamps(db *gorm.DB) {
+	_, offset := time.Now().Zone()
+	interval := fmt.Sprintf("%d seconds", offset)
+	cols := [][2]string{
+		{"users", "two_factor_verified_at"},
+		{"users", "pending_two_factor_expires_at"},
+		{"otp_tokens", "locked_until"},
+		{"database_configs", "version_last_checked"},
+		{"server_connections", "last_tested_at"},
+	}
+	for _, c := range cols {
+		var dataType string
+		db.Raw(`SELECT data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?`, c[0], c[1]).Scan(&dataType)
+		if dataType != "timestamp without time zone" {
+			continue
+		}
+		stmt := fmt.Sprintf(`ALTER TABLE %q ALTER COLUMN %q TYPE timestamptz USING %q AT TIME ZONE INTERVAL '%s'`, c[0], c[1], c[1], interval)
+		if err := db.Exec(stmt).Error; err != nil {
+			log.Printf("warning: converting %s.%s to timestamptz failed: %v", c[0], c[1], err)
+		}
+	}
 }

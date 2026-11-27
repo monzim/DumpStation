@@ -1,7 +1,9 @@
+# DumpStation — server + web UI + metadata database.
+# Direct backups work out of the box. Agents (for private databases) are
+# deployed separately next to those databases; see deploy/agent/.
 services:
-  # PostgreSQL Database (DumpStation's internal database)
   postgres:
-    image: postgres:15-alpine
+    image: postgres:${POSTGRES_IMAGE_TAG:-15-alpine}  # keep the major version your data volume was created with
     container_name: dumpstation_postgres
     restart: unless-stopped
     environment:
@@ -11,38 +13,23 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - dumpstation_internal
+    networks: [dumpstation_internal]
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-backup_service}",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-backup_service}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
 
-  # DumpStation Backend API
-  backend:
-    image: ghcr.io/monzim/dumpstation:latest
-    container_name: dumpstation_backend
+  dumpstation:
+    image: ghcr.io/monzim/dumpstation:${DUMPSTATION_VERSION:-latest}
+    container_name: dumpstation
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      # Server Configuration
-      SERVER_HOST: 0.0.0.0
-      SERVER_PORT: 8080
-
-      # Database Configuration (System Database)
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${POSTGRES_USER:-postgres}
@@ -50,123 +37,51 @@ services:
       DB_NAME: ${POSTGRES_DB:-backup_service}
       DB_SSLMODE: disable
 
-      # JWT Configuration
+      # Required secrets
       JWT_SECRET: ${JWT_SECRET:?JWT secret required}
-      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-10}
+      DUMPSTATION_SECRET_KEY: ${DUMPSTATION_SECRET_KEY:?Encryption key required (openssl rand -base64 32)}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-30}
 
-      # Discord Configuration
-      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?Discord webhook URL required}
+      # Public URL agents and browsers use to reach this server
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
+
+      # Sign-in
+      SYSTEM_USERNAME: ${SYSTEM_USERNAME:-admin}
+      SYSTEM_EMAIL: ${SYSTEM_EMAIL:-admin@dumpstation.local}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       OTP_EXPIRATION_MINUTES: ${OTP_EXPIRATION_MINUTES:-5}
-
-      # Cloudflare Turnstile Configuration
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_ALLOWED_LOGIN: ${GITHUB_ALLOWED_LOGIN:-}
+      GITHUB_REDIRECT_URL: ${GITHUB_REDIRECT_URL:-}
       TURNSTILE_ENABLED: ${TURNSTILE_ENABLED:-false}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
-      TURNSTILE_TIMEOUT: ${TURNSTILE_TIMEOUT:-10}
+      TURNSTILE_TIMEOUT: ${TURNSTILE_TIMEOUT:-5}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      APP_ENV: ${APP_ENV:-production}
+      DEMO_ENABLED: ${DEMO_ENABLED:-false}
 
-      # CORS Configuration
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://dumpstation.monzim.com}
-      CORS_ALLOWED_METHODS: ${CORS_ALLOWED_METHODS:-GET,POST,PUT,DELETE,OPTIONS,PATCH}
-      CORS_ALLOWED_HEADERS: ${CORS_ALLOWED_HEADERS:-Origin,Content-Type,Accept,Authorization,X-Requested-With,X-2FA-Token}
-      CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
-      CORS_MAX_AGE: ${CORS_MAX_AGE:-86400}
-      CORS_DEBUG: ${CORS_DEBUG:-false}
-
-      # System Admin User
-      SYSTEM_USERNAME: ${SYSTEM_USERNAME:-admin}
-      SYSTEM_EMAIL: ${SYSTEM_EMAIL:-admin@dumpstation.local}
+      # Backup execution
+      BACKUP_CONCURRENCY: ${BACKUP_CONCURRENCY:-2}
+      BACKUP_TIMEOUT_MINUTES: ${BACKUP_TIMEOUT_MINUTES:-360}
+      AGENT_JOB_QUEUE_TTL_MINUTES: ${AGENT_JOB_QUEUE_TTL_MINUTES:-360}
+      DIRECT_ALLOWED_CIDRS: ${DIRECT_ALLOWED_CIDRS:-}
+    volumes:
+      - backup_tmp:/tmp/dumpstation
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
-    networks:
-      - dumpstation_internal
-      - dumpstation_external
-
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "5"
-
-  # DumpStation Web Frontend
-  web:
-    image: ghcr.io/monzim/dumpstation/web:latest
-    container_name: dumpstation_web
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    environment:
-      # API Configuration
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api/v1}
-
-      # Cloudflare Turnstile (Frontend)
-      VITE_TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
-
-      # Node Environment
-      NODE_ENV: production
-    ports:
-      - "${WEB_PORT:-3000}:3000"
-    networks:
-      - dumpstation_external
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "20m"
-        max-file: "3"
-
-  # MinIO (Optional - S3-compatible storage for testing/local development)
-  # Uncomment if you want to use MinIO as local storage
-  # minio:
-  #   image: minio/minio:latest
-  #   container_name: dumpstation_minio
-  #   restart: unless-stopped
-  #   command: server /data --console-address ":9001"
-  #   environment:
-  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MinIO password required}
-  #   volumes:
-  #     - minio_data:/data
-  #   ports:
-  #     - "${MINIO_API_PORT:-9000}:9000"
-  #     - "${MINIO_CONSOLE_PORT:-9001}:9001"
-  #   networks:
-  #     - dumpstation_internal
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-  #     interval: 30s
-  #     timeout: 20s
-  #     retries: 3
-  #   logging:
-  #     driver: "json-file"
-  #     options:
-  #       max-size: "10m"
-  #       max-file: "3"
+      - "${DUMPSTATION_PORT:-8080}:8080"
+    networks: [dumpstation_internal, dumpstation_external]
+    logging: { driver: json-file, options: { max-size: "50m", max-file: "5" } }
 
 networks:
-  # Internal network for backend <-> database communication
   dumpstation_internal:
-    driver: bridge
     internal: true
-    ipam:
-      driver: default
-      config:
-        - subnet: 192.168.100.0/24
-
-  # External network for public-facing services
-  dumpstation_external:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 192.168.101.0/24
+  dumpstation_external: {}
 
 volumes:
-  # PostgreSQL data persistence
   postgres_data:
-    driver: local
     name: dumpstation_postgres_data
-
-  # MinIO data persistence (if enabled)
-  # minio_data:
-  #   driver: local
-  #   name: dumpstation_minio_data
+  backup_tmp:
+    name: dumpstation_backup_tmp

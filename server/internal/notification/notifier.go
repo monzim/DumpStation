@@ -53,13 +53,13 @@ func NotifierFromConfig(cfg *models.NotificationConfig) Notifier {
 // nil-check at every call site.
 type noopNotifier struct{}
 
-func (noopNotifier) SendMessage(string) error                          { return nil }
-func (noopNotifier) SendOTP(string) error                              { return nil }
-func (noopNotifier) SendBackupSuccess(string, int64, string) error    { return nil }
-func (noopNotifier) SendBackupFailure(string, string) error           { return nil }
-func (noopNotifier) SendRestoreSuccess(string, string) error          { return nil }
-func (noopNotifier) SendRestoreFailure(string, string) error          { return nil }
-func (noopNotifier) SendDownloadOTP(string, string) error             { return nil }
+func (noopNotifier) SendMessage(string) error                      { return nil }
+func (noopNotifier) SendOTP(string) error                          { return nil }
+func (noopNotifier) SendBackupSuccess(string, int64, string) error { return nil }
+func (noopNotifier) SendBackupFailure(string, string) error        { return nil }
+func (noopNotifier) SendRestoreSuccess(string, string) error       { return nil }
+func (noopNotifier) SendRestoreFailure(string, string) error       { return nil }
+func (noopNotifier) SendDownloadOTP(string, string) error          { return nil }
 
 // MultiNotifier fans every call out to its children, joining their errors
 // so one failing channel never silently masks the others.
