@@ -168,4 +168,3 @@ func (tn *TelegramNotifier) SendDownloadOTP(otp, backupName string) error {
 		otp, backupName, time.Now().UTC().Format(time.RFC3339))
 	return tn.SendMessage(message)
 }
-

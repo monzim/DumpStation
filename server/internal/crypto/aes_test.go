@@ -97,7 +97,7 @@ func TestDecryptRejectsMalformed(t *testing.T) {
 	c := newTestCipher(t)
 	cases := []string{
 		"!!!not-base64!!!",
-		base64.StdEncoding.EncodeToString([]byte("short")), // shorter than nonce
+		base64.StdEncoding.EncodeToString([]byte("short")),  // shorter than nonce
 		base64.StdEncoding.EncodeToString(make([]byte, 32)), // valid base64 but garbage payload
 	}
 	for _, in := range cases {

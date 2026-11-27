@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -888,4 +888,3 @@ func writeAdminError(w http.ResponseWriter, op string, err error) {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("%s: %v", op, err))
 	}
 }
-

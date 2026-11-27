@@ -88,7 +88,9 @@ func pgError(err error) error {
 }
 
 func connectPgx(ctx context.Context, c Conn) (*pgconn.PgConn, error) {
-	q := func(s string) string { return "'" + strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `'`, `\'`) + "'" }
+	q := func(s string) string {
+		return "'" + strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `'`, `\'`) + "'"
+	}
 	ssl := c.SSLMode
 	if ssl == "" {
 		ssl = "prefer"
@@ -145,7 +147,7 @@ func stripLeadingComments(s string) string {
 }
 
 // sqlScanner splits a SQL script into statements, honouring quoted strings,
-// E'' escapes, quoted identifiers, dollar quoting and comments.
+// E” escapes, quoted identifiers, dollar quoting and comments.
 type sqlScanner struct {
 	r *bufio.Reader
 }

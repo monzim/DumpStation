@@ -30,13 +30,13 @@ type User struct {
 	GitHubUserID           int64          `gorm:"type:bigint;index" json:"github_user_id,omitempty"`
 	AvatarURL              string         `gorm:"type:varchar(500)" json:"avatar_url,omitempty"` // Remote avatar URL (e.g. GitHub)
 	Email                  string         `gorm:"type:varchar(255);uniqueIndex" json:"email,omitempty"`
-	ProfilePictureData     []byte         `gorm:"type:bytea" json:"-"`                                    // Profile picture stored as binary data
-	ProfilePictureMimeType string         `gorm:"type:varchar(50)" json:"-"`                              // MIME type of profile picture (e.g., image/png)
-	IsDemo                 bool           `gorm:"default:false" json:"is_demo"`                           // Whether this is a demo account (read-only access)
-	IsAdmin                bool           `gorm:"default:false" json:"is_admin"`                          // Whether this user has admin privileges (can view all data)
-	TwoFactorSecret        string         `gorm:"type:text;serializer:secret" json:"-"`                   // Encrypted TOTP secret (active once 2FA enabled)
-	TwoFactorEnabled       bool           `gorm:"default:false" json:"two_factor_enabled"`                // Whether 2FA is enabled
-	TwoFactorBackupCodes   pq.StringArray `gorm:"type:text[]" json:"-"`                                   // Hashed backup recovery codes
+	ProfilePictureData     []byte         `gorm:"type:bytea" json:"-"`                                      // Profile picture stored as binary data
+	ProfilePictureMimeType string         `gorm:"type:varchar(50)" json:"-"`                                // MIME type of profile picture (e.g., image/png)
+	IsDemo                 bool           `gorm:"default:false" json:"is_demo"`                             // Whether this is a demo account (read-only access)
+	IsAdmin                bool           `gorm:"default:false" json:"is_admin"`                            // Whether this user has admin privileges (can view all data)
+	TwoFactorSecret        string         `gorm:"type:text;serializer:secret" json:"-"`                     // Encrypted TOTP secret (active once 2FA enabled)
+	TwoFactorEnabled       bool           `gorm:"default:false" json:"two_factor_enabled"`                  // Whether 2FA is enabled
+	TwoFactorBackupCodes   pq.StringArray `gorm:"type:text[]" json:"-"`                                     // Hashed backup recovery codes
 	TwoFactorVerifiedAt    *time.Time     `gorm:"type:timestamptz" json:"two_factor_verified_at,omitempty"` // When 2FA was verified during setup
 	// PendingTwoFactorSecret holds an unverified TOTP secret produced by
 	// Setup2FA. It is promoted to TwoFactorSecret only after the user proves
