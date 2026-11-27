@@ -118,6 +118,9 @@ export function RestoreList({
   if (query.isLoading) return <TableSkeleton rows={compact ? 3 : 8} />
   if (query.error && !query.data) return <ErrorState error={query.error} onRetry={() => query.refetch()} title="Could not load restores" />
   const data = (rows ?? query.data ?? []) as Row[]
+  const emptyNode = <Empty title={empty?.title ?? 'No restores'} description={empty?.description} icon={<RotateCcw size={20} />} actions={empty?.actions} />
+  // Empty: render outside the scrolling table so it stays centred on narrow screens.
+  if (data.length === 0) return emptyNode
   return (
     <div style={{ overflowX: 'auto' }}>
       <div style={{ minWidth: compact ? 800 : 1060 }}>
@@ -128,7 +131,7 @@ export function RestoreList({
           density="compact"
           hasHover
           verticalAlign="middle"
-          emptyState={<Empty title={empty?.title ?? 'No restores'} description={empty?.description} icon={<RotateCcw size={20} />} actions={empty?.actions} />}
+          emptyState={emptyNode}
         />
       </div>
     </div>

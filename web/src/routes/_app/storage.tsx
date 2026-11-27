@@ -73,7 +73,7 @@ function StorageTable({ list, onEdit }: { list: StorageConfig[]; onEdit: (s: Sto
   return (
     <>
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 1040 }}>
+        <div style={{ minWidth: rows.length ? 1040 : undefined }}>
           <Table<Row>
             data={rows}
             idKey="id"

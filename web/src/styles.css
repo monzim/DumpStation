@@ -221,3 +221,62 @@
     }
   }
 }
+
+/* Side nav footer: account menu + collapse toggle on one row; stacked when collapsed. */
+.ds-nav-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+.ds-nav-footer-account {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ds-nav-footer[data-collapsed] {
+  flex-direction: column;
+  align-items: center;
+}
+.ds-nav-footer[data-collapsed] .ds-nav-footer-account {
+  flex: 0 0 auto;
+}
+.ds-tooltip-shortcut {
+  margin-inline-start: var(--spacing-2);
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+/* Keyboard hints mean nothing on touch-only devices. */
+@media (hover: none) and (pointer: coarse) {
+  .ds-search-trigger-kbd {
+    display: none;
+  }
+}
+
+/* Account menu trigger. Not `all: unset`: that also clears the anchor-name
+   the menu layer writes inline, and the menu then loses its position. */
+.ds-account-trigger {
+  appearance: none;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: var(--spacing-2);
+  border: 0;
+  border-radius: var(--radius-element);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.ds-account-trigger[data-collapsed] {
+  padding: var(--spacing-1);
+}
+.ds-account-trigger:hover,
+.ds-account-trigger[aria-expanded='true'] {
+  background: var(--color-overlay-hover);
+}
+.ds-account-trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

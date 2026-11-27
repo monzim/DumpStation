@@ -55,7 +55,7 @@ function AgentsTable({ agents }: { agents: Agent[] }) {
   const rows = agents.map(normalizeAgent).sort((a, b) => a.name.localeCompare(b.name)) as Row[]
   return (
     <div style={{ overflowX: 'auto' }}>
-      <div style={{ minWidth: 1180 }}>
+      <div style={{ minWidth: rows.length ? 1000 : undefined }}>
         <Table<Row>
           data={rows}
           idKey="id"
@@ -66,7 +66,7 @@ function AgentsTable({ agents }: { agents: Agent[] }) {
             {
               key: 'name',
               header: 'Agent',
-              width: { type: 'proportional', value: 1.8, minWidth: 180 },
+              width: { type: 'proportional', value: 2, minWidth: 200 },
               renderCell: (a) => (
                 <VStack gap={0.5}>
                   <Link href={`/agents/${a.id}`}>
@@ -80,18 +80,28 @@ function AgentsTable({ agents }: { agents: Agent[] }) {
                 </VStack>
               ),
             },
-            { key: 'connectivity', header: 'Status', width: { type: 'proportional', value: 1.7, minWidth: 170 }, renderCell: (a) => <AgentConnectivityBadge status={a.status} connectivity={a.connectivity} /> },
-            { key: 'version', header: 'Version', renderCell: (a) => <Text className="ds-mono">{a.version || '—'}</Text> },
-            { key: 'last_seen_at', header: 'Last heartbeat', renderCell: (a) => <When value={a.last_seen_at} empty="Never" /> },
-            { key: 'enrolled_at', header: 'Registered', renderCell: (a) => <When value={a.enrolled_at} empty="Not yet" /> },
+            {
+              key: 'connectivity',
+              header: 'Status',
+              width: { type: 'proportional', value: 1.7, minWidth: 170 },
+              renderCell: (a) => (
+                <VStack gap={0.5}>
+                  <AgentConnectivityBadge status={a.status} connectivity={a.connectivity} />
+                  <When value={a.last_seen_at} empty={a.enrolled_at ? 'No heartbeat' : 'Not enrolled'} />
+                </VStack>
+              ),
+            },
+            { key: 'version', header: 'Version', width: { type: 'proportional', value: 0.8, minWidth: 80 }, renderCell: (a) => <Text className="ds-mono">{a.version || '—'}</Text> },
             {
               key: 'database_count',
+              width: { type: 'proportional', value: 0.9, minWidth: 90 },
               header: 'Databases',
               align: 'end',
               renderCell: (a) => <Text hasTabularNumbers>{a.database_count}</Text>,
             },
             {
               key: 'running_jobs',
+              width: { type: 'proportional', value: 0.8, minWidth: 80 },
               header: 'Running',
               align: 'end',
               renderCell: (a) => (
@@ -103,6 +113,7 @@ function AgentsTable({ agents }: { agents: Agent[] }) {
             },
             {
               key: 'recent_failures',
+              width: { type: 'proportional', value: 1, minWidth: 100 },
               header: 'Failures (7d)',
               align: 'end',
               renderCell: (a) =>
@@ -117,7 +128,7 @@ function AgentsTable({ agents }: { agents: Agent[] }) {
                 ),
             },
             { key: 'capabilities', header: 'Capabilities', width: { type: 'proportional', value: 1.5, minWidth: 150 }, renderCell: (a) => <Capabilities agent={a} /> },
-            { key: 'labels', header: 'Labels', renderCell: (a) => <LabelTokens labels={a.labels} /> },
+            { key: 'labels', header: 'Labels', width: { type: 'proportional', value: 1.3, minWidth: 130 }, renderCell: (a) => <LabelTokens labels={a.labels} /> },
           ]}
         />
       </div>

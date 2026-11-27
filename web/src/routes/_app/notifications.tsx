@@ -98,7 +98,7 @@ function ChannelTable({ list, onEdit }: { list: NotificationConfig[]; onEdit: (n
   return (
     <>
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 860 }}>
+        <div style={{ minWidth: rows.length ? 860 : undefined }}>
           <Table<Row>
             data={rows}
             idKey="id"

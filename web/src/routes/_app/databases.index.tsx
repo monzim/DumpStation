@@ -346,7 +346,7 @@ function DatabasesPage() {
           </HStack>
           <Card padding={0}>
             <div style={{ overflowX: 'auto' }}>
-              <div style={{ minWidth: 1080 }}>
+              <div style={{ minWidth: rows.length ? 1080 : undefined }}>
                 <Table<Row>
                   data={rows}
                   columns={columns}

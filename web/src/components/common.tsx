@@ -44,7 +44,7 @@ export function Panel({
                 )}
               </VStack>
             </StackItem>
-            {actions}
+            {actions && <div className="ds-nowrap">{actions}</div>}
           </HStack>
         )}
         <VStack gap={3} padding={padding}>

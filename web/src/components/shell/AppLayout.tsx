@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { AppShell } from '@astryxdesign/core/AppShell'
-import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from '@astryxdesign/core/SideNav'
+import { SideNav, SideNavCollapseButton, SideNavHeading, SideNavItem, SideNavSection } from '@astryxdesign/core/SideNav'
+import { Tooltip } from '@astryxdesign/core/Tooltip'
 import { DropdownMenu } from '@astryxdesign/core/DropdownMenu'
 import { Avatar } from '@astryxdesign/core/Avatar'
 import { Banner } from '@astryxdesign/core/Banner'
@@ -25,6 +26,8 @@ import {
   MoonStar,
   Sun,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   TableProperties,
 } from 'lucide-react'
@@ -36,6 +39,7 @@ import { Kbd } from '@astryxdesign/core/Kbd'
 import { CommandMenu, useCommandMenuShortcut } from './CommandMenu'
 
 const NAV_KEY = 'ds.sidenav.collapsed'
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 /** Side nav collapse state, persisted per browser; Ctrl/⌘+B toggles it. */
 function useNavCollapse() {
@@ -96,7 +100,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const nav = (
     <SideNav
       aria-label="Primary"
-      collapsible={{ ...collapse, buttonLabel: collapsed ? 'Expand sidebar (Ctrl+B)' : 'Collapse sidebar (Ctrl+B)' }}
+      collapsible={{ ...collapse, hasButton: false }}
       header={<SideNavHeading heading="DumpStation" icon={<img className="ds-wordmark-logo" src="/logo.svg" alt="" width={22} height={22} aria-hidden />} headingHref="/" />}
       topContent={
         <button
@@ -112,68 +116,81 @@ export function AppLayout({ children }: { children: ReactNode }) {
           {!collapsed && (
             <>
               <span className="ds-search-trigger-label">Search…</span>
-              <Kbd keys="mod+k" />
+              <span className="ds-search-trigger-kbd"><Kbd keys="mod+k" /></span>
             </>
           )}
         </button>
       }
       footer={
-        <DropdownMenu
-          menuWidth={220}
-          placement="above"
-          renderTrigger={(props) => (
-            <button
-              type="button"
-              {...props}
-              style={{
-                all: 'unset',
-                cursor: 'pointer',
-                display: 'block',
-                width: '100%',
-                padding: collapsed ? 'var(--spacing-1)' : 'var(--spacing-2)',
-                borderRadius: 'var(--radius-element)',
-                boxSizing: 'border-box',
-              }}
-              aria-label="Account and preferences"
-              title={collapsed ? name || 'Account' : undefined}
-            >
-              {collapsed ? (
-                <HStack hAlign="center">
-                  <Avatar name={name || 'User'} src={user?.avatar_url} size="sm" tooltip={false} />
-                </HStack>
-              ) : (
-              <HStack gap={2} vAlign="center">
-                <Avatar name={name || 'User'} src={user?.avatar_url} size="sm" tooltip={false} />
-                <StackItem size="fill">
-                  <VStack gap={0}>
-                    <Text weight="medium" maxLines={1}>
-                      {name || 'Signed in'}
-                    </Text>
-                    <Text type="supporting" color="secondary" maxLines={1}>
-                      {isDemo ? 'Demo (read-only)' : isAdmin ? 'Administrator' : 'Member'}
-                    </Text>
-                  </VStack>
-                </StackItem>
-              </HStack>
+        <div className="ds-nav-footer" data-collapsed={collapsed || undefined}>
+          <div className="ds-nav-footer-account">
+            <DropdownMenu
+              menuWidth={220}
+              placement={collapsed ? 'end' : 'above'}
+              renderTrigger={(props) => (
+                <button
+                  type="button"
+                  {...props}
+                  className="ds-account-trigger"
+                  data-collapsed={collapsed || undefined}
+                  aria-label="Account and preferences"
+                  title={collapsed ? name || 'Account' : undefined}
+                >
+                  {collapsed ? (
+                    <HStack hAlign="center">
+                      <Avatar name={name || 'User'} src={user?.avatar_url} size="sm" tooltip={false} />
+                    </HStack>
+                  ) : (
+                  <HStack gap={2} vAlign="center">
+                    <Avatar name={name || 'User'} src={user?.avatar_url} size="sm" tooltip={false} />
+                    <StackItem size="fill">
+                      <VStack gap={0}>
+                        <Text weight="medium" maxLines={1}>
+                          {name || 'Signed in'}
+                        </Text>
+                        <Text type="supporting" color="secondary" maxLines={1}>
+                          {isDemo ? 'Demo (read-only)' : isAdmin ? 'Administrator' : 'Member'}
+                        </Text>
+                      </VStack>
+                    </StackItem>
+                  </HStack>
+                  )}
+                </button>
               )}
-            </button>
-          )}
-          items={[
-            {
-              type: 'section',
-              title: 'Theme',
-              items: [
-                themeItem('system', 'System', <Monitor size={16} />),
-                themeItem('light', 'Light', <Sun size={16} />),
-                themeItem('dark', 'Dark', <Moon size={16} />),
-                themeItem('black', 'Black', <MoonStar size={16} />),
-              ],
-            },
-            { type: 'divider' },
-            { label: 'Account settings', icon: <Settings size={16} />, href: '/settings/profile' },
-            { label: 'Sign out', icon: <LogOut size={16} />, onClick: () => void signOut('manual') },
-          ]}
-        />
+              items={[
+                {
+                  type: 'section',
+                  title: 'Theme',
+                  items: [
+                    themeItem('system', 'System', <Monitor size={16} />),
+                    themeItem('light', 'Light', <Sun size={16} />),
+                    themeItem('dark', 'Dark', <Moon size={16} />),
+                    themeItem('black', 'Black', <MoonStar size={16} />),
+                  ],
+                },
+                { type: 'divider' },
+                { label: 'Account settings', icon: <Settings size={16} />, href: '/settings/profile' },
+                { label: 'Sign out', icon: <LogOut size={16} />, onClick: () => void signOut('manual') },
+              ]}
+            />
+          </div>
+          <Tooltip
+            placement={collapsed ? 'end' : 'above'}
+            content={
+              <span>
+                {collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                <span className="ds-tooltip-shortcut">{IS_MAC ? '⌘B' : 'Ctrl+B'}</span>
+              </span>
+            }
+          >
+            <SideNavCollapseButton
+              label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-keyshortcuts="Control+B Meta+B"
+            >
+              {collapsed ? <PanelLeftOpen size={16} aria-hidden /> : <PanelLeftClose size={16} aria-hidden />}
+            </SideNavCollapseButton>
+          </Tooltip>
+        </div>
       }
     >
       <SideNavSection title="Workspace">
